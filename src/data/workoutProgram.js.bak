@@ -1,0 +1,798 @@
+// 30 Günlük Spor Programı - Başlangıç Seviyesi
+// Profil: 28 yaş, 1.55m, 56kg, Az hareketli, 30 dk/gün
+// Ekipman: Mat, pilates topu, 5kg dumbbell, lastik, çember (hula hoop)
+
+// Hareket detayları ve alternatifleri
+const exerciseLibrary = {
+  squat: {
+    name: "Boş Squat",
+    duration: 3,
+    reps: "3 set x 10 tekrar",
+    description: "Ayaklar omuz genişliğinde, öne biraz eğil, kalçayı aşağı indir (sandalyeye oturur gibi), güclü şekilde kalk.",
+    videoGuide: "Diz ve kalça 90° olana kadar in. Dizler tırnakların üzerinde kalsın.",
+    difficulty: "Kolay",
+    targetMuscles: ["Bacaklar", "Glutler"],
+    alternatives: [
+      {
+        name: "Step Up",
+        duration: 3,
+        reps: "3 set x 10 tekrar (her bacak)",
+        description: "Sandalye/basamak kenarından adım at, ön bacakla kendini kaldır",
+        difficulty: "Kolay",
+        requiresEquipment: true,
+        equipment: ["Sandalye"]
+      },
+      {
+        name: "Wall Squat (Duvar Squat)",
+        duration: 3,
+        reps: "3 set x 30-45 saniye",
+        description: "Duvara sırtını daya, bacakları 90° olana kadar kaydır",
+        difficulty: "Orta",
+        requiresEquipment: false
+      }
+    ]
+  },
+
+  pushup: {
+    name: "Dizler Üzerinde Push-up",
+    duration: 3,
+    reps: "3 set x 8 tekrar",
+    description: "Dizleri yerde tut, vücudu düz, göğüs yere inene kadar in",
+    videoGuide: "Kolları 90° açı yap, vücut düz kalmasını sağla",
+    difficulty: "Kolay",
+    targetMuscles: ["Göğüs", "Triseps", "Omuzlar"],
+    alternatives: [
+      {
+        name: "Duvar Push-up",
+        duration: 2,
+        reps: "3 set x 12 tekrar",
+        description: "Duvara karşı push-up yap - daha kolay versiyon",
+        difficulty: "Kolay",
+        requiresEquipment: false
+      },
+      {
+        name: "Dumbbell Bench Press",
+        duration: 3,
+        reps: "3 set x 10 tekrar",
+        description: "Yatarak, dumbbells ile göğse doğru kaldır",
+        difficulty: "Orta",
+        requiresEquipment: true,
+        equipment: ["5kg Dumbbell"]
+      },
+      {
+        name: "Elastic Band Press",
+        duration: 2,
+        reps: "3 set x 12 tekrar",
+        description: "Lastikle göğüs çalış",
+        difficulty: "Kolay",
+        requiresEquipment: true,
+        equipment: ["Lastik"]
+      }
+    ]
+  },
+
+  plank: {
+    name: "Plank",
+    duration: 2,
+    reps: "2 set x 20-30 saniye",
+    description: "Antrenör pozisyonunda vücut düz, karına güç ver",
+    videoGuide: "Kalçalar yüksek olmasın, vücut düz bir çizgi oluştur",
+    difficulty: "Orta",
+    targetMuscles: ["Karın", "Omuz", "Sırt"],
+    alternatives: [
+      {
+        name: "Wall Plank",
+        duration: 2,
+        reps: "2 set x 30 saniye",
+        description: "Duvara karşı plank - daha kolay",
+        difficulty: "Kolay",
+        requiresEquipment: false
+      },
+      {
+        name: "Pilates Ball Plank",
+        duration: 2,
+        reps: "2 set x 20 saniye",
+        description: "Pilates topunun üzerinde plank - daha zor",
+        difficulty: "Zor",
+        requiresEquipment: true,
+        equipment: ["Pilates Topu"]
+      }
+    ]
+  },
+
+  lunge: {
+    name: "Lunges (Adım Atma)",
+    duration: 3,
+    reps: "2 set x 8 tekrar (her bacak)",
+    description: "Öne adım at, ön bacak 90° olana kadar in, arka diz yere yaklaşsın",
+    videoGuide: "Her adımda güclü çık, vücudu düz tut",
+    difficulty: "Orta",
+    targetMuscles: ["Bacaklar", "Glutler"],
+    alternatives: [
+      {
+        name: "Reverse Lunge",
+        duration: 3,
+        reps: "2 set x 10 tekrar (her bacak)",
+        description: "Arkaya adım at (diz üzerinde daha az baskı)",
+        difficulty: "Kolay",
+        requiresEquipment: false
+      },
+      {
+        name: "Walking Lunges",
+        duration: 3,
+        reps: "3 set x 12 metre",
+        description: "Yürüyerek lunges yap",
+        difficulty: "Orta",
+        requiresEquipment: false
+      }
+    ]
+  },
+
+  glutBridge: {
+    name: "Glut Bridge",
+    duration: 2,
+    reps: "3 set x 12 tekrar",
+    description: "Yatarak, dizler bükülü, glutleri yukarı kaldır, sıkı tut",
+    videoGuide: "Üst kısmı yerde tut, sadece glutler hareket etsin",
+    difficulty: "Kolay",
+    targetMuscles: ["Glutler", "Hamstring"],
+    alternatives: [
+      {
+        name: "Single Leg Glut Bridge",
+        duration: 2,
+        reps: "2 set x 8 tekrar (her bacak)",
+        description: "Tek bacakla glut bridge - daha zor",
+        difficulty: "Orta",
+        requiresEquipment: false
+      },
+      {
+        name: "Dumbbell Hip Thrust",
+        duration: 3,
+        reps: "3 set x 10 tekrar",
+        description: "Dumbbell ile daha güçlü versiyon",
+        difficulty: "Orta",
+        requiresEquipment: true,
+        equipment: ["5kg Dumbbell"]
+      }
+    ]
+  },
+
+  lateralRaise: {
+    name: "Işın Hareketleri (Lateral Raise)",
+    duration: 2,
+    reps: "2 set x 12 tekrar",
+    description: "Kolları yanlara kaldır (sanki uçmaya çalışıyor gibi)",
+    videoGuide: "Hafifçe dirsekler bükülü, kontrollü hareket",
+    difficulty: "Kolay",
+    targetMuscles: ["Omuzlar"],
+    alternatives: [
+      {
+        name: "Dumbbell Lateral Raise",
+        duration: 2,
+        reps: "2 set x 10 tekrar",
+        description: "Dumbbells ile omuzları çalış",
+        difficulty: "Orta",
+        requiresEquipment: true,
+        equipment: ["5kg Dumbbell"]
+      },
+      {
+        name: "Elastic Band Lateral Raise",
+        duration: 2,
+        reps: "2 set x 12 tekrar",
+        description: "Lastikle omuzları çalış",
+        difficulty: "Kolay",
+        requiresEquipment: true,
+        equipment: ["Lastik"]
+      }
+    ]
+  },
+
+  lateralLegRaise: {
+    name: "Bacak Kaldırma (Lateral Leg Raise)",
+    duration: 2,
+    reps: "2 set x 12 tekrar (her bacak)",
+    description: "Yanda yan yat, üst bacağı yavaşça kaldır",
+    videoGuide: "Kalça hızlı hareket etmesin, kontrollü kaldır",
+    difficulty: "Kolay",
+    targetMuscles: ["Glutler (Yan)", "Kalçalar"],
+    alternatives: [
+      {
+        name: "Standing Side Leg Raise",
+        duration: 2,
+        reps: "2 set x 12 tekrar (her bacak)",
+        description: "Ayakta bacağı yanına kaldır",
+        difficulty: "Kolay",
+        requiresEquipment: false
+      },
+      {
+        name: "Elastic Band Leg Raise",
+        duration: 2,
+        reps: "2 set x 15 tekrar (her bacak)",
+        description: "Lastik ile bacak kaldırma",
+        difficulty: "Orta",
+        requiresEquipment: true,
+        equipment: ["Lastik"]
+      }
+    ]
+  },
+
+  crunch: {
+    name: "Crunch (Karın)",
+    duration: 2,
+    reps: "2 set x 12 tekrar",
+    description: "Yatarak, üst göğsü hafifçe kaldır (tam sit-up değil)",
+    videoGuide: "Boyun gergin kalmasın, karın kasıyla çal",
+    difficulty: "Kolay",
+    targetMuscles: ["Karın"],
+    alternatives: [
+      {
+        name: "Bicycle Crunch",
+        duration: 2,
+        reps: "2 set x 12 tekrar",
+        description: "Yatarak, bisiklet pedal yaparcasına hareket",
+        difficulty: "Orta",
+        requiresEquipment: false
+      },
+      {
+        name: "Pilates Ball Crunch",
+        duration: 2,
+        reps: "2 set x 12 tekrar",
+        description: "Pilates topunun üzerinde crunch",
+        difficulty: "Orta",
+        requiresEquipment: true,
+        equipment: ["Pilates Topu"]
+      }
+    ]
+  },
+
+  highKnees: {
+    name: "High Knees (Yüksek Diz)",
+    duration: 2,
+    reps: "30 saniye x 3 set",
+    description: "Yerinde, dizleri yüksek kaldır (göğüs hizasına)",
+    videoGuide: "Hızlı ve ritmik hareket, kalbi çalıştır",
+    difficulty: "Orta",
+    targetMuscles: ["Kalp", "Bacaklar"],
+    alternatives: [
+      {
+        name: "Jumping Jacks",
+        duration: 2,
+        reps: "30 saniye x 3 set",
+        description: "Sıçra, ayakları aç-kapat",
+        difficulty: "Orta",
+        requiresEquipment: false
+      },
+      {
+        name: "Burpees",
+        duration: 2,
+        reps: "20 saniye x 3 set",
+        description: "Push-up + sıçra kombinasyonu - yüksek yoğunluk",
+        difficulty: "Zor",
+        requiresEquipment: false
+      }
+    ]
+  },
+
+  jumpSquat: {
+    name: "Jump Squats",
+    duration: 2,
+    reps: "2 set x 10 tekrar",
+    description: "Squat + sıçra kombinasyonu",
+    videoGuide: "Yavaş in, güçlü çıkış yaparak sıçra",
+    difficulty: "Orta",
+    targetMuscles: ["Bacaklar", "Kalp"],
+    alternatives: [
+      {
+        name: "Squat Hold",
+        duration: 2,
+        reps: "2 set x 30 saniye",
+        description: "Alt pozisyonda 30 saniye tut - daha güvenli",
+        difficulty: "Orta",
+        requiresEquipment: false
+      },
+      {
+        name: "Pulse Squats",
+        duration: 2,
+        reps: "2 set x 20 tekrar",
+        description: "Squat pozisyonunda hızlı hafif hareketler",
+        difficulty: "Orta",
+        requiresEquipment: false
+      }
+    ]
+  },
+
+  hula: {
+    name: "Hula Hoop",
+    duration: 5,
+    reps: "5 dakika",
+    description: "Hula çember ile kalçaları hareket ettir",
+    videoGuide: "Kalçaları daire şeklinde hareket ettir, dengeni koru",
+    difficulty: "Kolay",
+    targetMuscles: ["Kalçalar", "Karın", "Kalp"],
+    alternatives: [
+      {
+        name: "Türk Hareketi (Torso Rotation)",
+        duration: 5,
+        reps: "5 dakika",
+        description: "Ayakta omuz genişliğinde, gövdeyi döndür",
+        difficulty: "Kolay",
+        requiresEquipment: false
+      }
+    ]
+  }
+};
+
+// Ana program - Hafta 1
+export const workoutProgram = [
+  {
+    day: 1,
+    week: 1,
+    title: "Tüm Vücut - Temel",
+    description: "Başlangıç seviyesi, temel hareketler",
+    targetDuration: 25,
+    exercises: [
+      {
+        id: 1,
+        name: "Isınma - Hafif Yürüyüş",
+        duration: 3,
+        reps: "3 dakika",
+        description: "Yerinde hafif yürüyüş, kolları hareket ettir",
+        videoGuide: "Kalp atışını yavaşça yükselt. Bacakları hafif kaldır, kolları sallan.",
+        difficulty: "Kolay",
+        targetMuscles: ["Kalp", "Bacaklar"],
+        isWarmup: true,
+        alternatives: []
+      },
+      {
+        id: 2,
+        ...exerciseLibrary.squat
+      },
+      {
+        id: 3,
+        ...exerciseLibrary.pushup
+      },
+      {
+        id: 4,
+        ...exerciseLibrary.lunge
+      },
+      {
+        id: 5,
+        ...exerciseLibrary.plank
+      },
+      {
+        id: 6,
+        name: "Soğutma - Esnetme",
+        duration: 2,
+        reps: "2 dakika",
+        description: "Başı döve, omuzu döve, bacaklara doğru eğil",
+        videoGuide: "Her esnetmeyi 15-20 saniye tut. Ağrı yapmasın, hafif esnet.",
+        difficulty: "Kolay",
+        targetMuscles: ["Tüm vücut"],
+        isCooldown: true,
+        alternatives: []
+      }
+    ]
+  },
+
+  {
+    day: 2,
+    week: 1,
+    title: "Üst Vücut Odağı",
+    description: "Göğüs, triseps, omuzlar",
+    targetDuration: 25,
+    exercises: [
+      {
+        id: 7,
+        name: "Isınma - Kollar",
+        duration: 3,
+        reps: "3 dakika",
+        description: "Kolları daire şeklinde döndür",
+        videoGuide: "İleri-geri, 10 saniye ileri, 10 saniye geri",
+        difficulty: "Kolay",
+        targetMuscles: ["Omuzlar", "Kollar"],
+        isWarmup: true
+      },
+      {
+        id: 8,
+        ...exerciseLibrary.pushup,
+        reps: "3 set x 10 tekrar"
+      },
+      {
+        id: 9,
+        name: "Triseps Dips (Sandalye Üstünde)",
+        duration: 3,
+        reps: "2 set x 8 tekrar",
+        description: "Sandalye kenarında, kendini aşağı-yukarı kaldır",
+        videoGuide: "Dirsekleri gövdene yakın tut, derin iniş yap",
+        difficulty: "Orta",
+        targetMuscles: ["Triseps", "Göğüs"],
+        requiresEquipment: true,
+        equipment: ["Sandalye"],
+        alternatives: [
+          {
+            name: "Duvar Triseps Push",
+            duration: 2,
+            reps: "2 set x 12 tekrar",
+            description: "Duvara karşı triseps hareketi",
+            difficulty: "Kolay",
+            requiresEquipment: false
+          }
+        ]
+      },
+      {
+        id: 10,
+        ...exerciseLibrary.lateralRaise
+      },
+      {
+        id: 11,
+        ...exerciseLibrary.plank,
+        reps: "2 set x 25 saniye"
+      },
+      {
+        id: 12,
+        name: "Soğutma",
+        duration: 2,
+        reps: "2 dakika",
+        description: "Tüm vücudu esnet",
+        videoGuide: "Omuzları, kolları, göğsü esnet. Her esnetmeyi 15-20 saniye tut.",
+        difficulty: "Kolay",
+        targetMuscles: ["Tüm vücut"],
+        isCooldown: true,
+        alternatives: []
+      }
+    ]
+  },
+
+  {
+    day: 3,
+    week: 1,
+    title: "Alt Vücut Odağı",
+    description: "Bacaklar, glutler, hamstrings",
+    targetDuration: 25,
+    exercises: [
+      {
+        id: 13,
+        name: "Isınma - Dinamik Esnetme",
+        duration: 3,
+        reps: "3 dakika",
+        description: "Bacakları öne, arkaya getir",
+        videoGuide: "Dinamik hareketler - statik değil",
+        difficulty: "Kolay",
+        targetMuscles: ["Bacaklar"],
+        isWarmup: true
+      },
+      {
+        id: 14,
+        ...exerciseLibrary.squat,
+        reps: "3 set x 12 tekrar"
+      },
+      {
+        id: 15,
+        ...exerciseLibrary.lunge,
+        reps: "3 set x 10 tekrar (her bacak)"
+      },
+      {
+        id: 16,
+        ...exerciseLibrary.glutBridge,
+        reps: "2 set x 12 tekrar"
+      },
+      {
+        id: 17,
+        ...exerciseLibrary.lateralLegRaise
+      },
+      {
+        id: 18,
+        name: "Soğutma",
+        duration: 2,
+        reps: "2 dakika",
+        description: "Bacakları ve kalçaları esnet",
+        videoGuide: "Hamstring, quadriceps, glutler esnetme",
+        difficulty: "Kolay",
+        targetMuscles: ["Bacaklar", "Glutler"],
+        isCooldown: true,
+        alternatives: []
+      }
+    ]
+  },
+
+  {
+    day: 4,
+    week: 1,
+    title: "Kardiyo & Karın",
+    description: "Kalp atışı + merkez gücü",
+    targetDuration: 20,
+    exercises: [
+      {
+        id: 19,
+        name: "Isınma",
+        duration: 2,
+        reps: "2 dakika",
+        description: "Yerinde hafif yürüyüş",
+        videoGuide: "Kalp atışını hazırla",
+        difficulty: "Kolay",
+        targetMuscles: ["Kalp"],
+        isWarmup: true
+      },
+      {
+        id: 20,
+        ...exerciseLibrary.highKnees,
+        reps: "30 saniye x 3 set (+ 15 saniye ara)"
+      },
+      {
+        id: 21,
+        name: "Jumping Jacks",
+        duration: 2,
+        reps: "30 saniye x 2 set (+ 15 saniye ara)",
+        description: "Sıçra, ayakları aç-kapat",
+        videoGuide: "Ritmik hareket, kontrollü",
+        difficulty: "Orta",
+        targetMuscles: ["Kalp", "Tüm vücut"],
+        alternatives: [
+          {
+            name: "Duvar Dokunma",
+            duration: 2,
+            reps: "30 saniye x 2 set",
+            description: "Duvara dokunup geri gel - daha kolay kardiyo",
+            difficulty: "Kolay",
+            requiresEquipment: false
+          }
+        ]
+      },
+      {
+        id: 22,
+        ...exerciseLibrary.plank,
+        reps: "2 set x 20 saniye"
+      },
+      {
+        id: 23,
+        ...exerciseLibrary.crunch
+      },
+      {
+        id: 24,
+        name: "Soğutma",
+        duration: 1,
+        reps: "1 dakika",
+        description: "Hafif esnetme",
+        videoGuide: "Nefes al, sakinleş",
+        difficulty: "Kolay",
+        targetMuscles: ["Tüm vücut"],
+        isCooldown: true
+      }
+    ]
+  },
+
+  {
+    day: 5,
+    week: 1,
+    title: "Tüm Vücut",
+    description: "Melez antrenman",
+    targetDuration: 28,
+    exercises: [
+      {
+        id: 25,
+        name: "Isınma",
+        duration: 2,
+        reps: "2 dakika",
+        description: "Hafif hareket",
+        videoGuide: "Kolları ve bacakları harekete geç",
+        difficulty: "Kolay",
+        targetMuscles: ["Kalp"],
+        isWarmup: true
+      },
+      {
+        id: 26,
+        ...exerciseLibrary.pushup,
+        reps: "3 set x 8 tekrar"
+      },
+      {
+        id: 27,
+        ...exerciseLibrary.squat,
+        reps: "3 set x 10 tekrar"
+      },
+      {
+        id: 28,
+        ...exerciseLibrary.lateralRaise,
+        reps: "2 set x 10 tekrar"
+      },
+      {
+        id: 29,
+        ...exerciseLibrary.glutBridge,
+        reps: "2 set x 12 tekrar"
+      },
+      {
+        id: 30,
+        ...exerciseLibrary.plank,
+        reps: "2 set x 25 saniye"
+      },
+      {
+        id: 31,
+        name: "Soğutma",
+        duration: 2,
+        reps: "2 dakika",
+        description: "Tüm vücudu esnet",
+        videoGuide: "Uzun, derin esnetmeler",
+        difficulty: "Kolay",
+        targetMuscles: ["Tüm vücut"],
+        isCooldown: true
+      }
+    ]
+  },
+
+  {
+    day: 6,
+    week: 1,
+    title: "Özel Odak - Sıkılaşma",
+    description: "Tüm vücut sıkılaştırma",
+    targetDuration: 22,
+    exercises: [
+      {
+        id: 32,
+        name: "Isınma",
+        duration: 2,
+        reps: "2 dakika",
+        description: "Hafif hareket",
+        videoGuide: "Vücudu hazırla",
+        difficulty: "Kolay",
+        targetMuscles: ["Kalp"],
+        isWarmup: true
+      },
+      {
+        id: 33,
+        name: "Push-up (Ayaklar Üzerinde)",
+        duration: 2,
+        reps: "2 set x 5 tekrar",
+        description: "Daha zor versiyon - dizler yerde değil",
+        videoGuide: "Yavaş hareket, forma odaklan",
+        difficulty: "Orta",
+        targetMuscles: ["Göğüs", "Triseps"],
+        alternatives: [
+          {
+            name: "Push-up Dizler Üzerinde",
+            duration: 2,
+            reps: "3 set x 8 tekrar",
+            description: "Daha kolay versiyon",
+            difficulty: "Kolay",
+            requiresEquipment: false
+          }
+        ]
+      },
+      {
+        id: 34,
+        name: "Triseps Dips",
+        duration: 2,
+        reps: "2 set x 10 tekrar",
+        description: "Daha derin iniş",
+        videoGuide: "Tam hareket aralığı",
+        difficulty: "Orta",
+        targetMuscles: ["Triseps"],
+        requiresEquipment: true,
+        equipment: ["Sandalye"]
+      },
+      {
+        id: 35,
+        ...exerciseLibrary.jumpSquat
+      },
+      {
+        id: 36,
+        ...exerciseLibrary.lateralLegRaise,
+        reps: "2 set x 15 tekrar (her bacak)"
+      },
+      {
+        id: 37,
+        name: "Plank + Side Plank",
+        duration: 2,
+        reps: "1 set x 20 saniye normal + 15 saniye yan",
+        description: "Normal + yan planks kombinasyonu",
+        videoGuide: "Her pozisyonda forma koru",
+        difficulty: "Orta",
+        targetMuscles: ["Karın", "Yan"]
+      },
+      {
+        id: 38,
+        name: "Soğutma",
+        duration: 2,
+        reps: "2 dakika",
+        description: "Uzun esnetme",
+        videoGuide: "Tüm kasları esnet",
+        difficulty: "Kolay",
+        targetMuscles: ["Tüm vücut"],
+        isCooldown: true
+      }
+    ]
+  },
+
+  {
+    day: 7,
+    week: 1,
+    title: "Dinlenme Günü",
+    description: "İyileşme ve esnetme",
+    targetDuration: 15,
+    isRest: true,
+    exercises: [
+      {
+        id: 39,
+        name: "Hafif Yürüyüş",
+        duration: 5,
+        reps: "5 dakika",
+        description: "Hafif tempoda yürü (isteğe bağlı)",
+        videoGuide: "Rahat tempo, hiç zorlama yok",
+        difficulty: "Kolay",
+        targetMuscles: ["Kalp"],
+        isOptional: true
+      },
+      {
+        id: 40,
+        name: "Geniş Esnetme Rutini",
+        duration: 10,
+        reps: "10 dakika",
+        description: "Tüm vücudu esnet - özellikle bacaklar ve glutler",
+        videoGuide: "Statik esnetmeler, her biri 20-30 saniye",
+        difficulty: "Kolay",
+        targetMuscles: ["Tüm vücut"]
+      }
+    ]
+  }
+];
+
+// Hafta 2-4 programını dinamik oluştur
+const generateWeekProgram = (week, startDay) => {
+  const weekPrograms = [];
+
+  for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
+    const baseWorkout = workoutProgram[dayOffset];
+    if (!baseWorkout) continue;
+
+    // Hareketleri kopyala ve zorluk derecesini artır
+    const newExercises = baseWorkout.exercises.map((ex) => {
+      const updatedExercise = { ...ex };
+
+      // Zorluk derecesini artır
+      if (week === 2 && updatedExercise.difficulty === 'Kolay') {
+        updatedExercise.difficulty = 'Kolay';
+      } else if (week === 3 && updatedExercise.difficulty === 'Kolay') {
+        updatedExercise.difficulty = 'Orta';
+      } else if (week >= 4 && updatedExercise.difficulty === 'Kolay') {
+        updatedExercise.difficulty = 'Orta';
+      }
+
+      // Tekrar sayısı biraz artır (string replace)
+      updatedExercise.reps = updatedExercise.reps.replace(/(\d+)/g, (match) => {
+        const num = parseInt(match);
+        // Her hafta %10 artış
+        return Math.ceil(num * (1 + (week - 1) * 0.1));
+      });
+
+      return updatedExercise;
+    });
+
+    weekPrograms.push({
+      ...baseWorkout,
+      day: startDay + dayOffset,
+      week: week,
+      exercises: newExercises,
+      targetDuration: Math.ceil(baseWorkout.targetDuration * (1 + (week - 1) * 0.08))
+    });
+  }
+
+  return weekPrograms;
+};
+
+// Tüm 30 günü oluştur
+const week2 = generateWeekProgram(2, 8);
+const week3 = generateWeekProgram(3, 15);
+const week4 = generateWeekProgram(4, 22);
+
+export const fullProgram = [...workoutProgram, ...week2, ...week3, ...week4];
+
+// Export fonksiyonları
+export const getWorkoutsByWeek = (week) => {
+  return fullProgram.filter(w => w.week === week);
+};
+
+export const getWorkoutByDay = (day) => {
+  return fullProgram.find(w => w.day === day);
+};
+
+export const getAllWorkouts = () => {
+  return fullProgram;
+};

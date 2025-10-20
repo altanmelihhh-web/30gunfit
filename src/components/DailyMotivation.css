@@ -1,0 +1,240 @@
+.daily-motivation {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.05) 0%, rgba(139, 92, 246, 0.08) 100%);
+  border: 1px solid rgba(99, 102, 241, 0.15);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-base);
+  position: relative;
+  overflow: hidden;
+}
+
+.daily-motivation::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  right: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.1) 0%, transparent 70%);
+  pointer-events: none;
+  animation: motivationGlow 6s ease-in-out infinite;
+}
+
+@keyframes motivationGlow {
+  0%, 100% {
+    transform: translate(0, 0) scale(1);
+    opacity: 0.5;
+  }
+  50% {
+    transform: translate(-10%, -10%) scale(1.1);
+    opacity: 0.8;
+  }
+}
+
+.motivation-streak {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  background: var(--gradient-primary);
+  border-radius: var(--radius-md);
+  box-shadow: 0 12px 28px rgba(99, 102, 241, 0.3);
+  animation: slideInDown 0.5s ease;
+  position: relative;
+  z-index: 1;
+}
+
+@keyframes slideInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.streak-emoji {
+  font-size: 2rem;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+}
+
+.streak-message {
+  margin: 0;
+  color: white;
+  font-size: 1.1rem;
+  font-weight: 700;
+  flex: 1;
+}
+
+.motivation-quote {
+  display: flex;
+  gap: 16px;
+  padding: 20px;
+  background: var(--color-surface);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-sm);
+  position: relative;
+  z-index: 1;
+}
+
+.quote-emoji {
+  font-size: 2.5rem;
+  flex-shrink: 0;
+  line-height: 1;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+}
+
+blockquote {
+  margin: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.quote-text {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  line-height: 1.6;
+  font-style: italic;
+  position: relative;
+}
+
+.quote-text::before {
+  content: '"';
+  position: absolute;
+  left: -16px;
+  top: -8px;
+  font-size: 3rem;
+  color: rgba(99, 102, 241, 0.15);
+  font-family: Georgia, serif;
+}
+
+.quote-author {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  font-weight: 600;
+  font-style: normal;
+}
+
+.motivation-progress {
+  padding: 14px 16px;
+  background: var(--color-surface-muted);
+  border-left: 4px solid;
+  border-radius: var(--radius-sm);
+  position: relative;
+  z-index: 1;
+}
+
+.motivation-progress p {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.motivation-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  position: relative;
+  z-index: 1;
+}
+
+.mini-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 12px;
+  background: var(--color-surface);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  transition: all var(--transition-base);
+}
+
+.mini-stat:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-sm);
+  border-color: rgba(99, 102, 241, 0.3);
+}
+
+.stat-icon {
+  font-size: 1.4rem;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+}
+
+.stat-text {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  text-align: center;
+}
+
+@media (max-width: 768px) {
+  .daily-motivation {
+    padding: 20px;
+    gap: 16px;
+  }
+
+  .motivation-streak {
+    flex-direction: column;
+    text-align: center;
+    padding: 16px;
+  }
+
+  .streak-emoji {
+    font-size: 2.5rem;
+  }
+
+  .streak-message {
+    font-size: 1rem;
+  }
+
+  .motivation-quote {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 18px;
+  }
+
+  .quote-emoji {
+    font-size: 2rem;
+  }
+
+  .quote-text {
+    font-size: 1rem;
+  }
+
+  .quote-text::before {
+    display: none;
+  }
+
+  .motivation-stats {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .mini-stat {
+    flex-direction: row;
+    justify-content: center;
+    padding: 10px;
+  }
+
+  .stat-icon {
+    font-size: 1.2rem;
+  }
+
+  .stat-text {
+    font-size: 0.8rem;
+  }
+}

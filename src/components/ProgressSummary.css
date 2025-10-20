@@ -1,0 +1,227 @@
+.progress-summary {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  border: 1px solid var(--color-border);
+  transition: background var(--transition-base), box-shadow var(--transition-base),
+    border-color var(--transition-base);
+}
+
+.summary-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+}
+
+.summary-header h2 {
+  margin: 0;
+  font-size: 1.35rem;
+  color: var(--color-text-primary);
+}
+
+.summary-header p {
+  margin: 6px 0 0;
+  color: var(--color-text-muted);
+  font-size: 0.95rem;
+}
+
+.summary-overall {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  background: var(--gradient-primary);
+  color: white;
+  padding: 14px 18px;
+  border-radius: var(--radius-md);
+  box-shadow: 0 18px 40px rgba(99, 102, 241, 0.25);
+}
+
+.summary-overall span {
+  font-size: 0.8rem;
+  opacity: 0.92;
+  letter-spacing: 0.4px;
+}
+
+.summary-overall strong {
+  font-size: 1.75rem;
+  line-height: 1;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.summary-card {
+  background: var(--color-surface-muted);
+  border: 1px solid rgba(99, 102, 241, 0.18);
+  border-radius: var(--radius-md);
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: transform var(--transition-base), box-shadow var(--transition-base);
+}
+
+.summary-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-sm);
+}
+
+.summary-label {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  color: #4f46e5;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+}
+
+.summary-card strong {
+  font-size: 1.5rem;
+  color: var(--color-text-primary);
+}
+
+.summary-card small {
+  font-size: 0.85rem;
+  color: var(--color-text-secondary);
+}
+
+.today-highlight {
+  background: linear-gradient(
+      180deg,
+      rgba(99, 102, 241, 0.08) 0%,
+      rgba(139, 92, 246, 0.12) 100%
+    ),
+    var(--color-surface);
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  border-radius: var(--radius-md);
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.today-info h3 {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: 1.1rem;
+}
+
+.today-info p {
+  margin: 6px 0 0;
+  color: var(--color-text-secondary);
+  font-size: 0.95rem;
+}
+
+.today-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.today-progress-bar {
+  height: 12px;
+  background: rgba(99, 102, 241, 0.15);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.today-progress-fill {
+  height: 100%;
+  background: var(--gradient-primary);
+  transition: width 0.4s ease;
+}
+
+.today-progress-text {
+  font-size: 0.9rem;
+  color: var(--color-text-secondary);
+  font-weight: 600;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+@media (max-width: 768px) {
+  .progress-summary {
+    padding: 20px;
+    gap: 18px;
+  }
+
+  .summary-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+
+  .summary-header h2 {
+    font-size: 1.25rem;
+  }
+
+  .summary-header p {
+    font-size: 0.9rem;
+  }
+
+  .summary-overall {
+    align-items: flex-start;
+    width: 100%;
+    padding: 16px 18px;
+  }
+
+  .summary-overall span {
+    font-size: 0.78rem;
+  }
+
+  .summary-overall strong {
+    font-size: 1.6rem;
+  }
+
+  .summary-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+  }
+
+  .summary-card {
+    padding: 16px;
+  }
+
+  .summary-label {
+    font-size: 0.72rem;
+  }
+
+  .summary-card strong {
+    font-size: 1.35rem;
+  }
+
+  .summary-card small {
+    font-size: 0.8rem;
+  }
+
+  .today-highlight {
+    padding: 16px;
+    gap: 12px;
+  }
+
+  .today-info h3 {
+    font-size: 1.05rem;
+  }
+
+  .today-info p {
+    font-size: 0.9rem;
+  }
+
+  .today-progress-bar {
+    height: 10px;
+  }
+
+  .today-progress-text {
+    font-size: 0.85rem;
+    gap: 10px;
+  }
+}
