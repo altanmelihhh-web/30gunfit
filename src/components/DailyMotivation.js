@@ -3,7 +3,7 @@ import './DailyMotivation.css';
 
 function DailyMotivation({ completedDays, currentDay, streak }) {
   // Motivasyon mesajları koleksiyonu
-  const motivationQuotes = [
+  const motivationQuotes = useMemo(() => [
     {
       message: "Bugün kendine yatırım yapmanın tam zamanı!",
       author: "Sen",
@@ -154,7 +154,7 @@ function DailyMotivation({ completedDays, currentDay, streak }) {
       author: "30 Gün Fit",
       emoji: "🤝"
     }
-  ];
+  ], []);
 
   // Streak'e özel motivasyon mesajları
   const streakMessages = {
@@ -192,7 +192,7 @@ function DailyMotivation({ completedDays, currentDay, streak }) {
   const dailyQuote = useMemo(() => {
     const index = currentDay % motivationQuotes.length;
     return motivationQuotes[index];
-  }, [currentDay]);
+  }, [currentDay, motivationQuotes.length]);
 
   // Streak'e özel mesaj varsa göster
   const streakMessage = streakMessages[streak];

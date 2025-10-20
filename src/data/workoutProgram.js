@@ -12,7 +12,7 @@ const withMedia = (youtubeId, credit) => ({
 
 // GIF eklemek için helper function (gerçek hareketli GIF URL'i)
 // Kullanım: ...withGif('https://example.com/egzersiz.gif')
-const withGif = (gifUrl) => ({
+export const withGif = (gifUrl) => ({
   gifUrl: gifUrl
 });
 

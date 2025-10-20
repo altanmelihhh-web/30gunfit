@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import './ExerciseTimer.css';
 
 function ExerciseTimer({ exercise, onComplete }) {
@@ -154,13 +154,13 @@ function ExerciseTimer({ exercise, onComplete }) {
   };
 
   // Rastgele motivasyon mesajı seç
-  const getRandomMotivation = () => {
+  const getRandomMotivation = useCallback(() => {
     return motivationMessages[Math.floor(Math.random() * motivationMessages.length)];
-  };
+  }, []);
 
-  const getRandomFormReminder = () => {
+  const getRandomFormReminder = useCallback(() => {
     return formReminders[Math.floor(Math.random() * formReminders.length)];
-  };
+  }, []);
 
   // Timer mantığı
   useEffect(() => {
@@ -266,7 +266,7 @@ function ExerciseTimer({ exercise, onComplete }) {
         clearInterval(intervalRef.current);
       }
     };
-  }, [isRunning, isPaused, currentSet, totalSets, phase, repsPerSet, onComplete, initialTime]);
+  }, [isRunning, isPaused, currentSet, totalSets, phase, repsPerSet, onComplete, initialTime, getRandomFormReminder, getRandomMotivation]);
 
   // Component unmount olduğunda temizle
   useEffect(() => {
