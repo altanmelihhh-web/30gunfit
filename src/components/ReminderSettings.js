@@ -89,12 +89,46 @@ function ReminderSettings({
     }
   };
 
+  const playNotificationSound = () => {
+    try {
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+      // 3 kere bip sesi çal (güzel, dikkat çekici)
+      [0, 300, 600].forEach((delay) => {
+        setTimeout(() => {
+          const oscillator = audioContext.createOscillator();
+          const gainNode = audioContext.createGain();
+
+          oscillator.connect(gainNode);
+          gainNode.connect(audioContext.destination);
+
+          // Güzel bir frekans (C note - 523.25 Hz)
+          oscillator.frequency.value = 523.25;
+          oscillator.type = 'sine';
+
+          // Ses yüksekliği
+          gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+          gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
+
+          oscillator.start(audioContext.currentTime);
+          oscillator.stop(audioContext.currentTime + 0.2);
+        }, delay);
+      });
+    } catch (error) {
+      console.log('Ses çalınamadı:', error);
+    }
+  };
+
   const sendTestNotification = () => {
     try {
       new Notification('🧪 Test Bildirimi - 30 Gün Fit', {
         body: 'Tebrikler! Bildirim sistemi çalışıyor! ✅',
         icon: '/logo192.png'
       });
+
+      // Özel ses çal (3 kere bip!)
+      playNotificationSound();
+
       alert('✅ Bildirim gönderildi! Ekranınızı kontrol edin.');
     } catch (error) {
       alert('❌ Bildirim gönderilemedi: ' + error.message);

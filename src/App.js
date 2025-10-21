@@ -296,9 +296,31 @@ function App() {
         return;
       }
 
-      new Notification('30 Gün Fit - Hatırlatma', {
-        body: `Gün ${todaysWorkout.day} (${todaysWorkout.title}) · %${progress.percent} tamamlandı. Hadi devam!`
+      new Notification('💪 30 Gün Fit - Hatırlatma', {
+        body: `Gün ${todaysWorkout.day} (${todaysWorkout.title}) · %${progress.percent} tamamlandı. Hadi devam!`,
+        icon: '/logo192.png'
       });
+
+      // Özel bildirim sesi çal (3 kere bip - dikkat çekici!)
+      try {
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        [0, 300, 600].forEach((delay) => {
+          setTimeout(() => {
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            oscillator.frequency.value = 523.25; // C note
+            oscillator.type = 'sine';
+            gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + 0.2);
+          }, delay);
+        });
+      } catch (error) {
+        console.log('Ses çalınamadı:', error);
+      }
 
       lastReminderRef.current[todayKey] = true;
     };
