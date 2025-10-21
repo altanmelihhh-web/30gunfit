@@ -64,6 +64,44 @@ function ReminderSettings({
     }
   };
 
+  const handleTestNotification = () => {
+    // Bildirim izni kontrol et
+    if (!('Notification' in window)) {
+      alert('❌ Bu tarayıcı bildirimleri desteklemiyor!');
+      return;
+    }
+
+    if (Notification.permission === 'denied') {
+      alert('❌ Bildirim izni reddedilmiş! Lütfen tarayıcı ayarlarından izin verin.');
+      return;
+    }
+
+    if (Notification.permission === 'default') {
+      Notification.requestPermission().then((permission) => {
+        if (permission === 'granted') {
+          sendTestNotification();
+        } else {
+          alert('❌ Bildirim izni verilmedi!');
+        }
+      });
+    } else {
+      sendTestNotification();
+    }
+  };
+
+  const sendTestNotification = () => {
+    try {
+      new Notification('🧪 Test Bildirimi - 30 Gün Fit', {
+        body: 'Tebrikler! Bildirim sistemi çalışıyor! ✅',
+        icon: '/logo192.png'
+      });
+      alert('✅ Bildirim gönderildi! Ekranınızı kontrol edin.');
+    } catch (error) {
+      alert('❌ Bildirim gönderilemedi: ' + error.message);
+      console.error('Bildirim hatası:', error);
+    }
+  };
+
   const reminderMessage = useMemo(() => {
     const percent = todaysProgress?.percent ?? 0;
     const completed = todaysProgress?.completedCount ?? 0;
@@ -133,6 +171,33 @@ function ReminderSettings({
               Saat Ekle
             </button>
           )}
+        </div>
+
+        <div className="reminder-block">
+          <span className="block-label">Bildirim Testi</span>
+          <button
+            type="button"
+            className="test-notification-btn"
+            onClick={handleTestNotification}
+            style={{
+              width: '100%',
+              padding: '12px 20px',
+              background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              fontSize: '1rem',
+              fontWeight: '700',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              boxShadow: '0 4px 12px rgba(16, 185, 129, 0.25)'
+            }}
+          >
+            🧪 Test Bildirimi Gönder
+          </button>
+          <small style={{ display: 'block', marginTop: '8px', color: 'var(--color-text-muted)' }}>
+            Bildirim sisteminizin çalışıp çalışmadığını test edin
+          </small>
         </div>
 
         <div className="reminder-block">
