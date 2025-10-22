@@ -1,4 +1,4 @@
-import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { db } from './config';
 
 /**
@@ -190,6 +190,84 @@ export const saveAllUserData = async (userId, allData) => {
   }
 };
 
+/**
+ * Kullanıcı beslenme planını kaydet (BMR, TDEE, makrolar)
+ */
+export const saveNutritionPlan = async (userId, nutritionData) => {
+  try {
+    await setDoc(doc(db, 'nutritionPlans', userId), {
+      bmr: nutritionData.bmr,
+      tdee: nutritionData.tdee,
+      targetCalories: nutritionData.targetCalories,
+      macros: nutritionData.macros,
+      waterIntake: nutritionData.waterIntake,
+      goal: nutritionData.goal,
+      activityLevel: nutritionData.activityLevel,
+      updatedAt: new Date().toISOString()
+    }, { merge: true });
+    return { success: true };
+  } catch (error) {
+    console.error('Nutrition plan save error:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Kullanıcı beslenme planını al
+ */
+export const getNutritionPlan = async (userId) => {
+  try {
+    const docRef = doc(db, 'nutritionPlans', userId);
+    const docSnap = await getDoc(docRef);
+
+    if (docSnap.exists()) {
+      return { success: true, data: docSnap.data() };
+    } else {
+      return { success: false, error: 'Beslenme planı bulunamadı' };
+    }
+  } catch (error) {
+    console.error('Nutrition plan fetch error:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Günlük kalori takibini kaydet
+ */
+export const saveDailyCalories = async (userId, date, mealsData) => {
+  try {
+    await setDoc(doc(db, 'calorieTracking', `${userId}_${date}`), {
+      userId,
+      date,
+      meals: mealsData,
+      updatedAt: new Date().toISOString()
+    });
+    return { success: true };
+  } catch (error) {
+    console.error('Daily calories save error:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Günlük kalori takibini al
+ */
+export const getDailyCalories = async (userId, date) => {
+  try {
+    const docRef = doc(db, 'calorieTracking', `${userId}_${date}`);
+    const docSnap = await getDoc(docRef);
+
+    if (docSnap.exists()) {
+      return { success: true, data: docSnap.data() };
+    } else {
+      return { success: false, error: 'Günlük kayıt bulunamadı' };
+    }
+  } catch (error) {
+    console.error('Daily calories fetch error:', error);
+    return { success: false, error: error.message };
+  }
+};
+
 export default {
   saveUserProfile,
   getUserProfile,
@@ -200,5 +278,9 @@ export default {
   saveUserSettings,
   getUserSettings,
   getAllUserData,
-  saveAllUserData
+  saveAllUserData,
+  saveNutritionPlan,
+  getNutritionPlan,
+  saveDailyCalories,
+  getDailyCalories
 };

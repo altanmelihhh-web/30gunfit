@@ -1,0 +1,497 @@
+.calorie-tracker {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+/* Tarih seçici */
+.date-selector {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+  padding: 16px;
+  background: var(--color-surface);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+}
+
+.date-nav-btn {
+  width: 44px;
+  height: 44px;
+  border: 2px solid var(--color-border);
+  background: var(--color-surface);
+  border-radius: 50%;
+  font-size: 1.2rem;
+  cursor: pointer;
+  transition: all var(--transition-base);
+  color: var(--color-text-primary);
+}
+
+.date-nav-btn:hover {
+  border-color: #6366f1;
+  background: rgba(99, 102, 241, 0.1);
+  transform: scale(1.1);
+}
+
+.date-display {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.date-text {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.today-btn {
+  padding: 6px 12px;
+  background: rgba(99, 102, 241, 0.1);
+  color: #6366f1;
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  border-radius: 16px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-base);
+}
+
+.today-btn:hover {
+  background: rgba(99, 102, 241, 0.2);
+}
+
+/* Günlük özet */
+.daily-summary {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  margin-bottom: 24px;
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--color-border);
+}
+
+.summary-card.main-calories {
+  margin-bottom: 24px;
+  padding-bottom: 24px;
+  border-bottom: 2px solid var(--color-border);
+}
+
+.summary-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.summary-icon {
+  font-size: 2rem;
+}
+
+.summary-label {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.summary-values {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.current-value {
+  font-size: 3rem;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.target-divider {
+  font-size: 2rem;
+  color: var(--color-text-muted);
+}
+
+.target-value {
+  font-size: 2rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+.unit {
+  font-size: 1rem;
+  color: var(--color-text-muted);
+  margin-left: 4px;
+}
+
+.progress-bar {
+  height: 16px;
+  background: var(--color-surface-muted);
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: 8px;
+  transition: width 0.6s ease-out;
+}
+
+.summary-remaining {
+  text-align: center;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+/* Makro özeti */
+.macros-summary {
+  display: grid;
+  gap: 16px;
+}
+
+.macro-summary-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.macro-summary-item .macro-icon {
+  font-size: 1.5rem;
+}
+
+.macro-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.macro-label {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  font-weight: 600;
+}
+
+.macro-value {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.macro-mini-bar {
+  flex: 1;
+  height: 8px;
+  background: var(--color-surface-muted);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.macro-mini-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.6s ease-out;
+}
+
+.macro-mini-fill.protein-fill {
+  background: linear-gradient(90deg, #ef4444, #dc2626);
+}
+
+.macro-mini-fill.carbs-fill {
+  background: linear-gradient(90deg, #fbbf24, #f59e0b);
+}
+
+.macro-mini-fill.fats-fill {
+  background: linear-gradient(90deg, #a855f7, #9333ea);
+}
+
+/* Yemek ekleme */
+.add-meal-section {
+  margin-bottom: 24px;
+  text-align: center;
+}
+
+.btn-add-meal {
+  padding: 14px 32px;
+  background: var(--gradient-primary);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all var(--transition-base);
+  box-shadow: 0 8px 20px rgba(99, 102, 241, 0.3);
+}
+
+.btn-add-meal:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px rgba(99, 102, 241, 0.4);
+}
+
+/* Yemek ekleme formu */
+.add-meal-form {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  margin-bottom: 24px;
+  box-shadow: var(--shadow-md);
+  border: 2px solid #6366f1;
+  animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.add-meal-form h4 {
+  margin: 0 0 20px 0;
+  font-size: 1.3rem;
+  color: var(--color-text-primary);
+  font-weight: 700;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-group label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.form-group input,
+.form-group select {
+  padding: 10px 12px;
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: 0.95rem;
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  transition: border-color var(--transition-base);
+}
+
+.form-group input:focus,
+.form-group select:focus {
+  outline: none;
+  border-color: #6366f1;
+}
+
+.btn-save-meal {
+  width: 100%;
+  padding: 14px;
+  background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all var(--transition-base);
+  box-shadow: 0 8px 20px rgba(34, 197, 94, 0.3);
+}
+
+.btn-save-meal:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px rgba(34, 197, 94, 0.4);
+}
+
+/* Yemek listesi */
+.meals-list {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--color-border);
+}
+
+.meals-list h4 {
+  margin: 0 0 20px 0;
+  font-size: 1.3rem;
+  color: var(--color-text-primary);
+  font-weight: 700;
+}
+
+.empty-meals {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--color-text-muted);
+}
+
+.empty-icon {
+  font-size: 4rem;
+  display: block;
+  margin-bottom: 16px;
+}
+
+.empty-meals p {
+  margin: 8px 0;
+  font-size: 1rem;
+}
+
+.empty-hint {
+  font-size: 0.9rem !important;
+  color: var(--color-text-secondary) !important;
+}
+
+/* Öğün grupları */
+.meal-type-group {
+  margin-bottom: 24px;
+}
+
+.meal-type-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px 0;
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--color-border);
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.meal-count {
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  font-weight: 600;
+}
+
+/* Yemek item */
+.meal-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  background: var(--color-surface-muted);
+  border-radius: var(--radius-md);
+  margin-bottom: 12px;
+  transition: all var(--transition-base);
+  border: 1px solid transparent;
+}
+
+.meal-item:hover {
+  transform: translateX(4px);
+  border-color: var(--color-border);
+  box-shadow: var(--shadow-sm);
+}
+
+.meal-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.meal-name {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.meal-portion {
+  font-size: 0.85rem;
+  color: var(--color-text-secondary);
+}
+
+.meal-source {
+  font-size: 0.8rem;
+  color: #6366f1;
+  font-weight: 600;
+}
+
+.meal-nutrition {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.nutrition-badge {
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border);
+}
+
+.nutrition-badge.calories-badge {
+  background: rgba(239, 68, 68, 0.1);
+  color: #dc2626;
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.btn-delete-meal {
+  padding: 8px 12px;
+  background: rgba(239, 68, 68, 0.1);
+  color: #dc2626;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: var(--radius-sm);
+  font-size: 1.2rem;
+  cursor: pointer;
+  transition: all var(--transition-base);
+}
+
+.btn-delete-meal:hover {
+  background: rgba(239, 68, 68, 0.2);
+  transform: scale(1.1);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .date-selector {
+    padding: 12px;
+  }
+
+  .date-text {
+    font-size: 1rem;
+  }
+
+  .current-value {
+    font-size: 2rem;
+  }
+
+  .target-value {
+    font-size: 1.5rem;
+  }
+
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+
+  .meal-item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .meal-nutrition {
+    width: 100%;
+  }
+
+  .btn-delete-meal {
+    align-self: flex-end;
+  }
+}

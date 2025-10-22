@@ -13,6 +13,7 @@ import ProfileOnboarding from './components/ProfileOnboarding';
 import ProfileSettings from './components/ProfileSettings';
 import VideoManager from './components/VideoManager';
 import AuthModal from './components/AuthModal';
+import NutritionDashboard from './components/NutritionDashboard';
 import {
   generate30DayProgram,
   calculateProgramSummary,
@@ -767,6 +768,12 @@ function App() {
             📊 İlerlemem
           </button>
           <button
+            className={`tab-btn ${activeTab === 'nutrition' ? 'active' : ''}`}
+            onClick={() => setActiveTab('nutrition')}
+          >
+            🍎 Beslenme
+          </button>
+          <button
             className={`tab-btn ${activeTab === 'settings' ? 'active' : ''}`}
             onClick={() => setActiveTab('settings')}
           >
@@ -930,6 +937,15 @@ function App() {
           <div className="tab-content">
             <VideoManager
               onSave={handleVideoSave}
+            />
+          </div>
+        )}
+
+        {/* Beslenme Tab */}
+        {activeTab === 'nutrition' && (
+          <div className="tab-content">
+            <NutritionDashboard
+              userProfile={userProfile}
             />
           </div>
         )}
