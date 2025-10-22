@@ -15,6 +15,7 @@ const NutritionDashboard = ({ userProfile }) => {
   const [activeSection, setActiveSection] = useState('calculator'); // calculator, tracker, ai-analyzer
   const [nutritionResults, setNutritionResults] = useState(null);
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
+  const [trackerRefreshKey, setTrackerRefreshKey] = useState(0);
 
   // Hesaplayıcıdan gelen sonuçları kaydet
   const handleNutritionResults = (results) => {
@@ -32,12 +33,17 @@ const NutritionDashboard = ({ userProfile }) => {
 
   // AI analizinden yemek ekle
   const handleFoodAnalyzed = (foodData) => {
-    addMealFromAI(foodData);
+    console.log('🍽️ NutritionDashboard: handleFoodAnalyzed çağrıldı:', foodData);
+
+    const addedMeal = addMealFromAI(foodData);
+    console.log('✅ addMealFromAI sonucu:', addedMeal);
+
     setShowSuccessMessage(true);
 
-    // 3 saniye sonra mesajı gizle ve tracker'a geç
+    // 2 saniye sonra mesajı gizle ve tracker'a geç
     setTimeout(() => {
       setShowSuccessMessage(false);
+      setTrackerRefreshKey(prev => prev + 1); // Force refresh
       setActiveSection('tracker');
     }, 2000);
   };
@@ -125,6 +131,7 @@ const NutritionDashboard = ({ userProfile }) => {
               </div>
             ) : (
               <CalorieTracker
+                key={trackerRefreshKey}
                 targetCalories={nutritionResults.targetCalories}
                 targetMacros={nutritionResults.macros}
               />
