@@ -9,13 +9,17 @@ import OnboardingModal from './components/OnboardingModal';
 import StreakCounter from './components/StreakCounter';
 import DataBackup from './components/DataBackup';
 import DailyMotivation from './components/DailyMotivation';
+import ProfileOnboarding from './components/ProfileOnboarding';
+import ProfileSettings from './components/ProfileSettings';
+import { allWorkouts as defaultProgram } from './data/workoutProgram';
 import {
-  allWorkouts,
+  generate30DayProgram,
   calculateProgramSummary,
   getWorkoutByDay,
   getWorkoutProgress
-} from './data/workoutProgram';
+} from './utils/programGenerator';
 import { playNotificationSound } from './utils/notificationSounds';
+import { FITNESS_GOALS, DIFFICULTY_LEVELS } from './data/exerciseLibrary';
 
 const DEFAULT_REMINDERS = {
   enabled: false,
@@ -23,9 +27,25 @@ const DEFAULT_REMINDERS = {
   soundType: 'beep3x'
 };
 
+const DEFAULT_PROFILE = {
+  name: 'Misafir',
+  age: 25,
+  weight: 70,
+  height: 170,
+  gender: 'male',
+  goal: FITNESS_GOALS.GENERAL_FITNESS,
+  difficulty: DIFFICULTY_LEVELS.BEGINNER,
+  dailyDuration: 30,
+  weeklyDays: 5,
+  bmi: 24.2
+};
+
 const MS_IN_DAY = 24 * 60 * 60 * 1000;
 const THEME_STORAGE_KEY = 'appTheme';
 const ONBOARDING_STORAGE_KEY = 'onboardingComplete';
+const PROFILE_STORAGE_KEY = 'userProfile';
+const PROGRAM_STORAGE_KEY = 'userProgram';
+const PROFILE_ONBOARDING_STORAGE_KEY = 'profileOnboardingComplete';
 
 const resolveInitialTheme = () => {
   if (typeof window === 'undefined') {
@@ -64,14 +84,14 @@ const normalizeDate = (value) => {
   return date;
 };
 
-const calculateCurrentDay = (startDate) => {
+const calculateCurrentDay = (startDate, programLength) => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const start = normalizeDate(startDate) || today;
   const diff = Math.floor((today - start) / MS_IN_DAY);
   let dayNumber = diff + 1;
   if (dayNumber < 1) dayNumber = 1;
-  if (dayNumber > allWorkouts.length) dayNumber = allWorkouts.length;
+  if (dayNumber > programLength) dayNumber = programLength;
   return dayNumber;
 };
 
@@ -91,6 +111,44 @@ function App() {
     return initialTheme;
   });
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
+  const [isProfileOnboardingOpen, setIsProfileOnboardingOpen] = useState(false);
+
+  // Kullanıcı profili
+  const [userProfile, setUserProfile] = useState(() => {
+    try {
+      const saved = localStorage.getItem(PROFILE_STORAGE_KEY);
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch (error) {
+      // ignore
+    }
+    return { ...DEFAULT_PROFILE };
+  });
+
+  // Kullanıcı programı (dinamik)
+  const [userProgram, setUserProgram] = useState(() => {
+    try {
+      const saved = localStorage.getItem(PROGRAM_STORAGE_KEY);
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch (error) {
+      // ignore
+    }
+    // Eğer profil varsa ve program yoksa, profil ile program oluştur
+    try {
+      const savedProfile = localStorage.getItem(PROFILE_STORAGE_KEY);
+      if (savedProfile) {
+        const profile = JSON.parse(savedProfile);
+        return generate30DayProgram(profile);
+      }
+    } catch (error) {
+      // ignore
+    }
+    // Varsayılan olarak eski sabit programı kullan
+    return defaultProgram;
+  });
 
   const [completedDays, setCompletedDays] = useState(() => {
     try {
@@ -146,12 +204,12 @@ function App() {
   const lastReminderRef = useRef({});
   const detailSectionRef = useRef(null);
 
-  const currentDay = useMemo(() => calculateCurrentDay(startDate), [startDate]);
-  const todaysWorkout = useMemo(() => getWorkoutByDay(currentDay), [currentDay]);
+  const currentDay = useMemo(() => calculateCurrentDay(startDate, userProgram.length), [startDate, userProgram.length]);
+  const todaysWorkout = useMemo(() => getWorkoutByDay(userProgram, currentDay), [userProgram, currentDay]);
 
   const summary = useMemo(
-    () => calculateProgramSummary(allWorkouts, completedDays, completedExercises),
-    [completedDays, completedExercises]
+    () => calculateProgramSummary(userProgram, completedDays, completedExercises),
+    [userProgram, completedDays, completedExercises]
   );
 
   const todaysProgress = useMemo(
@@ -160,23 +218,23 @@ function App() {
   );
 
   const dayCompletionPercent = useMemo(() => {
-    return Math.round((completedDays.length / allWorkouts.length) * 100);
-  }, [completedDays.length]);
+    return Math.round((completedDays.length / userProgram.length) * 100);
+  }, [completedDays.length, userProgram.length]);
 
   const daysRemaining = useMemo(() => {
-    return Math.max(allWorkouts.length - completedDays.length, 0);
-  }, [completedDays.length]);
+    return Math.max(userProgram.length - completedDays.length, 0);
+  }, [completedDays.length, userProgram.length]);
 
   const upcomingWorkout = useMemo(() => {
-    if (currentDay >= allWorkouts.length) {
+    if (currentDay >= userProgram.length) {
       return null;
     }
-    return getWorkoutByDay(Math.min(currentDay + 1, allWorkouts.length));
-  }, [currentDay]);
+    return getWorkoutByDay(userProgram, Math.min(currentDay + 1, userProgram.length));
+  }, [userProgram, currentDay]);
 
   const nextRestDay = useMemo(() => {
-    return allWorkouts.slice(currentDay).find((workout) => workout.isRest) || null;
-  }, [currentDay]);
+    return userProgram.slice(currentDay).find((workout) => workout.isRest) || null;
+  }, [userProgram, currentDay]);
 
   // Streak hesapla
   const streak = useMemo(() => {
@@ -232,6 +290,16 @@ function App() {
     localStorage.setItem('reminderSettings', JSON.stringify(reminderSettings));
   }, [reminderSettings]);
 
+  // Kullanıcı profilini kaydet
+  useEffect(() => {
+    localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(userProfile));
+  }, [userProfile]);
+
+  // Kullanıcı programını kaydet
+  useEffect(() => {
+    localStorage.setItem(PROGRAM_STORAGE_KEY, JSON.stringify(userProgram));
+  }, [userProgram]);
+
   useEffect(() => {
     if (typeof window === 'undefined') {
       return;
@@ -242,6 +310,21 @@ function App() {
       }
     } catch (error) {
       // ignore storage errors
+    }
+  }, []);
+
+  // İlk açılışta profil onboarding kontrol et
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    try {
+      const profileOnboardingDone = localStorage.getItem(PROFILE_ONBOARDING_STORAGE_KEY);
+      if (profileOnboardingDone !== 'true') {
+        setIsProfileOnboardingOpen(true);
+      }
+    } catch (error) {
+      // ignore
     }
   }, []);
 
@@ -405,13 +488,80 @@ function App() {
     setReminderSettings(importedData.reminderSettings);
   };
 
+  const handleProfileOnboardingComplete = (profile) => {
+    setUserProfile(profile);
+
+    // Yeni profil ile program oluştur
+    const newProgram = generate30DayProgram(profile);
+    setUserProgram(newProgram);
+
+    // İlerlemeleri sıfırla
+    setCompletedDays([]);
+    setCompletedExercises({});
+
+    // Başlangıç tarihini bugün yap
+    setStartDate(normalizeDate(new Date()));
+
+    // Onboarding tamamlandı olarak işaretle
+    localStorage.setItem(PROFILE_ONBOARDING_STORAGE_KEY, 'true');
+    setIsProfileOnboardingOpen(false);
+
+    // İlk günü seç
+    if (newProgram.length > 0) {
+      setSelectedDay(newProgram[0]);
+    }
+  };
+
+  const handleProfileOnboardingSkip = () => {
+    // Varsayılan profil ile program oluştur
+    const newProgram = generate30DayProgram(DEFAULT_PROFILE);
+    setUserProgram(newProgram);
+
+    localStorage.setItem(PROFILE_ONBOARDING_STORAGE_KEY, 'true');
+    setIsProfileOnboardingOpen(false);
+
+    if (newProgram.length > 0) {
+      setSelectedDay(newProgram[0]);
+    }
+  };
+
+  const handleProfileSave = (updatedProfile) => {
+    setUserProfile(updatedProfile);
+  };
+
+  const handleRegenerateProgram = (profile) => {
+    const confirmed = window.confirm(
+      'Yeni program oluşturduğunuzda tüm ilerlemeniz sıfırlanacak. Devam etmek istiyor musunuz?'
+    );
+
+    if (!confirmed) return;
+
+    // Yeni program oluştur
+    const newProgram = generate30DayProgram(profile);
+    setUserProgram(newProgram);
+
+    // İlerlemeleri sıfırla
+    setCompletedDays([]);
+    setCompletedExercises({});
+
+    // Başlangıç tarihini bugün yap
+    setStartDate(normalizeDate(new Date()));
+
+    // İlk günü seç
+    if (newProgram.length > 0) {
+      setSelectedDay(newProgram[0]);
+    }
+
+    alert('✅ Yeni programınız oluşturuldu! İyi antrenmanlar!');
+  };
+
   return (
     <div className="App">
       <header className="app-header">
         <div className="header-bar">
           <div className="header-content">
-            <h1>💪 30 Günlük Spor Programı</h1>
-            <p className="subtitle">Başlangıç Seviyesi - Zayıflama &amp; Sıkılaşma</p>
+            <h1>💪 30 Gün Fit</h1>
+            <p className="subtitle">Size Özel Fitness Programı · {userProfile.name}</p>
           </div>
           <div className="header-actions">
             <button
@@ -429,7 +579,7 @@ function App() {
             <div className="progress-fill" style={{ width: `${dayCompletionPercent}%` }} />
           </div>
           <p className="progress-text">
-            <span>%{dayCompletionPercent} Gün Tamamlandı ({completedDays.length}/{allWorkouts.length})</span>
+            <span>%{dayCompletionPercent} Gün Tamamlandı ({completedDays.length}/{userProgram.length})</span>
             <span>{daysRemaining} gün kaldı</span>
           </p>
         </div>
@@ -502,6 +652,11 @@ function App() {
               currentDay={currentDay}
               notificationsSupported={notificationsSupported}
             />
+            <ProfileSettings
+              profile={userProfile}
+              onSave={handleProfileSave}
+              onRegenerateProgram={handleRegenerateProgram}
+            />
             <DataBackup
               completedDays={completedDays}
               completedExercises={completedExercises}
@@ -515,7 +670,7 @@ function App() {
             <div className="calendar-section">
               <h2>Takvim</h2>
               <Calendar
-                workouts={allWorkouts}
+                workouts={userProgram}
                 completedDays={completedDays}
                 onDayClick={handleDayClick}
                 selectedDay={selectedDay}
@@ -550,6 +705,12 @@ function App() {
         onReminderChange={handleReminderChange}
         onComplete={handleOnboardingComplete}
         onSkip={handleOnboardingComplete}
+      />
+
+      <ProfileOnboarding
+        isOpen={isProfileOnboardingOpen}
+        onComplete={handleProfileOnboardingComplete}
+        onSkip={handleProfileOnboardingSkip}
       />
     </div>
   );
