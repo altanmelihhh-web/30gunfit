@@ -31,6 +31,27 @@ export const FITNESS_GOALS = {
   BEGINNER_FRIENDLY: 'beginner'       // Başlangıç
 };
 
+// Cinsiyet tercihleri (araştırma bazlı)
+export const GENDER_PREFERENCE = {
+  MALE: 'male',           // Erkekler için daha uygun (üst vücut)
+  FEMALE: 'female',       // Kadınlar için daha uygun (alt vücut, glutes, core)
+  NEUTRAL: 'neutral'      // Her iki cinsiyet için eşit
+};
+
+// Yaş grupları
+export const AGE_GROUPS = {
+  YOUNG: 'young',         // 18-40: Yüksek intensity OK
+  MIDDLE: 'middle',       // 40-65: Orta intensity
+  SENIOR: 'senior'        // 65+: Düşük intensity, balance, eklem dostu
+};
+
+// BMI uygunluk seviyeleri
+export const BMI_SUITABILITY = {
+  NORMAL: 'normal',           // BMI < 25
+  OVERWEIGHT: 'overweight',   // BMI 25-30
+  OBESE: 'obese'              // BMI ≥ 30 (low-impact gerekir)
+};
+
 // Kapsamlı egzersiz kütüphanesi
 export const exerciseLibrary = [
   // ============ WARMUP (ISINMA) ============
@@ -44,7 +65,11 @@ export const exerciseLibrary = [
     reps: null,
     targetMuscles: ['kalp', 'bacaklar'],
     equipment: 'none',
-    caloriesPerMinute: 3,
+    met: 3.5,  // MET value (2024 Compendium)
+    genderPreference: GENDER_PREFERENCE.NEUTRAL,
+    ageGroups: [AGE_GROUPS.YOUNG, AGE_GROUPS.MIDDLE, AGE_GROUPS.SENIOR],
+    bmiSuitability: [BMI_SUITABILITY.NORMAL, BMI_SUITABILITY.OVERWEIGHT, BMI_SUITABILITY.OBESE],
+    hasLowImpactVersion: false,
     instructions: 'Yerinde rahat bir tempoda yürüyün. Kollarınızı sallamayı unutmayın.',
     videoUrl: null,
     gifUrl: null

@@ -284,6 +284,11 @@ function ProfileOnboarding({ isOpen, onComplete, onSkip }) {
 
       <div className="form-group" style={{ marginTop: '32px' }}>
         <label>Günlük Ne Kadar Süre Ayırabilirsiniz?</label>
+        <p className="slider-description" style={{ fontSize: '0.9rem', color: 'var(--color-text-muted)', marginBottom: '16px' }}>
+          Hızlı seçim için tıklayın veya kaydırıcıyı kullanın (10-90 dakika)
+        </p>
+
+        {/* Hızlı seçim butonları */}
         <div className="duration-options">
           {[15, 30, 45, 60].map(duration => (
             <button
@@ -294,6 +299,35 @@ function ProfileOnboarding({ isOpen, onComplete, onSkip }) {
               {duration} dk
             </button>
           ))}
+        </div>
+
+        {/* Custom süre slider */}
+        <div className="custom-duration-slider" style={{ marginTop: '24px', padding: '20px', background: 'var(--color-surface-muted)', borderRadius: '12px' }}>
+          <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+            <span style={{ fontWeight: '600' }}>Özel Süre:</span>
+            <span style={{ fontSize: '1.5rem', fontWeight: '700', color: '#6366f1' }}>{formData.dailyDuration} dakika</span>
+          </label>
+          <input
+            type="range"
+            min="10"
+            max="90"
+            step="5"
+            value={formData.dailyDuration}
+            onChange={(e) => handleChange('dailyDuration', parseInt(e.target.value))}
+            style={{
+              width: '100%',
+              height: '8px',
+              borderRadius: '4px',
+              background: `linear-gradient(to right, #6366f1 0%, #6366f1 ${((formData.dailyDuration - 10) / 80) * 100}%, #e5e7eb ${((formData.dailyDuration - 10) / 80) * 100}%, #e5e7eb 100%)`,
+              outline: 'none',
+              cursor: 'pointer'
+            }}
+          />
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '8px', fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
+            <span>10 dk</span>
+            <span>50 dk</span>
+            <span>90 dk</span>
+          </div>
         </div>
       </div>
     </div>

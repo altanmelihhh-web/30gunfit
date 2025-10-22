@@ -215,7 +215,6 @@ function ReminderSettings({
           <select
             value={settings.soundType || 'beep3x'}
             onChange={handleSoundChange}
-            disabled={!settings.enabled}
             className="sound-select"
             style={{
               width: '100%',
@@ -225,7 +224,7 @@ function ReminderSettings({
               border: '1px solid var(--color-border)',
               backgroundColor: 'var(--color-bg)',
               color: 'var(--color-text)',
-              cursor: settings.enabled ? 'pointer' : 'not-allowed',
+              cursor: 'pointer',
               marginBottom: '12px'
             }}
           >
@@ -251,11 +250,15 @@ function ReminderSettings({
               transition: 'all 0.2s',
               boxShadow: '0 3px 10px rgba(139, 92, 246, 0.25)'
             }}
+            onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
+            onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
           >
             🔊 Sesi Dinle
           </button>
           <small style={{ display: 'block', marginTop: '8px', color: 'var(--color-text-muted)' }}>
-            Bildirim geldiğinde duyacağınız sesi seçin ve önizleyin
+            {settings.enabled
+              ? 'Bildirim geldiğinde duyacağınız sesi seçin ve önizleyin'
+              : 'Sesi seçin ve önizleyin (hatırlatmaları aktif etmeyi unutmayın)'}
           </small>
         </div>
 

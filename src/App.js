@@ -12,7 +12,7 @@ import DailyMotivation from './components/DailyMotivation';
 import ProfileOnboarding from './components/ProfileOnboarding';
 import ProfileSettings from './components/ProfileSettings';
 import VideoManager from './components/VideoManager';
-import { allWorkouts as defaultProgram } from './data/workoutProgram';
+import AuthModal from './components/AuthModal';
 import {
   generate30DayProgram,
   calculateProgramSummary,
@@ -21,6 +21,16 @@ import {
 } from './utils/programGenerator';
 import { playNotificationSound } from './utils/notificationSounds';
 import { FITNESS_GOALS, DIFFICULTY_LEVELS } from './data/exerciseLibrary';
+import { onAuthStateChanged } from 'firebase/auth';
+import { auth } from './firebase/config';
+import { logout } from './firebase/authService';
+import {
+  getAllUserData,
+  saveUserProfile,
+  saveUserProgram,
+  saveUserProgress,
+  saveUserSettings
+} from './firebase/dataService';
 
 const DEFAULT_REMINDERS = {
   enabled: false,
@@ -111,8 +121,11 @@ function App() {
     }
     return initialTheme;
   });
+  const [user, setUser] = useState(null);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
   const [isProfileOnboardingOpen, setIsProfileOnboardingOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState('home'); // 'home', 'progress', 'settings', 'videos'
 
   // Kullanıcı profili
   const [userProfile, setUserProfile] = useState(() => {
@@ -147,8 +160,8 @@ function App() {
     } catch (error) {
       // ignore
     }
-    // Varsayılan olarak eski sabit programı kullan
-    return defaultProgram;
+    // Varsayılan olarak DEFAULT_PROFILE ile program oluştur
+    return generate30DayProgram(DEFAULT_PROFILE);
   });
 
   const [completedDays, setCompletedDays] = useState(() => {
@@ -275,31 +288,78 @@ function App() {
 
   useEffect(() => {
     localStorage.setItem('completedDays', JSON.stringify(completedDays));
-  }, [completedDays]);
+
+    // Firestore'a da kaydet (kullanıcı giriş yaptıysa)
+    if (user) {
+      saveUserProgress(user.uid, {
+        completedDays,
+        completedExercises,
+        startDate: startDate?.toISOString()
+      }).catch(error => console.error('Progress save error:', error));
+    }
+  }, [completedDays, user, completedExercises, startDate]);
 
   useEffect(() => {
     localStorage.setItem('completedExercises', JSON.stringify(completedExercises));
-  }, [completedExercises]);
+
+    // Firestore'a da kaydet (kullanıcı giriş yaptıysa)
+    if (user) {
+      saveUserProgress(user.uid, {
+        completedDays,
+        completedExercises,
+        startDate: startDate?.toISOString()
+      }).catch(error => console.error('Progress save error:', error));
+    }
+  }, [completedExercises, user, completedDays, startDate]);
 
   useEffect(() => {
     if (startDate) {
       localStorage.setItem('programStartDate', startDate.toISOString());
+
+      // Firestore'a da kaydet (kullanıcı giriş yaptıysa)
+      if (user) {
+        saveUserProgress(user.uid, {
+          completedDays,
+          completedExercises,
+          startDate: startDate.toISOString()
+        }).catch(error => console.error('Progress save error:', error));
+      }
     }
-  }, [startDate]);
+  }, [startDate, user, completedDays, completedExercises]);
 
   useEffect(() => {
     localStorage.setItem('reminderSettings', JSON.stringify(reminderSettings));
-  }, [reminderSettings]);
+
+    // Firestore'a da kaydet (kullanıcı giriş yaptıysa)
+    if (user) {
+      saveUserSettings(user.uid, {
+        reminderSettings,
+        theme
+      }).catch(error => console.error('Settings save error:', error));
+    }
+  }, [reminderSettings, user, theme]);
 
   // Kullanıcı profilini kaydet
   useEffect(() => {
     localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(userProfile));
-  }, [userProfile]);
+
+    // Firestore'a da kaydet (kullanıcı giriş yaptıysa)
+    if (user) {
+      saveUserProfile(user.uid, userProfile)
+        .catch(error => console.error('Profile save error:', error));
+    }
+  }, [userProfile, user]);
 
   // Kullanıcı programını kaydet
   useEffect(() => {
     localStorage.setItem(PROGRAM_STORAGE_KEY, JSON.stringify(userProgram));
-  }, [userProgram]);
+
+    // Firestore'a da kaydet (kullanıcı giriş yaptıysa)
+    if (user) {
+      saveUserProgram(user.uid, userProgram)
+        .catch(error => console.error('Program save error:', error));
+    }
+  }, [userProgram, user]);
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -327,6 +387,64 @@ function App() {
     } catch (error) {
       // ignore
     }
+  }, []);
+
+  // Firebase Authentication State Listener
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        // Kullanıcı giriş yaptı
+        setUser(firebaseUser);
+
+        // Firestore'dan kullanıcı verilerini yükle
+        try {
+          const result = await getAllUserData(firebaseUser.uid);
+          if (result.success) {
+            const data = result.data;
+
+            // Profil varsa yükle
+            if (data.profile) {
+              setUserProfile(data.profile);
+            }
+
+            // Program varsa yükle
+            if (data.program) {
+              setUserProgram(data.program);
+            } else if (data.profile) {
+              // Program yoksa ama profil varsa, profil ile yeni program oluştur
+              const newProgram = generate30DayProgram(data.profile);
+              setUserProgram(newProgram);
+              await saveUserProgram(firebaseUser.uid, newProgram);
+            }
+
+            // İlerleme varsa yükle
+            if (data.progress) {
+              setCompletedDays(data.progress.completedDays || []);
+              setCompletedExercises(data.progress.completedExercises || {});
+              if (data.progress.startDate) {
+                setStartDate(normalizeDate(data.progress.startDate));
+              }
+            }
+
+            // Ayarlar varsa yükle
+            if (data.settings) {
+              setReminderSettings({
+                enabled: data.settings.reminderSettings?.enabled || false,
+                times: sanitizeTimes(data.settings.reminderSettings?.times),
+                soundType: data.settings.reminderSettings?.soundType || 'beep3x'
+              });
+            }
+          }
+        } catch (error) {
+          console.error('Firestore veri yükleme hatası:', error);
+        }
+      } else {
+        // Kullanıcı çıkış yaptı
+        setUser(null);
+      }
+    });
+
+    return () => unsubscribe();
   }, []);
 
   useEffect(() => {
@@ -563,15 +681,55 @@ function App() {
     setUserProgram(newProgram);
   };
 
+  const handleAuthSuccess = (firebaseUser) => {
+    setUser(firebaseUser);
+    setIsAuthModalOpen(false);
+  };
+
+  const handleLogout = async () => {
+    const confirmed = window.confirm('Çıkış yapmak istediğinize emin misiniz?');
+    if (!confirmed) return;
+
+    const result = await logout();
+    if (result.success) {
+      setUser(null);
+      alert('✅ Başarıyla çıkış yaptınız.');
+    } else {
+      alert('❌ Çıkış yapılırken bir hata oluştu.');
+    }
+  };
+
   return (
     <div className="App">
       <header className="app-header">
         <div className="header-bar">
           <div className="header-content">
             <h1>💪 30 Gün Fit</h1>
-            <p className="subtitle">Size Özel Fitness Programı · {userProfile.name}</p>
+            <p className="subtitle">
+              Size Özel Fitness Programı · {userProfile.name}
+              {user && <span style={{ marginLeft: '8px', opacity: 0.7 }}>({user.email})</span>}
+            </p>
           </div>
           <div className="header-actions">
+            {user ? (
+              <button
+                type="button"
+                className="action-btn"
+                onClick={handleLogout}
+                style={{ background: 'linear-gradient(135deg, #f44336, #e53935)' }}
+              >
+                Çıkış Yap
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="action-btn"
+                onClick={() => setIsAuthModalOpen(true)}
+                style={{ background: 'linear-gradient(135deg, #4CAF50, #45a049)' }}
+              >
+                Giriş Yap
+              </button>
+            )}
             <button
               type="button"
               className="action-btn"
@@ -594,118 +752,187 @@ function App() {
       </header>
 
       <main className="app-main">
-        {/* Günlük Motivasyon */}
-        <DailyMotivation
-          completedDays={completedDays}
-          currentDay={currentDay}
-          streak={streak}
-        />
+        {/* Tab Navigation */}
+        <nav className="tab-navigation">
+          <button
+            className={`tab-btn ${activeTab === 'home' ? 'active' : ''}`}
+            onClick={() => setActiveTab('home')}
+          >
+            🏠 Ana Sayfa
+          </button>
+          <button
+            className={`tab-btn ${activeTab === 'progress' ? 'active' : ''}`}
+            onClick={() => setActiveTab('progress')}
+          >
+            📊 İlerlemem
+          </button>
+          <button
+            className={`tab-btn ${activeTab === 'settings' ? 'active' : ''}`}
+            onClick={() => setActiveTab('settings')}
+          >
+            ⚙️ Ayarlar
+          </button>
+          <button
+            className={`tab-btn ${activeTab === 'videos' ? 'active' : ''}`}
+            onClick={() => setActiveTab('videos')}
+          >
+            🎥 Video Portal
+          </button>
+        </nav>
 
-        <section className="insight-strip">
-          <article className="insight-card">
-            <span className="insight-label">Bugünkü Odak</span>
-            <h3>
-              {todaysWorkout ? `Gün ${todaysWorkout.day}` : 'Program tamamlandı'}
-            </h3>
-            <p>{todaysWorkout?.title || 'Tebrikler, tüm egzersizleri bitirdin!'}</p>
-          </article>
-
-          <article className="insight-card">
-            <span className="insight-label">Sıradaki Plan</span>
-            <h3>
-              {nextRestDay
-                ? `Dinlenme · Gün ${nextRestDay.day}`
-                : upcomingWorkout
-                  ? `Gün ${upcomingWorkout.day}`
-                  : 'Program tamamlandı'}
-            </h3>
-            <p>
-              {nextRestDay?.title ||
-                upcomingWorkout?.title ||
-                'Yeni programa başlamak için hazır mısın?'}
-            </p>
-          </article>
-
-          <article className="insight-card">
-            <span className="insight-label">Hatırlatmalar</span>
-            <h3>{reminderSettings.enabled ? `${reminderSettings.times.length} zaman` : 'Pasif'}</h3>
-            <p>
-              {reminderSettings.enabled
-                ? reminderSettings.times.join(' · ')
-                : 'Bildirimleri açarak motivasyonu taze tut.'}
-            </p>
-          </article>
-        </section>
-
-        <div className="main-sections">
-          <div className="dashboard-sections">
-            <ProgressSummary
-              summary={summary}
-              todaysWorkout={todaysWorkout}
-              todaysProgress={todaysProgress}
-              currentDay={currentDay}
-              startDate={startDate}
-            />
-            <StreakCounter
+        {/* Ana Sayfa Tab */}
+        {activeTab === 'home' && (
+          <div className="tab-content">
+            <DailyMotivation
               completedDays={completedDays}
-              startDate={startDate}
-            />
-            <ReminderSettings
-              settings={reminderSettings}
-              onChange={handleReminderChange}
-              startDate={startDate}
-              onStartDateChange={handleStartDateChange}
-              todaysProgress={todaysProgress}
-              todaysWorkout={todaysWorkout}
               currentDay={currentDay}
-              notificationsSupported={notificationsSupported}
+              streak={streak}
             />
-            <ProfileSettings
-              profile={userProfile}
-              onSave={handleProfileSave}
-              onRegenerateProgram={handleRegenerateProgram}
-            />
-            <VideoManager
-              onSave={handleVideoSave}
-            />
-            <DataBackup
-              completedDays={completedDays}
-              completedExercises={completedExercises}
-              startDate={startDate}
-              reminderSettings={reminderSettings}
-              onImport={handleDataImport}
-            />
+
+            <section className="insight-strip">
+              <article className="insight-card">
+                <span className="insight-label">Bugünkü Odak</span>
+                <h3>
+                  {todaysWorkout ? `Gün ${todaysWorkout.day}` : 'Program tamamlandı'}
+                </h3>
+                <p>{todaysWorkout?.title || 'Tebrikler, tüm egzersizleri bitirdin!'}</p>
+              </article>
+
+              <article className="insight-card">
+                <span className="insight-label">Sıradaki Plan</span>
+                <h3>
+                  {nextRestDay
+                    ? `Dinlenme · Gün ${nextRestDay.day}`
+                    : upcomingWorkout
+                      ? `Gün ${upcomingWorkout.day}`
+                      : 'Program tamamlandı'}
+                </h3>
+                <p>
+                  {nextRestDay?.title ||
+                    upcomingWorkout?.title ||
+                    'Yeni programa başlamak için hazır mısın?'}
+                </p>
+              </article>
+
+              <article className="insight-card">
+                <span className="insight-label">Hatırlatmalar</span>
+                <h3>{reminderSettings.enabled ? `${reminderSettings.times.length} zaman` : 'Pasif'}</h3>
+                <p>
+                  {reminderSettings.enabled
+                    ? reminderSettings.times.join(' · ')
+                    : 'Bildirimleri açarak motivasyonu taze tut.'}
+                </p>
+              </article>
+            </section>
+
+            {/* Bugünün Programı */}
+            <div className="today-workout-section">
+              <h2>Bugünün Programı</h2>
+              <div className="detail-section" ref={detailSectionRef}>
+                {todaysWorkout ? (
+                  <DayDetail
+                    workout={todaysWorkout}
+                    completedExercises={completedExercises}
+                    onToggleExercise={toggleExerciseComplete}
+                    onToggleDayComplete={() => toggleDayComplete(todaysWorkout.day)}
+                    isDayComplete={completedDays.includes(todaysWorkout.day)}
+                  />
+                ) : (
+                  <div className="no-selection">
+                    <p>Program tamamlandı! Tebrikler! 🎉</p>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
+        )}
 
-          <div className="two-column-grid">
-            <div className="calendar-section">
-              <h2>Takvim</h2>
-              <Calendar
-                workouts={userProgram}
+        {/* İlerlemem Tab */}
+        {activeTab === 'progress' && (
+          <div className="tab-content">
+            <div className="dashboard-sections">
+              <ProgressSummary
+                summary={summary}
+                todaysWorkout={todaysWorkout}
+                todaysProgress={todaysProgress}
+                currentDay={currentDay}
+                startDate={startDate}
+              />
+              <StreakCounter
                 completedDays={completedDays}
-                onDayClick={handleDayClick}
-                selectedDay={selectedDay}
-                completedExercises={completedExercises}
+                startDate={startDate}
               />
             </div>
 
-            <div className="detail-section" ref={detailSectionRef}>
-              {selectedDay ? (
-                <DayDetail
-                  workout={selectedDay}
+            <div className="two-column-grid">
+              <div className="calendar-section">
+                <h2>Takvim</h2>
+                <Calendar
+                  workouts={userProgram}
+                  completedDays={completedDays}
+                  onDayClick={handleDayClick}
+                  selectedDay={selectedDay}
                   completedExercises={completedExercises}
-                  onToggleExercise={toggleExerciseComplete}
-                  onToggleDayComplete={() => toggleDayComplete(selectedDay.day)}
-                  isDayComplete={completedDays.includes(selectedDay.day)}
                 />
-              ) : (
-                <div className="no-selection">
-                  <p>Bir gün seçin</p>
-                </div>
-              )}
+              </div>
+
+              <div className="detail-section">
+                {selectedDay ? (
+                  <DayDetail
+                    workout={selectedDay}
+                    completedExercises={completedExercises}
+                    onToggleExercise={toggleExerciseComplete}
+                    onToggleDayComplete={() => toggleDayComplete(selectedDay.day)}
+                    isDayComplete={completedDays.includes(selectedDay.day)}
+                  />
+                ) : (
+                  <div className="no-selection">
+                    <p>Bir gün seçin</p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-        </div>
+        )}
+
+        {/* Ayarlar Tab */}
+        {activeTab === 'settings' && (
+          <div className="tab-content">
+            <div className="dashboard-sections">
+              <ProfileSettings
+                profile={userProfile}
+                onSave={handleProfileSave}
+                onRegenerateProgram={handleRegenerateProgram}
+              />
+              <ReminderSettings
+                settings={reminderSettings}
+                onChange={handleReminderChange}
+                startDate={startDate}
+                onStartDateChange={handleStartDateChange}
+                todaysProgress={todaysProgress}
+                todaysWorkout={todaysWorkout}
+                currentDay={currentDay}
+                notificationsSupported={notificationsSupported}
+              />
+              <DataBackup
+                completedDays={completedDays}
+                completedExercises={completedExercises}
+                startDate={startDate}
+                reminderSettings={reminderSettings}
+                onImport={handleDataImport}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Video Portal Tab */}
+        {activeTab === 'videos' && (
+          <div className="tab-content">
+            <VideoManager
+              onSave={handleVideoSave}
+            />
+          </div>
+        )}
       </main>
 
       <OnboardingModal
@@ -722,6 +949,12 @@ function App() {
         isOpen={isProfileOnboardingOpen}
         onComplete={handleProfileOnboardingComplete}
         onSkip={handleProfileOnboardingSkip}
+      />
+
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        onAuthSuccess={handleAuthSuccess}
       />
     </div>
   );

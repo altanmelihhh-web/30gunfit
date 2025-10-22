@@ -349,4 +349,78 @@ body {
     transition: background var(--transition-base), box-shadow var(--transition-base),
       border-color var(--transition-base), transform 0.3s ease;
   }
+
+  .tab-navigation {
+    flex-wrap: wrap;
+  }
+
+  .tab-btn {
+    flex: 1;
+    min-width: 120px;
+    font-size: 13px;
+    padding: 10px 12px;
+  }
+}
+
+/* Tab Navigation Styles */
+.tab-navigation {
+  max-width: 1280px;
+  margin: 0 auto 32px;
+  display: flex;
+  gap: 12px;
+  padding: 0 32px;
+  border-bottom: 2px solid var(--color-border);
+}
+
+.tab-btn {
+  background: none;
+  border: none;
+  border-bottom: 3px solid transparent;
+  padding: 14px 24px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all var(--transition-base);
+  margin-bottom: -2px;
+  white-space: nowrap;
+}
+
+.tab-btn:hover {
+  color: var(--color-text-primary);
+  background: var(--color-surface-muted);
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+}
+
+.tab-btn.active {
+  color: #6366f1;
+  border-bottom-color: #6366f1;
+}
+
+.tab-content {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 32px;
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.today-workout-section {
+  margin-top: 32px;
+}
+
+.today-workout-section h2 {
+  margin-bottom: 20px;
+  color: var(--color-text-primary);
+  font-size: 24px;
 }
