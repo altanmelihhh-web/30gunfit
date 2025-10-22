@@ -297,10 +297,10 @@ const generateDayWorkout = (dayNumber, profile, isRestDay = false) => {
   const allExercises = [...warmupExercises, ...mainExercises.slice(0, exerciseCounts.main), ...cooldownExercises];
 
   // Süre ve kalori hesapla (GERÇEKçi MET bazlı formül)
-  const totalDuration = allExercises.reduce((sum, ex) => sum + (ex.duration * ex.sets), 0);
+  const totalDuration = allExercises.reduce((sum, ex) => sum + (ex.duration * ex.sets), 0); // duration already in minutes
   const totalCalories = allExercises.reduce((sum, ex) => {
     const met = getExerciseMET(ex);
-    const durationMinutes = (ex.duration * ex.sets) / 60;
+    const durationMinutes = (ex.duration * ex.sets); // duration already in minutes, no need to divide by 60
     return sum + calculateCalories(met, profile.weight, durationMinutes);
   }, 0);
 
@@ -319,7 +319,7 @@ const generateDayWorkout = (dayNumber, profile, isRestDay = false) => {
   return {
     day: dayNumber,
     title: dayTitle,
-    description: `${totalDuration / 60} dakikalık antrenman. Yaklaşık ${totalCalories} kalori yakacaksınız.`,
+    description: `${Math.round(totalDuration)} dakikalık antrenman. Yaklaşık ${totalCalories} kalori yakacaksınız.`, // totalDuration already in minutes
     isRest: false,
     exercises: allExercises,
     totalDuration,
