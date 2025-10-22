@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import './ProfileSettings.css';
 import { FITNESS_GOALS, DIFFICULTY_LEVELS } from '../data/exerciseLibrary';
+import { getSoundSettings, saveSoundSettings } from '../utils/soundSettings';
 
 function ProfileSettings({ profile, onSave, onRegenerateProgram }) {
   const [editedProfile, setEditedProfile] = useState({ ...profile });
   const [hasChanges, setHasChanges] = useState(false);
+  const [soundSettings, setSoundSettings] = useState(getSoundSettings());
 
   const handleChange = (field, value) => {
     setEditedProfile(prev => ({ ...prev, [field]: value }));
@@ -33,6 +35,12 @@ function ProfileSettings({ profile, onSave, onRegenerateProgram }) {
     setTimeout(() => {
       onRegenerateProgram(editedProfile);
     }, 100);
+  };
+
+  const handleSoundSettingChange = (key, value) => {
+    const newSettings = { ...soundSettings, [key]: value };
+    setSoundSettings(newSettings);
+    saveSoundSettings(newSettings);
   };
 
   const goalNames = {
@@ -179,6 +187,64 @@ function ProfileSettings({ profile, onSave, onRegenerateProgram }) {
                 <option value={7}>7 gün/hafta</option>
               </select>
             </div>
+          </div>
+        </div>
+
+        {/* Ses & Motivasyon Ayarları */}
+        <div className="profile-section">
+          <h3>🔊 Ses & Motivasyon Ayarları</h3>
+          <p className="section-description">Timer sırasında ses ve konuşma ayarları</p>
+
+          <div className="sound-settings-grid">
+            <div className="sound-setting-item">
+              <div className="setting-info">
+                <label className="setting-label">🔔 Ses Efektleri</label>
+                <span className="setting-desc">Başlama, bitiş ve önemli anlar için bip sesleri</span>
+              </div>
+              <label className="toggle-switch">
+                <input
+                  type="checkbox"
+                  checked={soundSettings.soundEffects}
+                  onChange={(e) => handleSoundSettingChange('soundEffects', e.target.checked)}
+                />
+                <span className="toggle-slider"></span>
+              </label>
+            </div>
+
+            <div className="sound-setting-item">
+              <div className="setting-info">
+                <label className="setting-label">🗣️ Konuşma (Türkçe)</label>
+                <span className="setting-desc">Tekrar sayma ve son 5 saniye geri sayımı</span>
+              </div>
+              <label className="toggle-switch">
+                <input
+                  type="checkbox"
+                  checked={soundSettings.speech}
+                  onChange={(e) => handleSoundSettingChange('speech', e.target.checked)}
+                />
+                <span className="toggle-slider"></span>
+              </label>
+            </div>
+
+            <div className="sound-setting-item">
+              <div className="setting-info">
+                <label className="setting-label">💪 Motivasyon Mesajları</label>
+                <span className="setting-desc">"Harika gidiyorsun!", "Formunu koru!" gibi cesaretlendirmeler</span>
+              </div>
+              <label className="toggle-switch">
+                <input
+                  type="checkbox"
+                  checked={soundSettings.motivationMessages}
+                  onChange={(e) => handleSoundSettingChange('motivationMessages', e.target.checked)}
+                  disabled={!soundSettings.speech}
+                />
+                <span className="toggle-slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <div className="sound-settings-note">
+            💡 <strong>Not:</strong> Ses ayarları anında kaydedilir ve bir sonraki egzersizde geçerli olur.
           </div>
         </div>
       </div>

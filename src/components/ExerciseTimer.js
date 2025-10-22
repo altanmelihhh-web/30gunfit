@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import './ExerciseTimer.css';
+import { getSoundSettings } from '../utils/soundSettings';
 
-function ExerciseTimer({ exercise, onComplete }) {
+function ExerciseTimer({ exercise, onComplete, alternatives = [], onAlternativeChange }) {
   const [timeLeft, setTimeLeft] = useState(0);
   const [initialTime, setInitialTime] = useState(0);
   const [isRunning, setIsRunning] = useState(false);
@@ -13,6 +14,8 @@ function ExerciseTimer({ exercise, onComplete }) {
   const [currentRep, setCurrentRep] = useState(0);
   const [showMedia, setShowMedia] = useState(true);
   const [mediaType, setMediaType] = useState('gif'); // 'gif' veya 'video'
+  const [showAlternatives, setShowAlternatives] = useState(false);
+  const [soundSettings] = useState(getSoundSettings());
   const intervalRef = useRef(null);
   const audioContextRef = useRef(null);
   const utteranceRef = useRef(null);
@@ -87,6 +90,12 @@ function ExerciseTimer({ exercise, onComplete }) {
   const speak = (text, options = {}) => {
     if (!window.speechSynthesis) return;
 
+    // Konuşma ayarı kapalıysa çalma
+    if (!soundSettings.speech) return;
+
+    // Motivasyon mesajı ise ve motivasyon kapalıysa çalma
+    if (options.isMotivation && !soundSettings.motivationMessages) return;
+
     // Önceki konuşmayı iptal et
     window.speechSynthesis.cancel();
 
@@ -102,6 +111,9 @@ function ExerciseTimer({ exercise, onComplete }) {
 
   // Bip sesi çal
   const playBeep = (frequency = 800, duration = 200) => {
+    // Ses efektleri kapalıysa çalma
+    if (!soundSettings.soundEffects) return;
+
     if (!audioContextRef.current) {
       audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
     }
@@ -215,19 +227,19 @@ function ExerciseTimer({ exercise, onComplete }) {
 
             // Her 5 tekrarda motivasyon
             if (estimatedRep % 5 === 0 && estimatedRep < repsPerSet) {
-              setTimeout(() => speak(getRandomMotivation()), 800);
+              setTimeout(() => speak(getRandomMotivation(), { isMotivation: true }), 800);
             }
 
             // Her 10 tekrarda form hatırlatması
             if (estimatedRep % 10 === 0 && estimatedRep < repsPerSet) {
-              setTimeout(() => speak(getRandomFormReminder()), 1500);
+              setTimeout(() => speak(getRandomFormReminder(), { isMotivation: true }), 1500);
             }
           }
 
           // Kalan tekrar uyarısı
           const remaining = repsPerSet - estimatedRep;
           if (remaining === 10 || remaining === 5) {
-            speak(`${remaining} tekrar kaldı! Hadi!`, { rate: 1.1 });
+            speak(`${remaining} tekrar kaldı! Hadi!`, { rate: 1.1, isMotivation: true });
           }
         }
 
@@ -239,22 +251,22 @@ function ExerciseTimer({ exercise, onComplete }) {
 
         // Yarı süre uyarısı
         if (prev === Math.floor(initialTime / 2) && phase === 'work') {
-          speak('Yarıladın, devam et! ' + getRandomMotivation());
+          speak('Yarıladın, devam et! ' + getRandomMotivation(), { isMotivation: true });
         }
 
         // Çeyrek sürelerde motivasyon
         if (prev === Math.floor(initialTime * 0.75) && phase === 'work') {
-          speak(getRandomMotivation());
+          speak(getRandomMotivation(), { isMotivation: true });
         }
         if (prev === Math.floor(initialTime * 0.25) && phase === 'work') {
-          speak('Son düzlük! ' + getRandomMotivation());
+          speak('Son düzlük! ' + getRandomMotivation(), { isMotivation: true });
         }
 
         // Her 30 saniyede bir form hatırlatması
         const now = Date.now();
         if (now - lastMotivationTime.current > 30000 && phase === 'work') {
           lastMotivationTime.current = now;
-          speak(getRandomFormReminder());
+          speak(getRandomFormReminder(), { isMotivation: true });
         }
 
         return prev - 1;
@@ -401,6 +413,42 @@ function ExerciseTimer({ exercise, onComplete }) {
           </p>
         )}
       </div>
+
+      {/* Alternatif Egzersiz Değiştirme */}
+      {alternatives && alternatives.length > 0 && phase !== 'complete' && (
+        <div className="timer-alternatives-section">
+          <button
+            className="btn-show-alternatives"
+            onClick={() => setShowAlternatives(!showAlternatives)}
+          >
+            {showAlternatives ? '❌ Kapat' : '🔄 Bu hareket zor mu? Değiştir'}
+          </button>
+
+          {showAlternatives && (
+            <div className="alternatives-dropdown">
+              <p className="alternatives-hint">Daha kolay alternatifler:</p>
+              {alternatives.map((alt, index) => (
+                <button
+                  key={index}
+                  className="alternative-option"
+                  onClick={() => {
+                    if (onAlternativeChange) {
+                      onAlternativeChange(index);
+                      setShowAlternatives(false);
+                    }
+                  }}
+                >
+                  <span className="alt-name">{alt.name}</span>
+                  <span className="alt-difficulty">{alt.difficulty || 'Beginner'}</span>
+                  {alt.equipment && alt.equipment !== 'none' && (
+                    <span className="alt-equipment">🔧 {alt.equipment}</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="timer-controls">
         {!isRunning && phase === 'ready' && (

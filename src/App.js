@@ -14,6 +14,11 @@ import ProfileSettings from './components/ProfileSettings';
 import VideoManager from './components/VideoManager';
 import AuthModal from './components/AuthModal';
 import NutritionDashboard from './components/NutritionDashboard';
+import WeightTracker from './components/WeightTracker';
+import WaterTracker from './components/WaterTracker';
+import ProgressPhotos from './components/ProgressPhotos';
+import BodyMeasurements from './components/BodyMeasurements';
+import BodyComposition from './components/BodyComposition';
 import {
   generate30DayProgram,
   calculateProgramSummary,
@@ -876,6 +881,22 @@ function App() {
                 startDate={startDate}
               />
             </div>
+
+            {/* Kilo Takibi */}
+            <div className="dashboard-sections" style={{ marginTop: '28px' }}>
+              <WeightTracker />
+            </div>
+
+            {/* İlerleme Fotoğrafları */}
+            <div style={{ marginTop: '28px' }}>
+              <ProgressPhotos />
+            </div>
+
+            {/* Vücut Ölçüleri ve Kompozisyon */}
+            <div className="dashboard-sections" style={{ marginTop: '28px' }}>
+              <BodyMeasurements />
+              <BodyComposition />
+            </div>
           </div>
         )}
 
@@ -958,6 +979,11 @@ function App() {
             <NutritionDashboard
               userProfile={userProfile}
             />
+
+            {/* Su Takibi */}
+            <div style={{ marginTop: '28px' }}>
+              <WaterTracker />
+            </div>
           </div>
         )}
       </main>

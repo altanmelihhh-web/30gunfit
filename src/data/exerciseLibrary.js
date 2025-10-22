@@ -71,7 +71,7 @@ export const exerciseLibrary = [
     bmiSuitability: [BMI_SUITABILITY.NORMAL, BMI_SUITABILITY.OVERWEIGHT, BMI_SUITABILITY.OBESE],
     hasLowImpactVersion: false,
     instructions: 'Yerinde rahat bir tempoda yürüyün. Kollarınızı sallamayı unutmayın.',
-    videoUrl: null,
+    videoUrl: 'https://www.youtube.com/embed/2g811Eo7K8U',
     gifUrl: null
   },
   {
@@ -86,7 +86,7 @@ export const exerciseLibrary = [
     equipment: 'none',
     caloriesPerMinute: 2,
     instructions: 'Kollarınızı yana açın ve dairesel hareketlerle çevirin.',
-    videoUrl: null,
+    videoUrl: 'https://www.youtube.com/embed/JB2oyawG9KI',
     gifUrl: null
   },
   {
@@ -101,7 +101,7 @@ export const exerciseLibrary = [
     equipment: 'none',
     caloriesPerMinute: 1,
     instructions: 'Başınızı yavaşça sağa-sola, öne-arkaya eğin.',
-    videoUrl: null,
+    videoUrl: 'https://www.youtube.com/embed/6MebZx-4950',
     gifUrl: null
   },
   {
@@ -116,7 +116,7 @@ export const exerciseLibrary = [
     equipment: 'none',
     caloriesPerMinute: 4,
     instructions: 'Hafif tempo ile squat yapın, ısınma amaçlı.',
-    videoUrl: null,
+    videoUrl: 'https://www.youtube.com/embed/YaXPRqUwItQ',
     gifUrl: null
   },
   {
@@ -131,7 +131,7 @@ export const exerciseLibrary = [
     equipment: 'none',
     caloriesPerMinute: 5,
     instructions: 'Hafif tempoda jumping jacks yaparak vücudu ısıtın.',
-    videoUrl: null,
+    videoUrl: 'https://www.youtube.com/embed/2W4ZNSwoW_4',
     gifUrl: null
   },
 
@@ -148,7 +148,7 @@ export const exerciseLibrary = [
     equipment: 'none',
     caloriesPerMinute: 8,
     instructions: 'Yerinde hızlı tempo ile koşun. Dizlerinizi yukarı kaldırın.',
-    videoUrl: null,
+    videoUrl: 'https://www.youtube.com/embed/g_tea8ZNk5A',
     gifUrl: null
   },
   {
@@ -163,7 +163,7 @@ export const exerciseLibrary = [
     equipment: 'none',
     caloriesPerMinute: 8,
     instructions: 'Zıplayarak kollarınızı yukarı kaldırın ve bacaklarınızı açın.',
-    videoUrl: null,
+    videoUrl: 'https://www.youtube.com/embed/2W4ZNSwoW_4',
     gifUrl: null
   },
   {
@@ -178,8 +178,49 @@ export const exerciseLibrary = [
     equipment: 'none',
     caloriesPerMinute: 10,
     instructions: 'Yerinde koşarken dizlerinizi göğüs hizasına kadar kaldırın.',
-    videoUrl: null,
-    gifUrl: null
+    videoUrl: 'https://www.youtube.com/embed/mmq5zZfmIws',
+    gifUrl: null,
+    alternatives: [
+      {
+        id: 'cardio_3_alt1',
+        name: 'Yerinde Yürüyüş (Yavaş)',
+        difficulty: DIFFICULTY_LEVELS.BEGINNER,
+        duration: 2,
+        sets: 3,
+        reps: 60,
+        targetMuscles: ['kalp', 'bacaklar'],
+        equipment: 'none',
+        caloriesPerMinute: 5,
+        instructions: 'Yerinde yürüyün, dizleri hafifçe kaldırın. Düşük impact, eklemlere dost.',
+        videoUrl: 'https://www.youtube.com/embed/2g811Eo7K8U'
+      },
+      {
+        id: 'cardio_3_alt2',
+        name: 'Step Touch (Yan Adım)',
+        difficulty: DIFFICULTY_LEVELS.BEGINNER,
+        duration: 1.5,
+        sets: 3,
+        reps: 40,
+        targetMuscles: ['kalp', 'bacaklar'],
+        equipment: 'none',
+        caloriesPerMinute: 6,
+        instructions: 'Sağa-sola adım atarak kardiyo yapın. Zıplama yok, düşük impact.',
+        videoUrl: 'https://www.youtube.com/embed/DHD1-2P94DI'
+      },
+      {
+        id: 'cardio_3_alt3',
+        name: 'Low Knees (Alçak Dizler)',
+        difficulty: DIFFICULTY_LEVELS.BEGINNER,
+        duration: 1.5,
+        sets: 3,
+        reps: 50,
+        targetMuscles: ['kalp', 'bacaklar'],
+        equipment: 'none',
+        caloriesPerMinute: 7,
+        instructions: 'Dizleri bel hizasına kadar kaldırarak yerinde koşun. Orta intensity.',
+        videoUrl: 'https://www.youtube.com/embed/2g811Eo7K8U'
+      }
+    ]
   },
   {
     id: 'cardio_4',
@@ -193,7 +234,7 @@ export const exerciseLibrary = [
     equipment: 'none',
     caloriesPerMinute: 8,
     instructions: 'Yerinde koşarken topuklarınızı kalçanıza dokundurma hedefiyle hareket edin.',
-    videoUrl: null,
+    videoUrl: 'https://www.youtube.com/embed/C_VtOYc6j5c',
     gifUrl: null
   },
   {
@@ -208,8 +249,49 @@ export const exerciseLibrary = [
     equipment: 'none',
     caloriesPerMinute: 12,
     instructions: 'Plank pozisyonunda dizlerinizi göğsünüze doğru çekin.',
-    videoUrl: null,
-    gifUrl: null
+    videoUrl: 'https://www.youtube.com/embed/kLh-uczlPLg',
+    gifUrl: null,
+    alternatives: [
+      {
+        id: 'cardio_5_alt1',
+        name: 'Slow Mountain Climbers',
+        difficulty: DIFFICULTY_LEVELS.BEGINNER,
+        duration: 1.5,
+        sets: 3,
+        reps: 30,
+        targetMuscles: ['core', 'kalp', 'kollar'],
+        equipment: 'none',
+        caloriesPerMinute: 8,
+        instructions: 'Yavaş tempo ile kontrollü mountain climber yapın. Başlangıç seviyesi.',
+        videoUrl: 'https://www.youtube.com/embed/kLh-uczlPLg'
+      },
+      {
+        id: 'cardio_5_alt2',
+        name: 'Plank Jacks',
+        difficulty: DIFFICULTY_LEVELS.INTERMEDIATE,
+        duration: 1.5,
+        sets: 3,
+        reps: 30,
+        targetMuscles: ['core', 'kalp', 'bacaklar'],
+        equipment: 'none',
+        caloriesPerMinute: 10,
+        instructions: 'Plank pozisyonunda bacakları açıp kapayın. Core ve kardiyo.',
+        videoUrl: 'https://www.youtube.com/embed/8PwoytUU06g'
+      },
+      {
+        id: 'cardio_5_alt3',
+        name: 'Plank Hold + Knee Tucks',
+        difficulty: DIFFICULTY_LEVELS.BEGINNER,
+        duration: 1.5,
+        sets: 3,
+        reps: 20,
+        targetMuscles: ['core', 'omuzlar'],
+        equipment: 'none',
+        caloriesPerMinute: 6,
+        instructions: 'Plank pozisyonunda tutun, ara sıra tek diz göğse. Daha kolay versiyon.',
+        videoUrl: 'https://www.youtube.com/embed/B296mZDhrP4'
+      }
+    ]
   },
   {
     id: 'cardio_6',
@@ -223,8 +305,49 @@ export const exerciseLibrary = [
     equipment: 'none',
     caloriesPerMinute: 14,
     instructions: 'Squat pozisyonundan plank\'a geçin, şınav çekin ve zıplayarak ayağa kalkın.',
-    videoUrl: null,
-    gifUrl: null
+    videoUrl: 'https://www.youtube.com/embed/dZgVxmf6jkA',
+    gifUrl: null,
+    alternatives: [
+      {
+        id: 'cardio_6_alt1',
+        name: 'Modified Burpees (Zıplamasız)',
+        difficulty: DIFFICULTY_LEVELS.INTERMEDIATE,
+        duration: 2,
+        sets: 3,
+        reps: 15,
+        targetMuscles: ['tüm vücut', 'kalp'],
+        equipment: 'none',
+        caloriesPerMinute: 10,
+        instructions: 'Zıplama olmadan burpee yapın. Squat-plank-squat-ayağa kalk.',
+        videoUrl: 'https://www.youtube.com/embed/dZgVxmf6jkA'
+      },
+      {
+        id: 'cardio_6_alt2',
+        name: 'Step-Out Burpees',
+        difficulty: DIFFICULTY_LEVELS.INTERMEDIATE,
+        duration: 2,
+        sets: 3,
+        reps: 15,
+        targetMuscles: ['tüm vücut', 'kalp'],
+        equipment: 'none',
+        caloriesPerMinute: 12,
+        instructions: 'Plank pozisyonuna zıplamak yerine adım atarak geçin.',
+        videoUrl: 'https://www.youtube.com/embed/dZgVxmf6jkA'
+      },
+      {
+        id: 'cardio_6_alt3',
+        name: 'Squat Thrusts',
+        difficulty: DIFFICULTY_LEVELS.BEGINNER,
+        duration: 2,
+        sets: 3,
+        reps: 20,
+        targetMuscles: ['bacaklar', 'kalp', 'core'],
+        equipment: 'none',
+        caloriesPerMinute: 8,
+        instructions: 'Sadece squat ve plank arasında geçiş yapın, şınav ve zıplama yok.',
+        videoUrl: 'https://www.youtube.com/embed/IT94xC35u6k'
+      }
+    ]
   },
   {
     id: 'cardio_7',
@@ -238,7 +361,7 @@ export const exerciseLibrary = [
     equipment: 'none',
     caloriesPerMinute: 9,
     instructions: 'Paten kayarcasına sağa-sola zıplayın.',
-    videoUrl: null,
+    videoUrl: 'https://www.youtube.com/embed/ioR5np1fmEc',
     gifUrl: null
   },
   {
@@ -253,7 +376,7 @@ export const exerciseLibrary = [
     equipment: 'none',
     caloriesPerMinute: 7,
     instructions: 'Sanki merdiven çıkıyormuş gibi yerinde yüksek adımlar atın.',
-    videoUrl: null,
+    videoUrl: 'https://www.youtube.com/embed/v7AYKMP6rOE',
     gifUrl: null
   },
 
@@ -270,8 +393,49 @@ export const exerciseLibrary = [
     equipment: 'none',
     caloriesPerMinute: 7,
     instructions: 'Plank pozisyonunda vücudunuzu düz tutarak şınav çekin.',
-    videoUrl: null,
-    gifUrl: null
+    videoUrl: 'https://www.youtube.com/embed/_l3ySVKYVJ8',
+    gifUrl: null,
+    alternatives: [
+      {
+        id: 'strength_upper_1_alt1',
+        name: 'Diz Üstü Şınav',
+        difficulty: DIFFICULTY_LEVELS.BEGINNER,
+        duration: 1.5,
+        sets: 3,
+        reps: 15,
+        targetMuscles: ['göğüs', 'triceps', 'omuzlar'],
+        equipment: 'none',
+        caloriesPerMinute: 5,
+        instructions: 'Dizleriniz yerde olacak şekilde şınav çekin. Başlangıç seviyesi için ideal.',
+        videoUrl: 'https://www.youtube.com/embed/ZWdBqFLNljc'
+      },
+      {
+        id: 'strength_upper_1_alt2',
+        name: 'Duvar Şınav',
+        difficulty: DIFFICULTY_LEVELS.BEGINNER,
+        duration: 1.5,
+        sets: 3,
+        reps: 20,
+        targetMuscles: ['göğüs', 'omuzlar'],
+        equipment: 'wall',
+        caloriesPerMinute: 3,
+        instructions: 'Duvara yaslanarak ayakta şınav çekin. En kolay versiyon.',
+        videoUrl: 'https://www.youtube.com/embed/kzSJvEbIKi4'
+      },
+      {
+        id: 'strength_upper_1_alt3',
+        name: 'Eğimli Şınav (Elevated)',
+        difficulty: DIFFICULTY_LEVELS.BEGINNER,
+        duration: 1.5,
+        sets: 3,
+        reps: 15,
+        targetMuscles: ['göğüs', 'triceps', 'omuzlar'],
+        equipment: 'chair',
+        caloriesPerMinute: 6,
+        instructions: 'Ellerinizi sandalye veya yüksek bir yüzeye koyarak şınav çekin.',
+        videoUrl: 'https://www.youtube.com/embed/IODxDxX7oi4'
+      }
+    ]
   },
   {
     id: 'strength_upper_2',
@@ -285,7 +449,7 @@ export const exerciseLibrary = [
     equipment: 'none',
     caloriesPerMinute: 5,
     instructions: 'Dizleriniz yerde olacak şekilde şınav çekin.',
-    videoUrl: null,
+    videoUrl: 'https://www.youtube.com/embed/ZWdBqFLNljc',
     gifUrl: null
   },
   {
@@ -300,7 +464,7 @@ export const exerciseLibrary = [
     equipment: 'none',
     caloriesPerMinute: 8,
     instructions: 'Ellerinizi yakın tutarak elmas şeklinde şınav çekin.',
-    videoUrl: null,
+    videoUrl: 'https://www.youtube.com/embed/kzSJvEbIKi4',
     gifUrl: null
   },
   {
@@ -315,7 +479,7 @@ export const exerciseLibrary = [
     equipment: 'chair',
     caloriesPerMinute: 6,
     instructions: 'Sandalyeye tutunarak kollarınızı büküp açarak triceps çalıştırın.',
-    videoUrl: null,
+    videoUrl: 'https://www.youtube.com/embed/6kALZikXxLc',
     gifUrl: null
   },
   {
@@ -330,7 +494,7 @@ export const exerciseLibrary = [
     equipment: 'none',
     caloriesPerMinute: 6,
     instructions: 'Plank pozisyonundan kalçanızı yukarı kaldırarak V şekline geçin.',
-    videoUrl: null,
+    videoUrl: 'https://www.youtube.com/embed/c_Dq_NCzj8M',
     gifUrl: null
   },
   {
@@ -345,7 +509,7 @@ export const exerciseLibrary = [
     equipment: 'none',
     caloriesPerMinute: 7,
     instructions: 'Kalçanızı yukarı kaldırarak V pozisyonunda şınav çekin.',
-    videoUrl: null,
+    videoUrl: 'https://www.youtube.com/embed/4Y2ZdHCOXok',
     gifUrl: null
   },
   {
@@ -360,7 +524,7 @@ export const exerciseLibrary = [
     equipment: 'none',
     caloriesPerMinute: 4,
     instructions: 'Kollarınızı yana açıp dairesel hareketler yapın.',
-    videoUrl: null,
+    videoUrl: 'https://www.youtube.com/embed/M0uO8X3_tEA',
     gifUrl: null
   },
   {
@@ -375,7 +539,7 @@ export const exerciseLibrary = [
     equipment: 'none',
     caloriesPerMinute: 6,
     instructions: 'Plank pozisyonunda karşı omzunuza dokunun.',
-    videoUrl: null,
+    videoUrl: 'https://www.youtube.com/embed/c_Dq_NCzj8M',
     gifUrl: null
   },
 
@@ -392,8 +556,49 @@ export const exerciseLibrary = [
     equipment: 'none',
     caloriesPerMinute: 6,
     instructions: 'Ayaklarınızı omuz genişliğinde açarak derin squat yapın.',
-    videoUrl: null,
-    gifUrl: null
+    videoUrl: 'https://www.youtube.com/embed/YaXPRqUwItQ',
+    gifUrl: null,
+    alternatives: [
+      {
+        id: 'strength_lower_1_alt1',
+        name: 'Wall Sit',
+        difficulty: DIFFICULTY_LEVELS.BEGINNER,
+        duration: 1,
+        sets: 3,
+        reps: null,
+        targetMuscles: ['bacaklar', 'kalça'],
+        equipment: 'wall',
+        caloriesPerMinute: 4,
+        instructions: 'Duvara yaslanıp 90 derece açıda oturun, hareketsiz bekleyin. İzometrik kuvvet çalışması.',
+        videoUrl: 'https://www.youtube.com/embed/mGvzVjuY8SY'
+      },
+      {
+        id: 'strength_lower_1_alt2',
+        name: 'Sandalye Oturup Kalkma',
+        difficulty: DIFFICULTY_LEVELS.BEGINNER,
+        duration: 1.5,
+        sets: 3,
+        reps: 15,
+        targetMuscles: ['bacaklar', 'kalça'],
+        equipment: 'chair',
+        caloriesPerMinute: 5,
+        instructions: 'Sandalyeye oturup kalkarak squat hareketi yapın. Başlangıç seviyesi için mükemmel.',
+        videoUrl: 'https://www.youtube.com/embed/Azl5tkCzDcc'
+      },
+      {
+        id: 'strength_lower_1_alt3',
+        name: 'Sumo Squat',
+        difficulty: DIFFICULTY_LEVELS.BEGINNER,
+        duration: 1.5,
+        sets: 3,
+        reps: 20,
+        targetMuscles: ['bacaklar', 'kalça', 'iç bacak'],
+        equipment: 'none',
+        caloriesPerMinute: 6,
+        instructions: 'Ayaklarınızı geniş açarak squat yapın. İç bacak ve kalçaya odaklanır.',
+        videoUrl: 'https://www.youtube.com/embed/mGvzVjuY8SY'
+      }
+    ]
   },
   {
     id: 'strength_lower_2',
@@ -407,7 +612,7 @@ export const exerciseLibrary = [
     equipment: 'none',
     caloriesPerMinute: 10,
     instructions: 'Squat pozisyonundan zıplayarak patlayıcı hareket yapın.',
-    videoUrl: null,
+    videoUrl: 'https://www.youtube.com/embed/Azl5tkCzDcc',
     gifUrl: null
   },
   {
@@ -422,8 +627,48 @@ export const exerciseLibrary = [
     equipment: 'none',
     caloriesPerMinute: 6,
     instructions: 'İleri adım atarak diz bükerek lunge yapın.',
-    videoUrl: null,
-    gifUrl: null
+    videoUrl: 'https://www.youtube.com/embed/D7KaRcUTQeE',
+    gifUrl: null,
+    alternatives: [
+      {
+        id: 'strength_lower_3_alt1',
+        name: 'Reverse Lunges (Geri Hamle)',
+        difficulty: DIFFICULTY_LEVELS.BEGINNER,
+        duration: 1.5,
+        sets: 3,
+        reps: 20,
+        targetMuscles: ['bacaklar', 'kalça', 'denge'],
+        equipment: 'none',
+        caloriesPerMinute: 6,
+        instructions: 'Geriye adım atarak lunge yapın. Dizlere daha az yük, denge daha kolay.',
+        videoUrl: 'https://www.youtube.com/embed/wkD8rjkodUI'
+      },
+      {
+        id: 'strength_lower_3_alt2',
+        name: 'Static Lunges (Yerinde)',
+        difficulty: DIFFICULTY_LEVELS.BEGINNER,
+        duration: 1.5,
+        sets: 3,
+        reps: 30,
+        targetMuscles: ['bacaklar', 'kalça'],
+        equipment: 'none',
+        caloriesPerMinute: 5,
+        instructions: 'Yerinde durarak sadece yukarı aşağı hareket edin. Denge problemi yok.',
+        videoUrl: 'https://www.youtube.com/embed/UpH7rm0cYbM'
+      },
+      {
+        id: 'strength_lower_3_alt3',
+        name: 'Step-Ups (Sandalye)',
+        difficulty: DIFFICULTY_LEVELS.BEGINNER,
+        duration: 1.5,
+        sets: 3,
+        reps: 20,
+        targetMuscles: ['bacaklar', 'kalça'],
+        equipment: 'chair',
+        instructions: 'Sandalyeye adım atarak çıkın. Tek bacak kuvvet çalışması, denge daha kolay.',
+        videoUrl: 'https://www.youtube.com/embed/v7AYKMP6rOE'
+      }
+    ]
   },
   {
     id: 'strength_lower_4',
@@ -437,7 +682,7 @@ export const exerciseLibrary = [
     equipment: 'none',
     caloriesPerMinute: 6,
     instructions: 'Geriye adım atarak lunge yapın.',
-    videoUrl: null,
+    videoUrl: 'https://www.youtube.com/embed/wkD8rjkodUI',
     gifUrl: null
   },
   {
@@ -452,7 +697,7 @@ export const exerciseLibrary = [
     equipment: 'none',
     caloriesPerMinute: 11,
     instructions: 'Lunge pozisyonunda zıplayarak bacakları değiştirin.',
-    videoUrl: null,
+    videoUrl: 'https://www.youtube.com/embed/UItWltVZZmE',
     gifUrl: null
   },
   {
@@ -467,7 +712,7 @@ export const exerciseLibrary = [
     equipment: 'none',
     caloriesPerMinute: 5,
     instructions: 'Sırt üstü yatarak kalçanızı yukarı kaldırın.',
-    videoUrl: null,
+    videoUrl: 'https://www.youtube.com/embed/wPM8icPu6H8',
     gifUrl: null
   },
   {
@@ -482,7 +727,7 @@ export const exerciseLibrary = [
     equipment: 'none',
     caloriesPerMinute: 6,
     instructions: 'Tek bacak üzerinde glute bridge yapın.',
-    videoUrl: null,
+    videoUrl: 'https://www.youtube.com/embed/eGo4IYlbE5g',
     gifUrl: null
   },
   {
@@ -497,7 +742,7 @@ export const exerciseLibrary = [
     equipment: 'wall',
     caloriesPerMinute: 5,
     instructions: 'Duvara yaslanarak sandalyede oturur gibi pozisyon alın ve tutun.',
-    videoUrl: null,
+    videoUrl: 'https://www.youtube.com/embed/mGvzVjuY8SY',
     gifUrl: null
   },
   {
@@ -512,7 +757,7 @@ export const exerciseLibrary = [
     equipment: 'none',
     caloriesPerMinute: 4,
     instructions: 'Ayak parmaklarınızın ucuna basarak baldırları çalıştırın.',
-    videoUrl: null,
+    videoUrl: 'https://www.youtube.com/embed/gwWv7aPcD88',
     gifUrl: null
   },
   {
@@ -527,7 +772,7 @@ export const exerciseLibrary = [
     equipment: 'none',
     caloriesPerMinute: 5,
     instructions: 'Yan yatarak bacağınızı yukarı kaldırın.',
-    videoUrl: null,
+    videoUrl: 'https://www.youtube.com/embed/L_xrDAtykMI',
     gifUrl: null
   },
 
@@ -544,8 +789,49 @@ export const exerciseLibrary = [
     equipment: 'none',
     caloriesPerMinute: 5,
     instructions: 'Dirsekleriniz üzerinde vücudunuzu düz tutarak plank pozisyonunda kalın.',
-    videoUrl: null,
-    gifUrl: null
+    videoUrl: 'https://www.youtube.com/embed/B296mZDhrP4',
+    gifUrl: null,
+    alternatives: [
+      {
+        id: 'strength_core_1_alt1',
+        name: 'Knee Plank (Diz Üstü Plank)',
+        difficulty: DIFFICULTY_LEVELS.BEGINNER,
+        duration: 1,
+        sets: 3,
+        reps: null,
+        targetMuscles: ['core', 'omuzlar'],
+        equipment: 'none',
+        caloriesPerMinute: 3,
+        instructions: 'Dizleriniz yerde olacak şekilde plank pozisyonunda tutun. Başlangıç seviyesi.',
+        videoUrl: 'https://www.youtube.com/embed/c_Dq_NCzj8M'
+      },
+      {
+        id: 'strength_core_1_alt2',
+        name: 'Bird Dog',
+        difficulty: DIFFICULTY_LEVELS.BEGINNER,
+        duration: 1,
+        sets: 3,
+        reps: 20,
+        targetMuscles: ['core', 'sırt', 'denge'],
+        equipment: 'none',
+        caloriesPerMinute: 4,
+        instructions: 'Dört ayak üzerinde karşı kol ve bacağı uzatarak denge çalışın.',
+        videoUrl: 'https://www.youtube.com/embed/8PwoytUU06g'
+      },
+      {
+        id: 'strength_core_1_alt3',
+        name: 'Dead Bug',
+        difficulty: DIFFICULTY_LEVELS.BEGINNER,
+        duration: 1,
+        sets: 3,
+        reps: 20,
+        targetMuscles: ['core', 'koordinasyon'],
+        equipment: 'none',
+        caloriesPerMinute: 4,
+        instructions: 'Sırtüstü yatarak karşı kol ve bacağı hareket ettirin. Sırt dostu core egzersizi.',
+        videoUrl: 'https://www.youtube.com/embed/4XLEnwUr1d8'
+      }
+    ]
   },
   {
     id: 'strength_core_2',
@@ -559,7 +845,7 @@ export const exerciseLibrary = [
     equipment: 'none',
     caloriesPerMinute: 5,
     instructions: 'Yan tarafta dirsek üzerinde vücudu düz tutun.',
-    videoUrl: null,
+    videoUrl: 'https://www.youtube.com/embed/wqzrb67Dwf8',
     gifUrl: null
   },
   {
@@ -574,7 +860,7 @@ export const exerciseLibrary = [
     equipment: 'none',
     caloriesPerMinute: 5,
     instructions: 'Sırt üstü yatarak üst gövdeyi kaldırın.',
-    videoUrl: null,
+    videoUrl: 'https://www.youtube.com/embed/MKmrqcoCZ-M',
     gifUrl: null
   },
   {
@@ -589,7 +875,7 @@ export const exerciseLibrary = [
     equipment: 'none',
     caloriesPerMinute: 7,
     instructions: 'Karşılıklı dirsek-diz birleştirerek bisiklet hareketi yapın.',
-    videoUrl: null,
+    videoUrl: 'https://www.youtube.com/embed/Iwyvozckjak',
     gifUrl: null
   },
   {
@@ -604,7 +890,7 @@ export const exerciseLibrary = [
     equipment: 'none',
     caloriesPerMinute: 6,
     instructions: 'Oturur pozisyonda gövdeyi sağa-sola çevirin.',
-    videoUrl: null,
+    videoUrl: 'https://www.youtube.com/embed/wkD8rjkodUI',
     gifUrl: null
   },
   {
@@ -619,7 +905,7 @@ export const exerciseLibrary = [
     equipment: 'none',
     caloriesPerMinute: 6,
     instructions: 'Sırt üstü yatarak bacakları düz şekilde yukarı kaldırın.',
-    videoUrl: null,
+    videoUrl: 'https://www.youtube.com/embed/Wp4BlxcFTkE',
     gifUrl: null
   },
   {
@@ -634,7 +920,7 @@ export const exerciseLibrary = [
     equipment: 'none',
     caloriesPerMinute: 5,
     instructions: 'Sırt üstü yatarak bacakları yukarı-aşağı hızlı hareket ettirin.',
-    videoUrl: null,
+    videoUrl: 'https://www.youtube.com/embed/8PwoytUU06g',
     gifUrl: null
   },
   {
@@ -649,7 +935,7 @@ export const exerciseLibrary = [
     equipment: 'none',
     caloriesPerMinute: 5,
     instructions: 'Sırt üstü yatarak karşılıklı kol-bacak hareketleri yapın.',
-    videoUrl: null,
+    videoUrl: 'https://www.youtube.com/embed/4XLEnwUr1d8',
     gifUrl: null
   },
   {
@@ -664,7 +950,7 @@ export const exerciseLibrary = [
     equipment: 'none',
     caloriesPerMinute: 10,
     instructions: 'Plank pozisyonunda dizleri göğse çekin.',
-    videoUrl: null,
+    videoUrl: 'https://www.youtube.com/embed/kLh-uczlPLg',
     gifUrl: null
   },
   {
@@ -679,7 +965,7 @@ export const exerciseLibrary = [
     equipment: 'none',
     caloriesPerMinute: 8,
     instructions: 'Sırt üstü yatarak kol ve bacakları aynı anda kaldırarak V şekli yapın.',
-    videoUrl: null,
+    videoUrl: 'https://www.youtube.com/embed/7UVgs18Y1P4',
     gifUrl: null
   },
 
@@ -696,7 +982,7 @@ export const exerciseLibrary = [
     equipment: 'none',
     caloriesPerMinute: 15,
     instructions: 'Maksimum hız ile burpee yapın.',
-    videoUrl: null,
+    videoUrl: 'https://www.youtube.com/embed/dZgVxmf6jkA',
     gifUrl: null
   },
   {
@@ -711,7 +997,7 @@ export const exerciseLibrary = [
     equipment: 'none',
     caloriesPerMinute: 12,
     instructions: 'Maksimum hız ile dizleri yukarı kaldırın.',
-    videoUrl: null,
+    videoUrl: 'https://www.youtube.com/embed/mmq5zZfmIws',
     gifUrl: null
   },
   {
@@ -726,7 +1012,7 @@ export const exerciseLibrary = [
     equipment: 'none',
     caloriesPerMinute: 13,
     instructions: 'Hızlı tempoda jump squat yapın.',
-    videoUrl: null,
+    videoUrl: 'https://www.youtube.com/embed/Azl5tkCzDcc',
     gifUrl: null
   },
   {
@@ -741,7 +1027,7 @@ export const exerciseLibrary = [
     equipment: 'none',
     caloriesPerMinute: 14,
     instructions: 'Yerinde maksimum hızda koşun.',
-    videoUrl: null,
+    videoUrl: 'https://www.youtube.com/embed/2g811Eo7K8U',
     gifUrl: null
   },
   {
@@ -756,7 +1042,7 @@ export const exerciseLibrary = [
     equipment: 'none',
     caloriesPerMinute: 14,
     instructions: 'Zıplayarak dizleri göğse çekin.',
-    videoUrl: null,
+    videoUrl: 'https://www.youtube.com/embed/Azl5tkCzDcc',
     gifUrl: null
   },
   {
@@ -771,7 +1057,7 @@ export const exerciseLibrary = [
     equipment: 'none',
     caloriesPerMinute: 11,
     instructions: 'Plank pozisyonunda bacakları açıp kapayın.',
-    videoUrl: null,
+    videoUrl: 'https://www.youtube.com/embed/8PwoytUU06g',
     gifUrl: null
   },
 
@@ -788,7 +1074,7 @@ export const exerciseLibrary = [
     equipment: 'none',
     caloriesPerMinute: 2,
     instructions: 'Oturarak bacağı uzatıp öne doğru eğilin.',
-    videoUrl: null,
+    videoUrl: 'https://www.youtube.com/embed/UItWltVZZmE',
     gifUrl: null
   },
   {
@@ -803,7 +1089,7 @@ export const exerciseLibrary = [
     equipment: 'none',
     caloriesPerMinute: 2,
     instructions: 'Ayakta bacağı geriye kaldırıp kalçaya dokundurarak gerin.',
-    videoUrl: null,
+    videoUrl: 'https://www.youtube.com/embed/eGo4IYlbE5g',
     gifUrl: null
   },
   {
@@ -818,7 +1104,7 @@ export const exerciseLibrary = [
     equipment: 'none',
     caloriesPerMinute: 1,
     instructions: 'Dizler üzerinde öne uzanarak sırtı gerin.',
-    videoUrl: null,
+    videoUrl: 'https://www.youtube.com/embed/c_Dq_NCzj8M',
     gifUrl: null
   },
   {
@@ -833,7 +1119,7 @@ export const exerciseLibrary = [
     equipment: 'none',
     caloriesPerMinute: 2,
     instructions: 'Dört ayak üzerinde sırtı kambur-çukur yapın.',
-    videoUrl: null,
+    videoUrl: 'https://www.youtube.com/embed/g_tea8ZNk5A',
     gifUrl: null
   },
   {
@@ -848,7 +1134,7 @@ export const exerciseLibrary = [
     equipment: 'none',
     caloriesPerMinute: 1,
     instructions: 'Kollarınızı karşı tarafa çekerek omuzları gerin.',
-    videoUrl: null,
+    videoUrl: 'https://www.youtube.com/embed/M0uO8X3_tEA',
     gifUrl: null
   },
 
@@ -865,7 +1151,7 @@ export const exerciseLibrary = [
     equipment: 'none',
     caloriesPerMinute: 2,
     instructions: 'Yavaş tempoda yerinde yürüyün.',
-    videoUrl: null,
+    videoUrl: 'https://www.youtube.com/embed/2g811Eo7K8U',
     gifUrl: null
   },
   {
@@ -880,7 +1166,7 @@ export const exerciseLibrary = [
     equipment: 'none',
     caloriesPerMinute: 1,
     instructions: 'Derin nefes alıp verin, kalp atışınızı düzenleyin.',
-    videoUrl: null,
+    videoUrl: 'https://www.youtube.com/embed/DbDoBzGY3vo',
     gifUrl: null
   },
   {
@@ -895,7 +1181,7 @@ export const exerciseLibrary = [
     equipment: 'none',
     caloriesPerMinute: 2,
     instructions: 'Tüm vücudu gererek soğuma yapın.',
-    videoUrl: null,
+    videoUrl: 'https://www.youtube.com/embed/qULTwquOuT4',
     gifUrl: null
   }
 ];

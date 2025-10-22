@@ -5,10 +5,13 @@
 const deepCopy = (obj) => JSON.parse(JSON.stringify(obj));
 
 // Video için helper function (sadece video URL'i)
-const withMedia = (youtubeId, credit) => ({
-  videoUrl: `https://www.youtube.com/embed/${youtubeId}`,
-  videoCredit: credit
-});
+const withMedia = (youtubeIdOrUrl, credit) => {
+  const isFullUrl = typeof youtubeIdOrUrl === 'string' && (youtubeIdOrUrl.startsWith('http://') || youtubeIdOrUrl.startsWith('https://'));
+  return {
+    videoUrl: isFullUrl ? youtubeIdOrUrl : `https://www.youtube.com/embed/${youtubeIdOrUrl}`,
+    videoCredit: credit
+  };
+};
 
 // GIF eklemek için helper function (gerçek hareketli GIF URL'i)
 // Kullanım: ...withGif('https://example.com/egzersiz.gif')
@@ -402,7 +405,7 @@ const exerciseLibrary = {
         difficulty: "Kolay",
         targetMuscles: ["Kalça"],
         requiresEquipment: false,
-        ...withMedia('jgh6sGwtTwk', 'YouTube - 3v')
+        ...withMedia('l_U2uoePtS4', 'YouTube - Penn State Health')
       },
       {
         name: "Lastikle Yan Adım",
@@ -657,7 +660,7 @@ const exerciseLibrary = {
     targetMuscles: ["Sırt", "Biseps"],
     requiresEquipment: true,
     equipment: ["Lastik"],
-    ...withMedia('WkNuYbWZ8g8', 'YouTube - Whats Up Dude'),
+    ...withMedia('LSkyinhmA8k', 'YouTube - Get Healthy U'),
     alternatives: [
       {
         name: "Havluyla Row",
@@ -668,7 +671,7 @@ const exerciseLibrary = {
         targetMuscles: ["Sırt"],
         requiresEquipment: true,
         equipment: ["Havlu"],
-        ...withMedia('Da57AuIofvU', 'YouTube - Fitness Freedom Athletes')
+        ...withMedia('FVxT8QuAU-0', 'YouTube - Peter Edwards PT')
       },
       {
         name: "Superman Çekiş",
@@ -703,7 +706,7 @@ const exerciseLibrary = {
         targetMuscles: ["Biseps"],
         requiresEquipment: true,
         equipment: ["Lastik"],
-        ...withMedia('WkNuYbWZ8g8', 'YouTube - Whats Up Dude')
+        ...withMedia('20xtfGZ37nw', 'YouTube - LGN Lyfestile')
       }
     ]
   },

@@ -102,6 +102,13 @@ function ExerciseCard({
           {showTimer && (
             <ExerciseTimer
               exercise={safeExercise}
+              alternatives={exercise.alternatives || []}
+              onAlternativeChange={(alternativeIndex) => {
+                setSelectedAlternative(alternativeIndex);
+                setShowTimer(false);
+                // Timer kapanıp yeni egzersizle tekrar açılacak
+                setTimeout(() => setShowTimer(true), 100);
+              }}
               onComplete={() => {
                 setShowTimer(false);
                 if (!isCompleted) {
