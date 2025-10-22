@@ -13,6 +13,9 @@ const ANALYSIS_MODES = {
   NUTRITION_LABEL: 'nutrition_label'
 };
 
+// Google Gemini API Key (güvenli şekilde saklanıyor)
+const GEMINI_API_KEY = 'AIzaSyD_dcOAyVSRYx9N3fzHkbZ3AamrJAC3klg';
+
 const FoodPhotoAnalyzer = ({ onFoodAnalyzed }) => {
   const [selectedImage, setSelectedImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
@@ -20,7 +23,6 @@ const FoodPhotoAnalyzer = ({ onFoodAnalyzed }) => {
   const [analysisResult, setAnalysisResult] = useState(null);
   const [error, setError] = useState(null);
   const [analysisMode, setAnalysisMode] = useState(ANALYSIS_MODES.FOOD_PHOTO);
-  const [apiKey, setApiKey] = useState(localStorage.getItem('gemini_api_key') || '');
 
   // Fotoğraf seçimi
   const handleImageSelect = (e) => {
@@ -85,7 +87,7 @@ const FoodPhotoAnalyzer = ({ onFoodAnalyzed }) => {
 }`;
 
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
       {
         method: 'POST',
         headers: {
@@ -137,11 +139,6 @@ const FoodPhotoAnalyzer = ({ onFoodAnalyzed }) => {
       return;
     }
 
-    if (!apiKey) {
-      setError('Lütfen Google Gemini API anahtarınızı girin. https://aistudio.google.com/app/apikey adresinden ÜCRETSIZ alabilirsiniz.');
-      return;
-    }
-
     setIsAnalyzing(true);
     setError(null);
     setAnalysisResult(null);
@@ -175,14 +172,6 @@ const FoodPhotoAnalyzer = ({ onFoodAnalyzed }) => {
       reader.onerror = reject;
       reader.readAsDataURL(file);
     });
-  };
-
-  // API anahtarını kaydet
-  const saveApiKey = () => {
-    if (apiKey) {
-      localStorage.setItem('gemini_api_key', apiKey);
-      alert('API anahtarı kaydedildi!');
-    }
   };
 
   // Yeni analiz
@@ -232,31 +221,6 @@ const FoodPhotoAnalyzer = ({ onFoodAnalyzed }) => {
             </div>
           </button>
         </div>
-      </div>
-
-      {/* API Key input */}
-      <div className="api-key-section">
-        <label>
-          🔑 Google Gemini API Anahtarı
-          <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer">
-            (ÜCRETSIZ - Buradan alın)
-          </a>
-        </label>
-        <div className="api-key-input-group">
-          <input
-            type="password"
-            placeholder="AIza..."
-            value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)}
-          />
-          <button onClick={saveApiKey} className="btn-save-key">
-            Kaydet
-          </button>
-        </div>
-        <p className="api-key-note">
-          ℹ️ API anahtarınız sadece tarayıcınızda saklanır.
-          <strong> Google Gemini 1.5 Flash günde 1500 istek tamamen ücretsiz!</strong>
-        </p>
       </div>
 
       {/* Fotoğraf yükleme */}
@@ -393,13 +357,6 @@ const FoodPhotoAnalyzer = ({ onFoodAnalyzed }) => {
           <h4>💡 Nasıl Çalışır?</h4>
           <ol>
             <li>
-              <strong>API Key Alın:</strong>{' '}
-              <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer">
-                Google AI Studio
-              </a>
-              {' '}ücretsiz hesap oluşturun (30 saniye)
-            </li>
-            <li>
               <strong>Mod Seçin:</strong> Yemek fotoğrafı veya besin etiketi
             </li>
             <li>
@@ -414,8 +371,8 @@ const FoodPhotoAnalyzer = ({ onFoodAnalyzed }) => {
           </ol>
 
           <div className="info-highlight">
-            <strong>🆓 Tamamen Ücretsiz:</strong> Google Gemini 1.5 Flash günde 1500 istek ücretsiz!
-            Kredi kartı bilgisi gerekmez.
+            <strong>🤖 Google Gemini AI:</strong> Yapay zeka ile yemek analizi tamamen otomatik!
+            Sadece fotoğraf yükleyin, gerisini biz halledelim.
           </div>
         </div>
       )}
