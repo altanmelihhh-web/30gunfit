@@ -2,11 +2,16 @@ import React, { useState } from 'react';
 import './FoodPhotoAnalyzer.css';
 
 /**
- * FoodPhotoAnalyzer - AI ile yemek fotoğrafı analizi
- * - OpenAI Vision API (GPT-4 Vision) kullanır
- * - Fotoğraftan yemek, kalori ve makro tahmini yapar
- * - Sonuçları günlük kalori takibine ekler
+ * FoodPhotoAnalyzer - Google Gemini AI ile yemek analizi
+ * - Yemek fotoğrafı analizi (AI yemeği tanır)
+ * - Besin etiketi OCR (ürün etiketini okur)
+ * - TAMAMEN ÜCRETSIZ (Gemini 1.5 Flash)
  */
+
+const ANALYSIS_MODES = {
+  FOOD_PHOTO: 'food_photo',
+  NUTRITION_LABEL: 'nutrition_label'
+};
 
 const FoodPhotoAnalyzer = ({ onFoodAnalyzed }) => {
   const [selectedImage, setSelectedImage] = useState(null);
@@ -14,7 +19,8 @@ const FoodPhotoAnalyzer = ({ onFoodAnalyzed }) => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState(null);
   const [error, setError] = useState(null);
-  const [apiKey, setApiKey] = useState(localStorage.getItem('openai_api_key') || '');
+  const [analysisMode, setAnalysisMode] = useState(ANALYSIS_MODES.FOOD_PHOTO);
+  const [apiKey, setApiKey] = useState(localStorage.getItem('gemini_api_key') || '');
 
   // Fotoğraf seçimi
   const handleImageSelect = (e) => {
@@ -35,6 +41,7 @@ const FoodPhotoAnalyzer = ({ onFoodAnalyzed }) => {
 
     setSelectedImage(file);
     setError(null);
+    setAnalysisResult(null);
 
     // Preview oluştur
     const reader = new FileReader();
@@ -44,41 +51,15 @@ const FoodPhotoAnalyzer = ({ onFoodAnalyzed }) => {
     reader.readAsDataURL(file);
   };
 
-  // OpenAI Vision API ile analiz
-  const analyzeFood = async () => {
-    if (!selectedImage) {
-      setError('Lütfen önce bir fotoğraf seçin');
-      return;
-    }
+  // Google Gemini ile analiz
+  const analyzeWithGemini = async (base64Image) => {
+    // Base64'ten data:image/jpeg;base64, prefix'ini kaldır
+    const base64Data = base64Image.split(',')[1];
+    const mimeType = base64Image.split(';')[0].split(':')[1];
 
-    if (!apiKey) {
-      setError('Lütfen OpenAI API anahtarınızı girin. https://platform.openai.com/api-keys adresinden alabilirsiniz.');
-      return;
-    }
-
-    setIsAnalyzing(true);
-    setError(null);
-    setAnalysisResult(null);
-
-    try {
-      // Base64'e çevir
-      const base64Image = await convertToBase64(selectedImage);
-
-      // OpenAI Vision API isteği
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
-        },
-        body: JSON.stringify({
-          model: 'gpt-4o-mini', // GPT-4o-mini more cost-effective
-          messages: [
-            {
-              role: 'system',
-              content: `Sen profesyonel bir diyetisyen ve beslenme uzmanısın. Kullanıcıların yüklediği yemek fotoğraflarını analiz edip, yemek içeriğini, tahmini kalori ve makro besinleri hesaplıyorsun.
-
-ÖNEMLI: Yanıtını SADECE aşağıdaki JSON formatında ver, başka açıklama ekleme:
+    // Mod'a göre prompt
+    const prompt = analysisMode === ANALYSIS_MODES.FOOD_PHOTO
+      ? `Sen profesyonel bir diyetisyen ve beslenme uzmanısın. Bu yemek fotoğrafını analiz et ve aşağıdaki JSON formatında bilgi ver. SADECE JSON döndür, başka açıklama ekleme:
 
 {
   "food_name": "Yemek adı (Türkçe)",
@@ -90,52 +71,87 @@ const FoodPhotoAnalyzer = ({ onFoodAnalyzed }) => {
   "portion_size": "Porsiyon büyüklüğü tahmini (örn: 1 porsiyon, 200g)",
   "confidence": "high/medium/low - tahmin güvenilirliği"
 }`
-            },
+      : `Sen profesyonel bir diyetisyensin. Bu besin etiketini (nutrition facts) oku ve aşağıdaki JSON formatında bilgi ver. SADECE JSON döndür:
+
+{
+  "food_name": "Ürün adı (etiketten oku)",
+  "description": "Ürün açıklaması (1 cümle)",
+  "calories": etiketteki kalori değeri (sayı),
+  "protein": gram cinsinden protein (sayı),
+  "carbs": gram cinsinden karbonhidrat (sayı),
+  "fats": gram cinsinden yağ (sayı),
+  "portion_size": "Porsiyon büyüklüğü (etiketten oku, örn: 100g)",
+  "confidence": "high/medium/low - etiket okunabilirlik güveni"
+}`;
+
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          contents: [
             {
-              role: 'user',
-              content: [
+              parts: [
+                { text: prompt },
                 {
-                  type: 'text',
-                  text: 'Bu fotoğraftaki yemeği analiz et ve JSON formatında bilgi ver.'
-                },
-                {
-                  type: 'image_url',
-                  image_url: {
-                    url: base64Image,
-                    detail: 'low' // Cost optimization
+                  inline_data: {
+                    mime_type: mimeType,
+                    data: base64Data
                   }
                 }
               ]
             }
           ],
-          max_tokens: 500,
-          temperature: 0.3 // Lower temperature for more consistent results
+          generationConfig: {
+            temperature: 0.3,
+            maxOutputTokens: 500
+          }
         })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error?.message || 'API isteği başarısız oldu');
       }
+    );
 
-      const data = await response.json();
-      const aiResponse = data.choices[0].message.content;
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error?.message || 'Gemini API isteği başarısız oldu');
+    }
 
-      // JSON parse et
-      let foodData;
-      try {
-        // JSON bloğunu bul (bazen ``` ile sarılı gelir)
-        const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          foodData = JSON.parse(jsonMatch[0]);
-        } else {
-          throw new Error('JSON bulunamadı');
-        }
-      } catch (parseError) {
-        console.error('JSON parse hatası:', parseError);
-        throw new Error('AI yanıtı işlenemedi. Lütfen tekrar deneyin.');
-      }
+    const data = await response.json();
+    const aiResponse = data.candidates[0].content.parts[0].text;
 
+    // JSON parse et
+    const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      throw new Error('AI yanıtı JSON formatında değil');
+    }
+
+    return JSON.parse(jsonMatch[0]);
+  };
+
+  // Ana analiz fonksiyonu
+  const analyzeFood = async () => {
+    if (!selectedImage) {
+      setError('Lütfen önce bir fotoğraf seçin');
+      return;
+    }
+
+    if (!apiKey) {
+      setError('Lütfen Google Gemini API anahtarınızı girin. https://aistudio.google.com/app/apikey adresinden ÜCRETSIZ alabilirsiniz.');
+      return;
+    }
+
+    setIsAnalyzing(true);
+    setError(null);
+    setAnalysisResult(null);
+
+    try {
+      // Base64'e çevir
+      const base64Image = await convertToBase64(selectedImage);
+
+      // Gemini ile analiz
+      const foodData = await analyzeWithGemini(base64Image);
       setAnalysisResult(foodData);
 
       // Parent component'e bildir
@@ -164,7 +180,7 @@ const FoodPhotoAnalyzer = ({ onFoodAnalyzed }) => {
   // API anahtarını kaydet
   const saveApiKey = () => {
     if (apiKey) {
-      localStorage.setItem('openai_api_key', apiKey);
+      localStorage.setItem('gemini_api_key', apiKey);
       alert('API anahtarı kaydedildi!');
     }
   };
@@ -180,22 +196,56 @@ const FoodPhotoAnalyzer = ({ onFoodAnalyzed }) => {
   return (
     <div className="food-photo-analyzer">
       <div className="analyzer-header">
-        <h3>📸 AI Yemek Analizi</h3>
-        <p>Yemek fotoğrafı yükleyin, yapay zeka kalori ve makroları tahmin etsin</p>
+        <h3>🤖 Google Gemini AI Yemek Analizi</h3>
+        <p className="free-badge">✨ TAMAMEN ÜCRETSIZ - Günde 1500 istek</p>
+      </div>
+
+      {/* Analiz Modu Seçimi */}
+      <div className="mode-selection">
+        <label>📷 Analiz Tipi Seçin</label>
+        <div className="mode-buttons">
+          <button
+            className={`mode-btn ${analysisMode === ANALYSIS_MODES.FOOD_PHOTO ? 'active' : ''}`}
+            onClick={() => {
+              setAnalysisMode(ANALYSIS_MODES.FOOD_PHOTO);
+              resetAnalysis();
+            }}
+          >
+            <span className="mode-icon">🍕</span>
+            <div className="mode-info">
+              <span className="mode-name">Yemek Fotoğrafı</span>
+              <span className="mode-desc">AI yemeği tanır</span>
+            </div>
+          </button>
+
+          <button
+            className={`mode-btn ${analysisMode === ANALYSIS_MODES.NUTRITION_LABEL ? 'active' : ''}`}
+            onClick={() => {
+              setAnalysisMode(ANALYSIS_MODES.NUTRITION_LABEL);
+              resetAnalysis();
+            }}
+          >
+            <span className="mode-icon">🏷️</span>
+            <div className="mode-info">
+              <span className="mode-name">Besin Etiketi (OCR)</span>
+              <span className="mode-desc">Etiket bilgilerini okur</span>
+            </div>
+          </button>
+        </div>
       </div>
 
       {/* API Key input */}
       <div className="api-key-section">
         <label>
-          🔑 OpenAI API Anahtarı
-          <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer">
-            (Buradan alın)
+          🔑 Google Gemini API Anahtarı
+          <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer">
+            (ÜCRETSIZ - Buradan alın)
           </a>
         </label>
         <div className="api-key-input-group">
           <input
             type="password"
-            placeholder="sk-..."
+            placeholder="AIza..."
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
           />
@@ -204,7 +254,8 @@ const FoodPhotoAnalyzer = ({ onFoodAnalyzed }) => {
           </button>
         </div>
         <p className="api-key-note">
-          ℹ️ API anahtarınız sadece tarayıcınızda saklanır, hiçbir yere gönderilmez.
+          ℹ️ API anahtarınız sadece tarayıcınızda saklanır.
+          <strong> Google Gemini 1.5 Flash günde 1500 istek tamamen ücretsiz!</strong>
         </p>
       </div>
 
@@ -219,15 +270,25 @@ const FoodPhotoAnalyzer = ({ onFoodAnalyzed }) => {
             style={{ display: 'none' }}
           />
           <label htmlFor="food-photo-input" className="upload-label">
-            <div className="upload-icon">📷</div>
-            <span className="upload-text">Fotoğraf Yükle</span>
-            <span className="upload-subtext">veya sürükle-bırak (max 5MB)</span>
+            <div className="upload-icon">
+              {analysisMode === ANALYSIS_MODES.FOOD_PHOTO ? '🍽️' : '📄'}
+            </div>
+            <span className="upload-text">
+              {analysisMode === ANALYSIS_MODES.FOOD_PHOTO
+                ? 'Yemek Fotoğrafı Yükle'
+                : 'Besin Etiketi Fotoğrafı Yükle'}
+            </span>
+            <span className="upload-subtext">
+              {analysisMode === ANALYSIS_MODES.FOOD_PHOTO
+                ? 'Yemeğin net bir fotoğrafını çekin'
+                : 'Ürün arkasındaki besin değerleri tablosunu çekin'}
+            </span>
           </label>
         </div>
       ) : (
         <div className="image-preview-section">
           <div className="image-preview">
-            <img src={imagePreview} alt="Seçilen yemek" />
+            <img src={imagePreview} alt="Seçilen görsel" />
           </div>
 
           <div className="analyzer-actions">
@@ -238,7 +299,11 @@ const FoodPhotoAnalyzer = ({ onFoodAnalyzed }) => {
                   onClick={analyzeFood}
                   disabled={isAnalyzing}
                 >
-                  {isAnalyzing ? '🔄 Analiz ediliyor...' : '🤖 AI ile Analiz Et'}
+                  {isAnalyzing
+                    ? '🔄 Analiz ediliyor...'
+                    : analysisMode === ANALYSIS_MODES.FOOD_PHOTO
+                      ? '🤖 Yemeği Analiz Et'
+                      : '🤖 Etiketi Oku (OCR)'}
                 </button>
                 <button className="btn-cancel" onClick={resetAnalysis}>
                   ❌ İptal
@@ -314,8 +379,10 @@ const FoodPhotoAnalyzer = ({ onFoodAnalyzed }) => {
           </div>
 
           <div className="result-disclaimer">
-            ℹ️ Bu tahminler yapay zeka tarafından üretilmiştir ve yaklaşık değerlerdir.
-            Kesin besin değerleri için ürün etiketlerini kontrol edin.
+            ℹ️ Bu tahminler Google Gemini AI tarafından üretilmiştir.
+            {analysisMode === ANALYSIS_MODES.NUTRITION_LABEL
+              ? ' Etiket bilgileri okunarak hesaplanmıştır.'
+              : ' Yaklaşık değerlerdir, kesin besin değerleri için ürün etiketlerini kontrol edin.'}
           </div>
         </div>
       )}
@@ -325,11 +392,31 @@ const FoodPhotoAnalyzer = ({ onFoodAnalyzed }) => {
         <div className="analyzer-info">
           <h4>💡 Nasıl Çalışır?</h4>
           <ol>
-            <li>OpenAI API anahtarınızı girin (ücretsiz deneme hesabı açabilirsiniz)</li>
-            <li>Yemek fotoğrafı yükleyin</li>
-            <li>AI, yemeği tanımlayıp kalori ve makroları tahmin eder</li>
-            <li>Sonuçları günlük kalori takibinize ekleyebilirsiniz</li>
+            <li>
+              <strong>API Key Alın:</strong>{' '}
+              <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer">
+                Google AI Studio
+              </a>
+              {' '}ücretsiz hesap oluşturun (30 saniye)
+            </li>
+            <li>
+              <strong>Mod Seçin:</strong> Yemek fotoğrafı veya besin etiketi
+            </li>
+            <li>
+              <strong>Fotoğraf Çekin:</strong> Net ve iyi ışıklı olmasına dikkat edin
+            </li>
+            <li>
+              <strong>AI Analiz Etsin:</strong> Google Gemini kalori ve makroları hesaplar
+            </li>
+            <li>
+              <strong>Takibe Ekleyin:</strong> Sonuçları günlük kalori takibinize ekleyin
+            </li>
           </ol>
+
+          <div className="info-highlight">
+            <strong>🆓 Tamamen Ücretsiz:</strong> Google Gemini 1.5 Flash günde 1500 istek ücretsiz!
+            Kredi kartı bilgisi gerekmez.
+          </div>
         </div>
       )}
     </div>
