@@ -59,40 +59,12 @@ const FoodPhotoAnalyzer = ({ onFoodAnalyzed }) => {
     const base64Data = base64Image.split(',')[1];
     const mimeType = base64Image.split(';')[0].split(':')[1];
 
-    // Mod'a göre prompt - JSON bloğu ile zorla
+    // Mod'a göre prompt - Çok kısa ve net
     const prompt = analysisMode === ANALYSIS_MODES.FOOD_PHOTO
-      ? `Analyze this food photo. Return your answer in this EXACT JSON format (no other text, no explanations):
-
-\`\`\`json
-{
-  "food_name": "Name in Turkish",
-  "description": "Brief description",
-  "calories": 500,
-  "protein": 30,
-  "carbs": 45,
-  "fats": 15,
-  "portion_size": "1 portion (300g)",
-  "confidence": "high"
-}
-\`\`\`
-
-IMPORTANT: Return ONLY the JSON inside \`\`\`json code block. No other text.`
-      : `Read this nutrition label. Return your answer in this EXACT JSON format (no other text, no explanations):
-
-\`\`\`json
-{
-  "food_name": "Product name",
-  "description": "Product description",
-  "calories": 250,
-  "protein": 20,
-  "carbs": 30,
-  "fats": 10,
-  "portion_size": "100g",
-  "confidence": "high"
-}
-\`\`\`
-
-IMPORTANT: Return ONLY the JSON inside \`\`\`json code block. No other text.`;
+      ? `Analyze food photo. Return ONLY this JSON (no explanations):
+{"food_name":"Turkish name","description":"Brief","calories":500,"protein":30,"carbs":45,"fats":15,"portion_size":"1 portion","confidence":"high"}`
+      : `Read nutrition label. Return ONLY this JSON (no explanations):
+{"food_name":"Product name","description":"Brief","calories":250,"protein":20,"carbs":30,"fats":10,"portion_size":"100g","confidence":"high"}`;
 
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
@@ -116,8 +88,8 @@ IMPORTANT: Return ONLY the JSON inside \`\`\`json code block. No other text.`;
             }
           ],
           generationConfig: {
-            temperature: 0.2,
-            maxOutputTokens: 2000
+            temperature: 0.1,
+            maxOutputTokens: 4096
           }
         })
       }
@@ -138,18 +110,18 @@ IMPORTANT: Return ONLY the JSON inside \`\`\`json code block. No other text.`;
 
     const candidate = data.candidates[0];
 
-    // finishReason kontrolü
-    if (candidate.finishReason === 'MAX_TOKENS') {
-      console.error('MAX_TOKENS hatası - yanıt kesildi. Candidate:', candidate);
-      throw new Error('AI yanıtı çok uzun oldu ve kesildi. Lütfen daha basit bir fotoğraf deneyin veya tekrar deneyin.');
-    }
-
     if (!candidate.content || !candidate.content.parts || candidate.content.parts.length === 0) {
       console.error('Candidate:', candidate);
       throw new Error('AI yanıtı eksik. Fotoğrafı değiştirip tekrar deneyin.');
     }
 
     const aiResponse = candidate.content.parts[0].text;
+
+    // MAX_TOKENS durumunda uyar ama yanıtı parse etmeyi dene
+    if (candidate.finishReason === 'MAX_TOKENS') {
+      console.warn('⚠️ MAX_TOKENS: Yanıt kesildi ama JSON parse deneniyor...', aiResponse.substring(0, 200));
+      // Devam et, belki JSON başta tamamlandı
+    }
 
     if (!aiResponse || aiResponse.trim() === '') {
       throw new Error('AI boş yanıt döndü. Lütfen fotoğrafı değiştirin.');
