@@ -129,30 +129,36 @@ const FoodPhotoAnalyzer = ({ onFoodAnalyzed }) => {
 
     // JSON parse et - Çoklu yöntem
     let jsonString = aiResponse.trim();
+    console.log('📝 Ham AI yanıtı (ilk 500 karakter):', aiResponse.substring(0, 500));
 
     // 1. Önce ```json bloğu ara
     const codeBlockMatch = jsonString.match(/```json\s*([\s\S]*?)\s*```/);
     if (codeBlockMatch) {
+      console.log('📦 Code block bulundu, içindeki JSON çıkarılıyor...');
       jsonString = codeBlockMatch[1].trim();
     }
 
     // 2. Direkt parse dene
     try {
-      return JSON.parse(jsonString);
+      const parsed = JSON.parse(jsonString);
+      console.log('✅ JSON başarıyla parse edildi:', parsed);
+      return parsed;
     } catch (parseError) {
       // 3. Regex ile JSON objesini bul
-      console.warn('Direkt JSON parse başarısız, regex ile deneniyor...');
+      console.warn('⚠️ Direkt JSON parse başarısız, regex ile deneniyor...');
       const jsonMatch = jsonString.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
-        console.error('AI yanıtı:', aiResponse);
+        console.error('❌ AI yanıtı:', aiResponse);
         throw new Error('AI yanıtı JSON formatında değil. Yanıt: ' + aiResponse.substring(0, 200));
       }
 
       try {
-        return JSON.parse(jsonMatch[0]);
+        const parsed = JSON.parse(jsonMatch[0]);
+        console.log('✅ Regex ile JSON parse edildi:', parsed);
+        return parsed;
       } catch (secondError) {
-        console.error('JSON parse hatası:', secondError);
-        console.error('Bulunan JSON:', jsonMatch[0].substring(0, 200));
+        console.error('❌ JSON parse hatası:', secondError);
+        console.error('❌ Bulunan JSON:', jsonMatch[0].substring(0, 200));
         throw new Error('JSON parse edilemedi. Lütfen daha net bir fotoğraf deneyin.');
       }
     }
@@ -175,15 +181,20 @@ const FoodPhotoAnalyzer = ({ onFoodAnalyzed }) => {
 
       // Gemini ile analiz
       const foodData = await analyzeWithGemini(base64Image);
+
+      console.log('✅ AI Analiz Sonucu:', foodData);
+      console.log('Kalori:', foodData.calories, 'Tip:', typeof foodData.calories);
+
       setAnalysisResult(foodData);
 
       // Parent component'e bildir
       if (onFoodAnalyzed) {
+        console.log('🔄 onFoodAnalyzed çağrılıyor...');
         onFoodAnalyzed(foodData);
       }
 
     } catch (err) {
-      console.error('Analiz hatası:', err);
+      console.error('❌ Analiz hatası:', err);
       setError(err.message || 'Analiz sırasında bir hata oluştu');
     } finally {
       setIsAnalyzing(false);
