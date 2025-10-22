@@ -117,7 +117,7 @@ IMPORTANT: Return ONLY the JSON inside \`\`\`json code block. No other text.`;
           ],
           generationConfig: {
             temperature: 0.2,
-            maxOutputTokens: 800
+            maxOutputTokens: 2000
           }
         })
       }
@@ -137,6 +137,13 @@ IMPORTANT: Return ONLY the JSON inside \`\`\`json code block. No other text.`;
     }
 
     const candidate = data.candidates[0];
+
+    // finishReason kontrolü
+    if (candidate.finishReason === 'MAX_TOKENS') {
+      console.error('MAX_TOKENS hatası - yanıt kesildi. Candidate:', candidate);
+      throw new Error('AI yanıtı çok uzun oldu ve kesildi. Lütfen daha basit bir fotoğraf deneyin veya tekrar deneyin.');
+    }
+
     if (!candidate.content || !candidate.content.parts || candidate.content.parts.length === 0) {
       console.error('Candidate:', candidate);
       throw new Error('AI yanıtı eksik. Fotoğrafı değiştirip tekrar deneyin.');
