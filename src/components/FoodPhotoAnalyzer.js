@@ -121,12 +121,30 @@ const FoodPhotoAnalyzer = ({ onFoodAnalyzed }) => {
     }
 
     const data = await response.json();
-    const aiResponse = data.candidates[0].content.parts[0].text;
+
+    // Güvenli API yanıt kontrolü
+    if (!data.candidates || data.candidates.length === 0) {
+      console.error('API yanıtı:', data);
+      throw new Error('AI yanıt üretemedi. Lütfen daha net bir fotoğraf deneyin.');
+    }
+
+    const candidate = data.candidates[0];
+    if (!candidate.content || !candidate.content.parts || candidate.content.parts.length === 0) {
+      console.error('Candidate:', candidate);
+      throw new Error('AI yanıtı eksik. Fotoğrafı değiştirip tekrar deneyin.');
+    }
+
+    const aiResponse = candidate.content.parts[0].text;
+
+    if (!aiResponse || aiResponse.trim() === '') {
+      throw new Error('AI boş yanıt döndü. Lütfen fotoğrafı değiştirin.');
+    }
 
     // JSON parse et
     const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
-      throw new Error('AI yanıtı JSON formatında değil');
+      console.error('AI yanıtı:', aiResponse);
+      throw new Error('AI yanıtı JSON formatında değil. Yanıt: ' + aiResponse.substring(0, 100));
     }
 
     return JSON.parse(jsonMatch[0]);
