@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import ExerciseCard from './ExerciseCard';
-import { getWorkoutProgress } from '../data/workoutProgram';
+import { getWorkoutProgress } from '../utils/programGenerator';
 import './DayDetail.css';
 
 function DayDetail({ workout, completedExercises, onToggleExercise, onToggleDayComplete, isDayComplete }) {

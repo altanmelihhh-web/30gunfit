@@ -1,5 +1,5 @@
 import React from 'react';
-import { getWorkoutProgress } from '../data/workoutProgram';
+import { getWorkoutProgress } from '../utils/programGenerator';
 import './Calendar.css';
 
 function Calendar({ workouts, completedDays, onDayClick, selectedDay, completedExercises }) {
