@@ -573,6 +573,68 @@
   font-weight: 700;
 }
 
+/* Text Input Section */
+.text-input-section {
+  margin-bottom: 24px;
+}
+
+.text-input-label {
+  display: block;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin-bottom: 12px;
+}
+
+.ingredient-textarea {
+  width: 100%;
+  padding: 16px;
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: 1rem;
+  font-family: inherit;
+  color: var(--color-text-primary);
+  background: var(--color-surface);
+  resize: vertical;
+  min-height: 120px;
+  line-height: 1.6;
+  transition: all var(--transition-base);
+}
+
+.ingredient-textarea:focus {
+  outline: none;
+  border-color: #6366f1;
+  background: rgba(99, 102, 241, 0.02);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.ingredient-textarea:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background: var(--color-surface-muted);
+}
+
+.ingredient-textarea::placeholder {
+  color: var(--color-text-muted);
+  opacity: 0.7;
+}
+
+.text-input-hint {
+  margin-top: 12px;
+  padding: 12px 16px;
+  background: rgba(99, 102, 241, 0.05);
+  border-left: 3px solid #6366f1;
+  border-radius: var(--radius-sm);
+  font-size: 0.9rem;
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+}
+
+.text-input-hint strong {
+  color: var(--color-text-primary);
+  font-weight: 600;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .food-photo-analyzer {
