@@ -11,6 +11,7 @@ import DataBackup from './components/DataBackup';
 import DailyMotivation from './components/DailyMotivation';
 import ProfileOnboarding from './components/ProfileOnboarding';
 import ProfileSettings from './components/ProfileSettings';
+import VideoManager from './components/VideoManager';
 import { allWorkouts as defaultProgram } from './data/workoutProgram';
 import {
   generate30DayProgram,
@@ -555,6 +556,13 @@ function App() {
     alert('✅ Yeni programınız oluşturuldu! İyi antrenmanlar!');
   };
 
+  const handleVideoSave = (updatedLibrary) => {
+    // Video güncellemeleri exerciseLibrary.js'de zaten yapıldı
+    // Programı yeniden oluştur (güncel videolarla)
+    const newProgram = generate30DayProgram(userProfile);
+    setUserProgram(newProgram);
+  };
+
   return (
     <div className="App">
       <header className="app-header">
@@ -656,6 +664,9 @@ function App() {
               profile={userProfile}
               onSave={handleProfileSave}
               onRegenerateProgram={handleRegenerateProgram}
+            />
+            <VideoManager
+              onSave={handleVideoSave}
             />
             <DataBackup
               completedDays={completedDays}
