@@ -35,7 +35,12 @@ const CalorieTracker = ({ targetCalories, targetMacros, onDataChange }) => {
     const loadMeals = () => {
       const allTrackerData = JSON.parse(localStorage.getItem('calorie_tracker') || '{}');
       const todayMeals = allTrackerData[selectedDate] || [];
-      console.log('📥 CalorieTracker yükleniyor - Tarih:', selectedDate, 'Meal sayısı:', todayMeals.length);
+      console.log('📥 CalorieTracker MOUNT - Tarih:', selectedDate);
+      console.log('📥 localStorage içeriği:', allTrackerData);
+      console.log('📥 Bu tarih için meal sayısı:', todayMeals.length);
+      if (todayMeals.length > 0) {
+        console.log('📥 İlk meal:', todayMeals[0]);
+      }
       setMeals(todayMeals);
     };
     loadMeals();
@@ -46,13 +51,18 @@ const CalorieTracker = ({ targetCalories, targetMacros, onDataChange }) => {
   useEffect(() => {
     if (isFirstRender.current) {
       isFirstRender.current = false;
+      console.log('⏭️ İlk render - localStorage yazma atlandı');
       return; // İlk render'da localStorage'a yazma
     }
 
-    console.log('💾 CalorieTracker kaydediyor - Meal sayısı:', meals.length);
+    console.log('💾 CalorieTracker SAVE - Meal sayısı:', meals.length, 'Tarih:', selectedDate);
+    if (meals.length > 0) {
+      console.log('💾 Kaydedilecek ilk meal:', meals[0]);
+    }
     const allTrackerData = JSON.parse(localStorage.getItem('calorie_tracker') || '{}');
     allTrackerData[selectedDate] = meals;
     localStorage.setItem('calorie_tracker', JSON.stringify(allTrackerData));
+    console.log('💾 localStorage güncellendi');
 
     // Parent component'e bildir
     if (onDataChange) {
@@ -74,6 +84,11 @@ const CalorieTracker = ({ targetCalories, targetMacros, onDataChange }) => {
   };
 
   const totals = calculateTotals();
+
+  // Debug: Her render'da totals'ı logla
+  useEffect(() => {
+    console.log('🔢 Güncel totals:', totals, '- Meal sayısı:', meals.length);
+  });
 
   // Yemek ekleme
   const handleAddMeal = () => {
@@ -447,6 +462,9 @@ const CalorieTracker = ({ targetCalories, targetMacros, onDataChange }) => {
 
 // AI analizinden yemek eklemek için export edilen fonksiyon
 export const addMealFromAI = (foodData, date = new Date().toISOString().split('T')[0]) => {
+  console.log('🤖 addMealFromAI çağrıldı - Tarih:', date);
+  console.log('🤖 foodData:', foodData);
+
   const aiMeal = {
     id: Date.now(),
     timestamp: new Date().toISOString(),
@@ -460,11 +478,19 @@ export const addMealFromAI = (foodData, date = new Date().toISOString().split('T
     source: 'AI Analysis'
   };
 
+  console.log('🤖 Oluşturulan aiMeal:', aiMeal);
+
   const allTrackerData = JSON.parse(localStorage.getItem('calorie_tracker') || '{}');
+  console.log('🤖 Mevcut localStorage:', allTrackerData);
+
   const dayMeals = allTrackerData[date] || [];
+  console.log('🤖 Bu tarih için mevcut meals:', dayMeals.length);
+
   dayMeals.push(aiMeal);
   allTrackerData[date] = dayMeals;
+
   localStorage.setItem('calorie_tracker', JSON.stringify(allTrackerData));
+  console.log('🤖 localStorage güncellendi - Yeni meal sayısı:', dayMeals.length);
 
   return aiMeal;
 };
