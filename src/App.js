@@ -126,7 +126,7 @@ function App() {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
   const [isProfileOnboardingOpen, setIsProfileOnboardingOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState('home'); // 'home', 'progress', 'settings', 'videos'
+  const [activeTab, setActiveTab] = useState('home'); // 'home', 'stats', 'calendar', 'nutrition', 'settings', 'videos'
 
   // Kullanıcı profili
   const [userProfile, setUserProfile] = useState(() => {
@@ -762,10 +762,16 @@ function App() {
             🏠 Ana Sayfa
           </button>
           <button
-            className={`tab-btn ${activeTab === 'progress' ? 'active' : ''}`}
-            onClick={() => setActiveTab('progress')}
+            className={`tab-btn ${activeTab === 'stats' ? 'active' : ''}`}
+            onClick={() => setActiveTab('stats')}
           >
             📊 İlerlemem
+          </button>
+          <button
+            className={`tab-btn ${activeTab === 'calendar' ? 'active' : ''}`}
+            onClick={() => setActiveTab('calendar')}
+          >
+            📅 Takvim
           </button>
           <button
             className={`tab-btn ${activeTab === 'nutrition' ? 'active' : ''}`}
@@ -854,8 +860,8 @@ function App() {
           </div>
         )}
 
-        {/* İlerlemem Tab */}
-        {activeTab === 'progress' && (
+        {/* İlerlemem Tab (Genel Bakış) */}
+        {activeTab === 'stats' && (
           <div className="tab-content">
             <div className="dashboard-sections">
               <ProgressSummary
@@ -870,10 +876,15 @@ function App() {
                 startDate={startDate}
               />
             </div>
+          </div>
+        )}
 
+        {/* Takvim Tab */}
+        {activeTab === 'calendar' && (
+          <div className="tab-content">
             <div className="two-column-grid">
               <div className="calendar-section">
-                <h2>Takvim</h2>
+                <h2>Program Takvimi</h2>
                 <Calendar
                   workouts={userProgram}
                   completedDays={completedDays}
@@ -894,7 +905,7 @@ function App() {
                   />
                 ) : (
                   <div className="no-selection">
-                    <p>Bir gün seçin</p>
+                    <p>Bir gün seçerek detayları görün</p>
                   </div>
                 )}
               </div>
