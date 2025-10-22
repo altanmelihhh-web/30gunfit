@@ -87,7 +87,7 @@ const FoodPhotoAnalyzer = ({ onFoodAnalyzed }) => {
 }`;
 
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro-vision:generateContent?key=${GEMINI_API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
       {
         method: 'POST',
         headers: {
@@ -185,8 +185,8 @@ const FoodPhotoAnalyzer = ({ onFoodAnalyzed }) => {
   return (
     <div className="food-photo-analyzer">
       <div className="analyzer-header">
-        <h3>🤖 Google Gemini AI Yemek Analizi</h3>
-        <p className="free-badge">✨ TAMAMEN ÜCRETSIZ - Günde 1500 istek</p>
+        <h3>🤖 Google Gemini 2.5 Flash AI</h3>
+        <p className="free-badge">✨ TAMAMEN ÜCRETSIZ - En Güncel Model</p>
       </div>
 
       {/* Analiz Modu Seçimi */}
@@ -343,7 +343,7 @@ const FoodPhotoAnalyzer = ({ onFoodAnalyzed }) => {
           </div>
 
           <div className="result-disclaimer">
-            ℹ️ Bu tahminler Google Gemini AI tarafından üretilmiştir.
+            ℹ️ Bu tahminler Google Gemini 2.5 Flash AI tarafından üretilmiştir.
             {analysisMode === ANALYSIS_MODES.NUTRITION_LABEL
               ? ' Etiket bilgileri okunarak hesaplanmıştır.'
               : ' Yaklaşık değerlerdir, kesin besin değerleri için ürün etiketlerini kontrol edin.'}
@@ -371,7 +371,7 @@ const FoodPhotoAnalyzer = ({ onFoodAnalyzed }) => {
           </ol>
 
           <div className="info-highlight">
-            <strong>🤖 Google Gemini AI:</strong> Yapay zeka ile yemek analizi tamamen otomatik!
+            <strong>🤖 Google Gemini 2.5 Flash:</strong> En güncel yapay zeka modeli ile yemek analizi!
             Sadece fotoğraf yükleyin, gerisini biz halledelim.
           </div>
         </div>
