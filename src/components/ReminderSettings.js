@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import './ReminderSettings.css';
+import { playNotificationSound, getSoundOptions } from '../utils/notificationSounds';
 
 const formatTime = (value) => {
   if (!value) return '00:00';
@@ -39,10 +40,18 @@ function ReminderSettings({
     onChange({ ...settings, enabled: !settings.enabled });
   };
 
-  const handleTimeChange = (index, value) => {
-    const safe = formatTime(value);
-    const times = settings.times.map((time, idx) => (idx === index ? safe : time));
+  const handleTimeChange = (index, hour, minute) => {
+    const newTime = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+    const times = settings.times.map((time, idx) => (idx === index ? newTime : time));
     onChange({ ...settings, times });
+  };
+
+  const handleSoundChange = (event) => {
+    onChange({ ...settings, soundType: event.target.value });
+  };
+
+  const handlePreviewSound = (soundType) => {
+    playNotificationSound(soundType);
   };
 
   const handleAddTime = () => {
@@ -89,36 +98,6 @@ function ReminderSettings({
     }
   };
 
-  const playNotificationSound = () => {
-    try {
-      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-
-      // 3 kere bip sesi çal (güzel, dikkat çekici)
-      [0, 300, 600].forEach((delay) => {
-        setTimeout(() => {
-          const oscillator = audioContext.createOscillator();
-          const gainNode = audioContext.createGain();
-
-          oscillator.connect(gainNode);
-          gainNode.connect(audioContext.destination);
-
-          // Güzel bir frekans (C note - 523.25 Hz)
-          oscillator.frequency.value = 523.25;
-          oscillator.type = 'sine';
-
-          // Ses yüksekliği
-          gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-          gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
-
-          oscillator.start(audioContext.currentTime);
-          oscillator.stop(audioContext.currentTime + 0.2);
-        }, delay);
-      });
-    } catch (error) {
-      console.log('Ses çalınamadı:', error);
-    }
-  };
-
   const sendTestNotification = () => {
     try {
       new Notification('🧪 Test Bildirimi - 30 Gün Fit', {
@@ -126,8 +105,8 @@ function ReminderSettings({
         icon: '/logo192.png'
       });
 
-      // Özel ses çal (3 kere bip!)
-      playNotificationSound();
+      // Seçili bildirim sesini çal
+      playNotificationSound(settings.soundType || 'beep3x');
 
       alert('✅ Bildirim gönderildi! Ekranınızı kontrol edin.');
     } catch (error) {
@@ -174,26 +153,50 @@ function ReminderSettings({
         <div className="reminder-block">
           <span className="block-label">Bildirim Saatleri</span>
           <div className="time-list">
-            {settings.times.map((time, index) => (
-              <div key={time + index} className="time-row">
-                <input
-                  type="time"
-                  value={time}
-                  onChange={(event) => handleTimeChange(index, event.target.value)}
-                  disabled={!settings.enabled}
-                />
-                {settings.times.length > 1 && (
-                  <button
-                    type="button"
-                    className="remove-btn"
-                    onClick={() => handleRemoveTime(index)}
-                    disabled={!settings.enabled}
-                  >
-                    Sil
-                  </button>
-                )}
-              </div>
-            ))}
+            {settings.times.map((time, index) => {
+              const [hour, minute] = time.split(':');
+              return (
+                <div key={time + index} className="time-row">
+                  <div className="time-picker-wrapper">
+                    <select
+                      value={hour}
+                      onChange={(e) => handleTimeChange(index, e.target.value, minute)}
+                      disabled={!settings.enabled}
+                      className="time-select"
+                    >
+                      {Array.from({ length: 24 }, (_, i) => (
+                        <option key={i} value={String(i).padStart(2, '0')}>
+                          {String(i).padStart(2, '0')}
+                        </option>
+                      ))}
+                    </select>
+                    <span className="time-separator">:</span>
+                    <select
+                      value={minute}
+                      onChange={(e) => handleTimeChange(index, hour, e.target.value)}
+                      disabled={!settings.enabled}
+                      className="time-select"
+                    >
+                      {Array.from({ length: 60 }, (_, i) => (
+                        <option key={i} value={String(i).padStart(2, '0')}>
+                          {String(i).padStart(2, '0')}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  {settings.times.length > 1 && (
+                    <button
+                      type="button"
+                      className="remove-btn"
+                      onClick={() => handleRemoveTime(index)}
+                      disabled={!settings.enabled}
+                    >
+                      Sil
+                    </button>
+                  )}
+                </div>
+              );
+            })}
           </div>
           {settings.times.length < 4 && (
             <button
@@ -205,6 +208,55 @@ function ReminderSettings({
               Saat Ekle
             </button>
           )}
+        </div>
+
+        <div className="reminder-block">
+          <span className="block-label">Bildirim Sesi</span>
+          <select
+            value={settings.soundType || 'beep3x'}
+            onChange={handleSoundChange}
+            disabled={!settings.enabled}
+            className="sound-select"
+            style={{
+              width: '100%',
+              padding: '10px 12px',
+              fontSize: '1rem',
+              borderRadius: '8px',
+              border: '1px solid var(--color-border)',
+              backgroundColor: 'var(--color-bg)',
+              color: 'var(--color-text)',
+              cursor: settings.enabled ? 'pointer' : 'not-allowed',
+              marginBottom: '12px'
+            }}
+          >
+            {getSoundOptions().map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.name} - {option.description}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={() => handlePreviewSound(settings.soundType || 'beep3x')}
+            style={{
+              width: '100%',
+              padding: '10px 16px',
+              background: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              fontSize: '0.95rem',
+              fontWeight: '600',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              boxShadow: '0 3px 10px rgba(139, 92, 246, 0.25)'
+            }}
+          >
+            🔊 Sesi Dinle
+          </button>
+          <small style={{ display: 'block', marginTop: '8px', color: 'var(--color-text-muted)' }}>
+            Bildirim geldiğinde duyacağınız sesi seçin ve önizleyin
+          </small>
         </div>
 
         <div className="reminder-block">

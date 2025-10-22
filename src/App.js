@@ -15,10 +15,12 @@ import {
   getWorkoutByDay,
   getWorkoutProgress
 } from './data/workoutProgram';
+import { playNotificationSound } from './utils/notificationSounds';
 
 const DEFAULT_REMINDERS = {
   enabled: false,
-  times: ['09:00', '13:00', '20:00']
+  times: ['09:00', '13:00', '20:00'],
+  soundType: 'beep3x'
 };
 
 const MS_IN_DAY = 24 * 60 * 60 * 1000;
@@ -130,7 +132,8 @@ function App() {
         const parsed = JSON.parse(saved);
         return {
           enabled: Boolean(parsed.enabled),
-          times: sanitizeTimes(parsed.times)
+          times: sanitizeTimes(parsed.times),
+          soundType: parsed.soundType || 'beep3x'
         };
       }
     } catch (error) {
@@ -318,26 +321,8 @@ function App() {
         icon: '/logo192.png'
       });
 
-      // Özel bildirim sesi çal (3 kere bip - dikkat çekici!)
-      try {
-        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        [0, 300, 600].forEach((delay) => {
-          setTimeout(() => {
-            const oscillator = audioContext.createOscillator();
-            const gainNode = audioContext.createGain();
-            oscillator.connect(gainNode);
-            gainNode.connect(audioContext.destination);
-            oscillator.frequency.value = 523.25; // C note
-            oscillator.type = 'sine';
-            gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
-            oscillator.start(audioContext.currentTime);
-            oscillator.stop(audioContext.currentTime + 0.2);
-          }, delay);
-        });
-      } catch (error) {
-        console.log('Ses çalınamadı:', error);
-      }
+      // Seçili bildirim sesini çal
+      playNotificationSound(reminderSettings.soundType);
 
       lastReminderRef.current[todayKey] = true;
     };
@@ -371,7 +356,8 @@ function App() {
   const handleReminderChange = (nextSettings) => {
     setReminderSettings({
       enabled: Boolean(nextSettings.enabled),
-      times: sanitizeTimes(nextSettings.times)
+      times: sanitizeTimes(nextSettings.times),
+      soundType: nextSettings.soundType || 'beep3x'
     });
   };
 
