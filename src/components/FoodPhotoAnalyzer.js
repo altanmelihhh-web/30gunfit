@@ -61,30 +61,34 @@ const FoodPhotoAnalyzer = ({ onFoodAnalyzed }) => {
 
     // Mod'a göre prompt
     const prompt = analysisMode === ANALYSIS_MODES.FOOD_PHOTO
-      ? `Sen profesyonel bir diyetisyen ve beslenme uzmanısın. Bu yemek fotoğrafını analiz et ve aşağıdaki JSON formatında bilgi ver. SADECE JSON döndür, başka açıklama ekleme:
+      ? `Bu yemek fotoğrafını analiz et. Yanıtını SADECE aşağıdaki JSON formatında ver. Hiçbir açıklama ekleme, SADECE JSON:
 
 {
   "food_name": "Yemek adı (Türkçe)",
   "description": "Kısa açıklama (1 cümle)",
-  "calories": tahmin edilen kalori (sayı),
-  "protein": gram cinsinden protein (sayı),
-  "carbs": gram cinsinden karbonhidrat (sayı),
-  "fats": gram cinsinden yağ (sayı),
-  "portion_size": "Porsiyon büyüklüğü tahmini (örn: 1 porsiyon, 200g)",
-  "confidence": "high/medium/low - tahmin güvenilirliği"
-}`
-      : `Sen profesyonel bir diyetisyensin. Bu besin etiketini (nutrition facts) oku ve aşağıdaki JSON formatında bilgi ver. SADECE JSON döndür:
+  "calories": 500,
+  "protein": 30,
+  "carbs": 45,
+  "fats": 15,
+  "portion_size": "1 porsiyon (300g)",
+  "confidence": "high"
+}
+
+Önemli: Yanıt SADECE JSON olmalı. Başka hiçbir metin yazma.`
+      : `Bu besin etiketini oku. Yanıtını SADECE aşağıdaki JSON formatında ver. Hiçbir açıklama ekleme, SADECE JSON:
 
 {
-  "food_name": "Ürün adı (etiketten oku)",
-  "description": "Ürün açıklaması (1 cümle)",
-  "calories": etiketteki kalori değeri (sayı),
-  "protein": gram cinsinden protein (sayı),
-  "carbs": gram cinsinden karbonhidrat (sayı),
-  "fats": gram cinsinden yağ (sayı),
-  "portion_size": "Porsiyon büyüklüğü (etiketten oku, örn: 100g)",
-  "confidence": "high/medium/low - etiket okunabilirlik güveni"
-}`;
+  "food_name": "Ürün adı",
+  "description": "Ürün açıklaması",
+  "calories": 250,
+  "protein": 20,
+  "carbs": 30,
+  "fats": 10,
+  "portion_size": "100g",
+  "confidence": "high"
+}
+
+Önemli: Yanıt SADECE JSON olmalı. Başka hiçbir metin yazma.`;
 
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
@@ -109,7 +113,8 @@ const FoodPhotoAnalyzer = ({ onFoodAnalyzed }) => {
           ],
           generationConfig: {
             temperature: 0.3,
-            maxOutputTokens: 500
+            maxOutputTokens: 500,
+            responseMimeType: "application/json"
           }
         })
       }
@@ -140,14 +145,20 @@ const FoodPhotoAnalyzer = ({ onFoodAnalyzed }) => {
       throw new Error('AI boş yanıt döndü. Lütfen fotoğrafı değiştirin.');
     }
 
-    // JSON parse et
-    const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      console.error('AI yanıtı:', aiResponse);
-      throw new Error('AI yanıtı JSON formatında değil. Yanıt: ' + aiResponse.substring(0, 100));
+    // JSON parse et (responseMimeType: "application/json" sayesinde direkt JSON gelir)
+    try {
+      // Önce direkt parse etmeyi dene
+      return JSON.parse(aiResponse);
+    } catch (parseError) {
+      // Eğer başarısız olursa, JSON regex ile ara
+      console.warn('Direkt JSON parse başarısız, regex ile deneniyor...');
+      const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        console.error('AI yanıtı:', aiResponse);
+        throw new Error('AI yanıtı JSON formatında değil. Yanıt: ' + aiResponse.substring(0, 100));
+      }
+      return JSON.parse(jsonMatch[0]);
     }
-
-    return JSON.parse(jsonMatch[0]);
   };
 
   // Ana analiz fonksiyonu
