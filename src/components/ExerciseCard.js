@@ -33,6 +33,7 @@ function ExerciseCard({
   const safeExercise = {
     name: displayExercise.name || 'Hareket',
     description: displayExercise.description || '',
+    instructions: displayExercise.instructions || [],
     videoGuide: displayExercise.videoGuide || '',
     videoUrl: displayExercise.videoUrl || '',
     previewImage: displayExercise.previewImage || '',
@@ -43,7 +44,8 @@ function ExerciseCard({
     requiresEquipment: displayExercise.requiresEquipment === true,
     equipment: displayExercise.equipment || [],
     reps: displayExercise.reps || '',
-    duration: displayExercise.duration || 0
+    duration: displayExercise.duration || 0,
+    sets: displayExercise.sets || 1
   };
 
   return (
@@ -85,6 +87,21 @@ function ExerciseCard({
       {isExpanded && (
         <div className="exercise-details">
           <p className="description">{safeExercise.description}</p>
+
+          {/* Adım Adım Talimatlar */}
+          {safeExercise.instructions && safeExercise.instructions.length > 0 && (
+            <div className="instructions-section">
+              <h5>📝 Nasıl Yapılır (Adım Adım)</h5>
+              <ol className="instructions-list">
+                {safeExercise.instructions.map((step, idx) => (
+                  <li key={idx} className="instruction-step">
+                    <span className="step-number">{idx + 1}</span>
+                    <span className="step-text">{step}</span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
 
           {/* Timer Butonu */}
           {!exercise.isWarmup && !exercise.isCooldown && safeExercise.duration > 0 && (

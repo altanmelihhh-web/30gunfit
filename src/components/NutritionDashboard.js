@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import NutritionCalculator from './NutritionCalculator';
 import FoodPhotoAnalyzer from './FoodPhotoAnalyzer';
 import CalorieTracker, { addMealFromAI } from './CalorieTracker';
+import WaterTracker from './WaterTracker';
 import './NutritionDashboard.css';
 
 /**
@@ -12,7 +13,7 @@ import './NutritionDashboard.css';
  */
 
 const NutritionDashboard = ({ userProfile }) => {
-  const [activeSection, setActiveSection] = useState('calculator'); // calculator, tracker, ai-analyzer
+  const [activeSection, setActiveSection] = useState('calculator'); // calculator, tracker, ai-analyzer, water
   const [nutritionResults, setNutritionResults] = useState(null);
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
   const [trackerRefreshKey, setTrackerRefreshKey] = useState(0);
@@ -68,6 +69,12 @@ const NutritionDashboard = ({ userProfile }) => {
           onClick={() => setActiveSection('tracker')}
         >
           📝 Kalori Takibi
+        </button>
+        <button
+          className={`nav-btn ${activeSection === 'water' ? 'active' : ''}`}
+          onClick={() => setActiveSection('water')}
+        >
+          💧 Su Takibi
         </button>
         <button
           className={`nav-btn ${activeSection === 'ai-analyzer' ? 'active' : ''}`}
@@ -144,6 +151,12 @@ const NutritionDashboard = ({ userProfile }) => {
             <FoodPhotoAnalyzer onFoodAnalyzed={handleFoodAnalyzed} />
           </div>
         )}
+
+        {activeSection === 'water' && (
+          <div className="section-content">
+            <WaterTracker />
+          </div>
+        )}
       </div>
 
       {/* Bilgilendirme kartı */}
@@ -155,6 +168,9 @@ const NutritionDashboard = ({ userProfile }) => {
           </li>
           <li>
             <strong>Kalori Takibi:</strong> Günlük yediklerinizi kaydedin, hedeflerinize ne kadar yakın olduğunuzu görün
+          </li>
+          <li>
+            <strong>Su Takibi:</strong> Günlük su tüketiminizi takip edin, yeterli hidrasyon için hedeflerinize ulaşın
           </li>
           <li>
             <strong>AI Analiz:</strong> Yemek fotoğrafı yükleyin, yapay zeka kalori ve makroları otomatik hesaplasın
