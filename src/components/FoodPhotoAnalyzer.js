@@ -61,34 +61,10 @@ const FoodPhotoAnalyzer = ({ onFoodAnalyzed }) => {
 
     // Mod'a göre prompt
     const prompt = analysisMode === ANALYSIS_MODES.FOOD_PHOTO
-      ? `Bu yemek fotoğrafını analiz et. Yanıtını SADECE aşağıdaki JSON formatında ver. Hiçbir açıklama ekleme, SADECE JSON:
-
-{
-  "food_name": "Yemek adı (Türkçe)",
-  "description": "Kısa açıklama (1 cümle)",
-  "calories": 500,
-  "protein": 30,
-  "carbs": 45,
-  "fats": 15,
-  "portion_size": "1 porsiyon (300g)",
-  "confidence": "high"
-}
-
-Önemli: Yanıt SADECE JSON olmalı. Başka hiçbir metin yazma.`
-      : `Bu besin etiketini oku. Yanıtını SADECE aşağıdaki JSON formatında ver. Hiçbir açıklama ekleme, SADECE JSON:
-
-{
-  "food_name": "Ürün adı",
-  "description": "Ürün açıklaması",
-  "calories": 250,
-  "protein": 20,
-  "carbs": 30,
-  "fats": 10,
-  "portion_size": "100g",
-  "confidence": "high"
-}
-
-Önemli: Yanıt SADECE JSON olmalı. Başka hiçbir metin yazma.`;
+      ? `Analyze this food photo and respond with ONLY a JSON object. No explanations, no markdown, just pure JSON:
+{"food_name":"Dish name in Turkish","description":"Brief description","calories":500,"protein":30,"carbs":45,"fats":15,"portion_size":"1 portion (300g)","confidence":"high"}`
+      : `Read this nutrition label and respond with ONLY a JSON object. No explanations, no markdown, just pure JSON:
+{"food_name":"Product name","description":"Product description","calories":250,"protein":20,"carbs":30,"fats":10,"portion_size":"100g","confidence":"high"}`;
 
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
@@ -98,6 +74,13 @@ const FoodPhotoAnalyzer = ({ onFoodAnalyzed }) => {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
+          system_instruction: {
+            parts: [
+              {
+                text: "You are a JSON-only API. You MUST respond with ONLY valid JSON. Never include explanations, markdown, or any text outside the JSON structure."
+              }
+            ]
+          },
           contents: [
             {
               parts: [
@@ -112,9 +95,8 @@ const FoodPhotoAnalyzer = ({ onFoodAnalyzed }) => {
             }
           ],
           generationConfig: {
-            temperature: 0.3,
-            maxOutputTokens: 500,
-            responseMimeType: "application/json"
+            temperature: 0.1,
+            maxOutputTokens: 500
           }
         })
       }
