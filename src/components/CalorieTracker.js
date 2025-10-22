@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import './CalorieTracker.css';
 
 /**
@@ -35,13 +35,21 @@ const CalorieTracker = ({ targetCalories, targetMacros, onDataChange }) => {
     const loadMeals = () => {
       const allTrackerData = JSON.parse(localStorage.getItem('calorie_tracker') || '{}');
       const todayMeals = allTrackerData[selectedDate] || [];
+      console.log('📥 CalorieTracker yükleniyor - Tarih:', selectedDate, 'Meal sayısı:', todayMeals.length);
       setMeals(todayMeals);
     };
     loadMeals();
   }, [selectedDate]);
 
-  // Veri değiştiğinde localStorage'a kaydet
+  // Veri değiştiğinde localStorage'a kaydet (ilk render'ı atla)
+  const isFirstRender = useRef(true);
   useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return; // İlk render'da localStorage'a yazma
+    }
+
+    console.log('💾 CalorieTracker kaydediyor - Meal sayısı:', meals.length);
     const allTrackerData = JSON.parse(localStorage.getItem('calorie_tracker') || '{}');
     allTrackerData[selectedDate] = meals;
     localStorage.setItem('calorie_tracker', JSON.stringify(allTrackerData));
