@@ -59,12 +59,40 @@ const FoodPhotoAnalyzer = ({ onFoodAnalyzed }) => {
     const base64Data = base64Image.split(',')[1];
     const mimeType = base64Image.split(';')[0].split(':')[1];
 
-    // Mod'a göre prompt
+    // Mod'a göre prompt - JSON bloğu ile zorla
     const prompt = analysisMode === ANALYSIS_MODES.FOOD_PHOTO
-      ? `Analyze this food photo and respond with ONLY a JSON object. No explanations, no markdown, just pure JSON:
-{"food_name":"Dish name in Turkish","description":"Brief description","calories":500,"protein":30,"carbs":45,"fats":15,"portion_size":"1 portion (300g)","confidence":"high"}`
-      : `Read this nutrition label and respond with ONLY a JSON object. No explanations, no markdown, just pure JSON:
-{"food_name":"Product name","description":"Product description","calories":250,"protein":20,"carbs":30,"fats":10,"portion_size":"100g","confidence":"high"}`;
+      ? `Analyze this food photo. Return your answer in this EXACT JSON format (no other text, no explanations):
+
+\`\`\`json
+{
+  "food_name": "Name in Turkish",
+  "description": "Brief description",
+  "calories": 500,
+  "protein": 30,
+  "carbs": 45,
+  "fats": 15,
+  "portion_size": "1 portion (300g)",
+  "confidence": "high"
+}
+\`\`\`
+
+IMPORTANT: Return ONLY the JSON inside \`\`\`json code block. No other text.`
+      : `Read this nutrition label. Return your answer in this EXACT JSON format (no other text, no explanations):
+
+\`\`\`json
+{
+  "food_name": "Product name",
+  "description": "Product description",
+  "calories": 250,
+  "protein": 20,
+  "carbs": 30,
+  "fats": 10,
+  "portion_size": "100g",
+  "confidence": "high"
+}
+\`\`\`
+
+IMPORTANT: Return ONLY the JSON inside \`\`\`json code block. No other text.`;
 
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
@@ -74,13 +102,6 @@ const FoodPhotoAnalyzer = ({ onFoodAnalyzed }) => {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          system_instruction: {
-            parts: [
-              {
-                text: "You are a JSON-only API. You MUST respond with ONLY valid JSON. Never include explanations, markdown, or any text outside the JSON structure."
-              }
-            ]
-          },
           contents: [
             {
               parts: [
@@ -95,8 +116,8 @@ const FoodPhotoAnalyzer = ({ onFoodAnalyzed }) => {
             }
           ],
           generationConfig: {
-            temperature: 0.1,
-            maxOutputTokens: 500
+            temperature: 0.2,
+            maxOutputTokens: 800
           }
         })
       }
@@ -127,19 +148,34 @@ const FoodPhotoAnalyzer = ({ onFoodAnalyzed }) => {
       throw new Error('AI boş yanıt döndü. Lütfen fotoğrafı değiştirin.');
     }
 
-    // JSON parse et (responseMimeType: "application/json" sayesinde direkt JSON gelir)
+    // JSON parse et - Çoklu yöntem
+    let jsonString = aiResponse.trim();
+
+    // 1. Önce ```json bloğu ara
+    const codeBlockMatch = jsonString.match(/```json\s*([\s\S]*?)\s*```/);
+    if (codeBlockMatch) {
+      jsonString = codeBlockMatch[1].trim();
+    }
+
+    // 2. Direkt parse dene
     try {
-      // Önce direkt parse etmeyi dene
-      return JSON.parse(aiResponse);
+      return JSON.parse(jsonString);
     } catch (parseError) {
-      // Eğer başarısız olursa, JSON regex ile ara
+      // 3. Regex ile JSON objesini bul
       console.warn('Direkt JSON parse başarısız, regex ile deneniyor...');
-      const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
+      const jsonMatch = jsonString.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
         console.error('AI yanıtı:', aiResponse);
-        throw new Error('AI yanıtı JSON formatında değil. Yanıt: ' + aiResponse.substring(0, 100));
+        throw new Error('AI yanıtı JSON formatında değil. Yanıt: ' + aiResponse.substring(0, 200));
       }
-      return JSON.parse(jsonMatch[0]);
+
+      try {
+        return JSON.parse(jsonMatch[0]);
+      } catch (secondError) {
+        console.error('JSON parse hatası:', secondError);
+        console.error('Bulunan JSON:', jsonMatch[0].substring(0, 200));
+        throw new Error('JSON parse edilemedi. Lütfen daha net bir fotoğraf deneyin.');
+      }
     }
   };
 
