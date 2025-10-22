@@ -273,28 +273,45 @@ function App() {
     }
 
     const checkAndNotify = () => {
-      if (!todaysWorkout || Notification.permission !== 'granted') {
+      console.log('🔔 Hatırlatma kontrolü:', new Date().toLocaleTimeString('tr-TR'));
+
+      if (!todaysWorkout) {
+        console.log('❌ Bugünkü antrenman yok');
+        return;
+      }
+
+      if (Notification.permission !== 'granted') {
+        console.log('❌ Bildirim izni yok');
         return;
       }
 
       if (completedDays.includes(todaysWorkout.day)) {
+        console.log('✅ Gün zaten tamamlanmış');
         return;
       }
 
       const currentTime = getCurrentTimeString();
+      console.log('⏰ Şu anki saat:', currentTime);
+      console.log('📋 Ayarlı saatler:', reminderSettings.times);
+
       if (!reminderSettings.times.includes(currentTime)) {
+        console.log('⏭️ Şu an hatırlatma zamanı değil');
         return;
       }
 
       const todayKey = `${new Date().toISOString().split('T')[0]}-${currentTime}`;
       if (lastReminderRef.current[todayKey]) {
+        console.log('🔁 Bu saat için zaten bildirim gönderildi');
         return;
       }
 
       const progress = getWorkoutProgress(todaysWorkout, completedExercises);
       if (progress.percent >= 100) {
+        console.log('✅ Antrenman %100 tamamlanmış');
         return;
       }
+
+      console.log('🚀 BİLDİRİM GÖNDERİLİYOR!');
 
       new Notification('💪 30 Gün Fit - Hatırlatma', {
         body: `Gün ${todaysWorkout.day} (${todaysWorkout.title}) · %${progress.percent} tamamlandı. Hadi devam!`,
