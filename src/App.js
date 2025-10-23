@@ -193,6 +193,16 @@ function App() {
     }
   });
 
+  // İlerleme verilerinin en son güncellenme zamanı
+  const [progressUpdatedAt, setProgressUpdatedAt] = useState(() => {
+    try {
+      const saved = localStorage.getItem('progressUpdatedAt');
+      return saved || null;
+    } catch (error) {
+      return null;
+    }
+  });
+
   const [startDate, setStartDate] = useState(() => {
     try {
       const saved = localStorage.getItem('programStartDate');
@@ -298,7 +308,10 @@ function App() {
   }, [theme]);
 
   useEffect(() => {
+    const now = new Date().toISOString();
     localStorage.setItem('completedDays', JSON.stringify(completedDays));
+    localStorage.setItem('progressUpdatedAt', now);
+    setProgressUpdatedAt(now);
 
     // Firestore'a da kaydet (kullanıcı giriş yaptıysa)
     if (user) {
@@ -311,7 +324,10 @@ function App() {
   }, [completedDays, user, completedExercises, startDate]);
 
   useEffect(() => {
+    const now = new Date().toISOString();
     localStorage.setItem('completedExercises', JSON.stringify(completedExercises));
+    localStorage.setItem('progressUpdatedAt', now);
+    setProgressUpdatedAt(now);
 
     // Firestore'a da kaydet (kullanıcı giriş yaptıysa)
     if (user) {
@@ -325,7 +341,10 @@ function App() {
 
   useEffect(() => {
     if (startDate) {
+      const now = new Date().toISOString();
       localStorage.setItem('programStartDate', startDate.toISOString());
+      localStorage.setItem('progressUpdatedAt', now);
+      setProgressUpdatedAt(now);
 
       // Firestore'a da kaydet (kullanıcı giriş yaptıysa)
       if (user) {
@@ -428,13 +447,56 @@ function App() {
               await saveUserProgram(firebaseUser.uid, newProgram);
             }
 
-            // İlerleme varsa yükle
+            // İlerleme varsa yükle - AMA localStorage ile karşılaştır (EN GÜNCEL OLAN KAZANSIN!)
             if (data.progress) {
-              setCompletedDays(data.progress.completedDays || []);
-              setCompletedExercises(data.progress.completedExercises || {});
-              if (data.progress.startDate) {
-                setStartDate(normalizeDate(data.progress.startDate));
+              // localStorage'dan timestamp'i al
+              const localProgressTimestamp = localStorage.getItem('progressUpdatedAt');
+              const firebaseProgressTimestamp = data.progress.updatedAt;
+
+              console.log('🔄 İlerleme Senkronizasyonu:');
+              console.log('   📱 localStorage timestamp:', localProgressTimestamp);
+              console.log('   ☁️  Firebase timestamp:', firebaseProgressTimestamp);
+
+              // Timestamp karşılaştırması
+              const useLocalData = localProgressTimestamp &&
+                (!firebaseProgressTimestamp || new Date(localProgressTimestamp) > new Date(firebaseProgressTimestamp));
+
+              if (useLocalData) {
+                console.log('   ✅ localStorage daha güncel! localStorage verileri kullanılıyor.');
+                console.log('   📤 Firebase güncelleniyor...');
+
+                // localStorage daha güncel - Firebase'i güncelle
+                const localCompletedDays = JSON.parse(localStorage.getItem('completedDays') || '[]');
+                const localCompletedExercises = JSON.parse(localStorage.getItem('completedExercises') || '{}');
+                const localStartDate = localStorage.getItem('programStartDate');
+
+                await saveUserProgress(firebaseUser.uid, {
+                  completedDays: localCompletedDays,
+                  completedExercises: localCompletedExercises,
+                  startDate: localStartDate
+                });
+
+                console.log('   ✅ Firebase güncellendi!');
+              } else {
+                console.log('   ✅ Firebase daha güncel! Firebase verileri kullanılıyor.');
+
+                // Firebase daha güncel - state'i güncelle
+                setCompletedDays(data.progress.completedDays || []);
+                setCompletedExercises(data.progress.completedExercises || {});
+                if (data.progress.startDate) {
+                  setStartDate(normalizeDate(data.progress.startDate));
+                }
+
+                // localStorage'ı da güncelle
+                localStorage.setItem('completedDays', JSON.stringify(data.progress.completedDays || []));
+                localStorage.setItem('completedExercises', JSON.stringify(data.progress.completedExercises || {}));
+                if (data.progress.startDate) {
+                  localStorage.setItem('programStartDate', data.progress.startDate);
+                }
+                localStorage.setItem('progressUpdatedAt', firebaseProgressTimestamp);
               }
+            } else {
+              console.log('   ℹ️  Firebase\'de ilerleme verisi yok, localStorage verisi korunuyor.');
             }
 
             // Ayarlar varsa yükle
