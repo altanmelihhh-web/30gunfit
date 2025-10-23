@@ -47,8 +47,50 @@ function ReminderSettings({
     setHasChanges(false);
   }, [settings]);
 
-  const handleToggle = () => {
-    const newSettings = { ...localSettings, enabled: !localSettings.enabled };
+  const handleToggle = async () => {
+    const willBeEnabled = !localSettings.enabled;
+
+    // Eğer hatırlatmaları açıyorsa, bildirim izni iste
+    if (willBeEnabled && notificationsSupported && 'Notification' in window) {
+      if (Notification.permission === 'default') {
+        console.log('📋 Hatırlatmalar açılıyor, bildirim izni isteniyor...');
+
+        try {
+          const permission = await Notification.requestPermission();
+          console.log('📋 İzin sonucu:', permission);
+
+          if (permission === 'granted') {
+            // İzin verildi, sesi çal ve kullanıcıyı bilgilendir
+            playNotificationSound(localSettings.soundType || 'phoneRing');
+            alert('✅ Bildirim izni verildi!\n\nHatırlatmalar aktif edildi.\n\n' +
+                  'Artık belirlediğiniz saatlerde bildirim alacaksınız.\n\n' +
+                  'Değişiklikleri kaydetmeyi unutmayın!');
+          } else if (permission === 'denied') {
+            alert('❌ Bildirim izni reddedildi!\n\n' +
+                  'Hatırlatmaları kullanmak için tarayıcı ayarlarından bildirim izni vermeniz gerekiyor.\n\n' +
+                  'Chrome: Ayarlar > Gizlilik ve güvenlik > Site ayarları > Bildirimler\n' +
+                  'Safari: Sistem Tercihleri > Bildirimler');
+            // İzin reddedildi ama yine de açabilir, belki sonra izin verir
+          }
+        } catch (error) {
+          console.error('❌ İzin isteme hatası:', error);
+          alert('⚠️ Bildirim izni istenemedi.\n\n' +
+                'Hata: ' + error.message + '\n\n' +
+                'Yine de hatırlatmaları açabilirsiniz.');
+        }
+      } else if (Notification.permission === 'denied') {
+        // Önceden reddedilmiş
+        alert('⚠️ Bildirim izni daha önce reddedilmiş.\n\n' +
+              'Hatırlatmaları açabilirsiniz ama bildirim almak için tarayıcı ayarlarından izin vermeniz gerekecek.\n\n' +
+              'Chrome: Ayarlar > Gizlilik ve güvenlik > Site ayarları > Bildirimler\n' +
+              'Safari: Sistem Tercihleri > Bildirimler');
+      } else {
+        // Zaten izin verilmiş
+        console.log('✅ Bildirim izni zaten verilmiş');
+      }
+    }
+
+    const newSettings = { ...localSettings, enabled: willBeEnabled };
     setLocalSettings(newSettings);
     setHasChanges(true);
   };
