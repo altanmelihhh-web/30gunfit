@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import './ReminderSettings.css';
 import { playNotificationSound, getSoundOptions } from '../utils/notificationSounds';
 
@@ -36,18 +36,44 @@ function ReminderSettings({
   currentDay,
   notificationsSupported
 }) {
+  // Local state ile değişiklikleri tut
+  const [localSettings, setLocalSettings] = useState(settings);
+  const [hasChanges, setHasChanges] = useState(false);
+  const [saveMessage, setSaveMessage] = useState('');
+
+  // Props'tan gelen settings değişince local'i güncelle
+  useEffect(() => {
+    setLocalSettings(settings);
+    setHasChanges(false);
+  }, [settings]);
+
   const handleToggle = () => {
-    onChange({ ...settings, enabled: !settings.enabled });
+    const newSettings = { ...localSettings, enabled: !localSettings.enabled };
+    setLocalSettings(newSettings);
+    setHasChanges(true);
   };
 
   const handleTimeChange = (index, hour, minute) => {
     const newTime = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
-    const times = settings.times.map((time, idx) => (idx === index ? newTime : time));
-    onChange({ ...settings, times });
+    const times = localSettings.times.map((time, idx) => (idx === index ? newTime : time));
+    setLocalSettings({ ...localSettings, times });
+    setHasChanges(true);
   };
 
   const handleSoundChange = (event) => {
-    onChange({ ...settings, soundType: event.target.value });
+    setLocalSettings({ ...localSettings, soundType: event.target.value });
+    setHasChanges(true);
+  };
+
+  const handleSave = () => {
+    onChange(localSettings);
+    setHasChanges(false);
+    setSaveMessage('✅ Kaydedildi!');
+
+    // 2 saniye sonra mesajı temizle
+    setTimeout(() => {
+      setSaveMessage('');
+    }, 2000);
   };
 
   const handlePreviewSound = (soundType) => {
@@ -55,14 +81,16 @@ function ReminderSettings({
   };
 
   const handleAddTime = () => {
-    const times = [...settings.times, '21:00'];
-    onChange({ ...settings, times });
+    const times = [...localSettings.times, '21:00'];
+    setLocalSettings({ ...localSettings, times });
+    setHasChanges(true);
   };
 
   const handleRemoveTime = (index) => {
-    if (settings.times.length === 1) return;
-    const times = settings.times.filter((_, idx) => idx !== index);
-    onChange({ ...settings, times });
+    if (localSettings.times.length === 1) return;
+    const times = localSettings.times.filter((_, idx) => idx !== index);
+    setLocalSettings({ ...localSettings, times });
+    setHasChanges(true);
   };
 
   const handleStartDateChange = (event) => {
@@ -106,7 +134,7 @@ function ReminderSettings({
       });
 
       // Seçili bildirim sesini çal
-      playNotificationSound(settings.soundType || 'beep3x');
+      playNotificationSound(localSettings.soundType || 'phoneRing');
 
       alert('✅ Bildirim gönderildi! Ekranınızı kontrol edin.');
     } catch (error) {
@@ -132,11 +160,25 @@ function ReminderSettings({
         <div>
           <h2>Hatırlatmalar</h2>
           <p>Günde en fazla 3 kez bildirim al. Gün tamamlanmadıysa hatırlatmalar tetiklenir.</p>
+          {saveMessage && (
+            <div style={{
+              marginTop: '8px',
+              padding: '8px 12px',
+              background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+              color: 'white',
+              borderRadius: '6px',
+              fontSize: '0.9rem',
+              fontWeight: '600',
+              animation: 'fadeIn 0.3s ease-in'
+            }}>
+              {saveMessage}
+            </div>
+          )}
         </div>
         <label className="toggle">
           <input
             type="checkbox"
-            checked={settings.enabled}
+            checked={localSettings.enabled}
             onChange={handleToggle}
           />
           <span className="toggle-slider" />
@@ -153,7 +195,7 @@ function ReminderSettings({
         <div className="reminder-block">
           <span className="block-label">Bildirim Saatleri</span>
           <div className="time-list">
-            {settings.times.map((time, index) => {
+            {localSettings.times.map((time, index) => {
               const [hour, minute] = time.split(':');
               return (
                 <div key={time + index} className="time-row">
@@ -161,7 +203,7 @@ function ReminderSettings({
                     <select
                       value={hour}
                       onChange={(e) => handleTimeChange(index, e.target.value, minute)}
-                      disabled={!settings.enabled}
+                      disabled={!localSettings.enabled}
                       className="time-select"
                     >
                       {Array.from({ length: 24 }, (_, i) => (
@@ -174,7 +216,7 @@ function ReminderSettings({
                     <select
                       value={minute}
                       onChange={(e) => handleTimeChange(index, hour, e.target.value)}
-                      disabled={!settings.enabled}
+                      disabled={!localSettings.enabled}
                       className="time-select"
                     >
                       {Array.from({ length: 60 }, (_, i) => (
@@ -184,12 +226,12 @@ function ReminderSettings({
                       ))}
                     </select>
                   </div>
-                  {settings.times.length > 1 && (
+                  {localSettings.times.length > 1 && (
                     <button
                       type="button"
                       className="remove-btn"
                       onClick={() => handleRemoveTime(index)}
-                      disabled={!settings.enabled}
+                      disabled={!localSettings.enabled}
                     >
                       Sil
                     </button>
@@ -198,12 +240,12 @@ function ReminderSettings({
               );
             })}
           </div>
-          {settings.times.length < 4 && (
+          {localSettings.times.length < 4 && (
             <button
               type="button"
               className="add-btn"
               onClick={handleAddTime}
-              disabled={!settings.enabled}
+              disabled={!localSettings.enabled}
             >
               Saat Ekle
             </button>
@@ -213,7 +255,7 @@ function ReminderSettings({
         <div className="reminder-block">
           <span className="block-label">Bildirim Sesi</span>
           <select
-            value={settings.soundType || 'beep3x'}
+            value={localSettings.soundType || 'phoneRing'}
             onChange={handleSoundChange}
             className="sound-select"
             style={{
@@ -236,7 +278,7 @@ function ReminderSettings({
           </select>
           <button
             type="button"
-            onClick={() => handlePreviewSound(settings.soundType || 'beep3x')}
+            onClick={() => handlePreviewSound(localSettings.soundType || 'phoneRing')}
             style={{
               width: '100%',
               padding: '10px 16px',
@@ -256,7 +298,7 @@ function ReminderSettings({
             🔊 Sesi Dinle
           </button>
           <small style={{ display: 'block', marginTop: '8px', color: 'var(--color-text-muted)' }}>
-            {settings.enabled
+            {localSettings.enabled
               ? 'Bildirim geldiğinde duyacağınız sesi seçin ve önizleyin'
               : 'Sesi seçin ve önizleyin (hatırlatmaları aktif etmeyi unutmayın)'}
           </small>
@@ -288,6 +330,43 @@ function ReminderSettings({
             Bildirim sisteminizin çalışıp çalışmadığını test edin
           </small>
         </div>
+
+        {hasChanges && (
+          <div className="reminder-block" style={{ marginTop: '16px' }}>
+            <button
+              type="button"
+              onClick={handleSave}
+              style={{
+                width: '100%',
+                padding: '14px 24px',
+                background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '10px',
+                fontSize: '1.1rem',
+                fontWeight: '700',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                boxShadow: '0 4px 16px rgba(59, 130, 246, 0.35)',
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateY(-2px)';
+                e.currentTarget.style.boxShadow = '0 6px 20px rgba(59, 130, 246, 0.45)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '0 4px 16px rgba(59, 130, 246, 0.35)';
+              }}
+            >
+              💾 Değişiklikleri Kaydet
+            </button>
+            <small style={{ display: 'block', marginTop: '8px', color: 'var(--color-text-muted)', textAlign: 'center' }}>
+              Yaptığınız değişiklikler henüz kaydedilmedi
+            </small>
+          </div>
+        )}
 
         <div className="reminder-block">
           <span className="block-label">Program Başlangıcı</span>

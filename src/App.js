@@ -40,7 +40,7 @@ import {
 const DEFAULT_REMINDERS = {
   enabled: false,
   times: ['09:00', '13:00', '20:00'],
-  soundType: 'beep3x'
+  soundType: 'phoneRing' // Daha dikkat çekici varsayılan ses
 };
 
 const DEFAULT_PROFILE = {
@@ -483,7 +483,13 @@ function App() {
     }
 
     const checkAndNotify = () => {
-      console.log('🔔 Hatırlatma kontrolü:', new Date().toLocaleTimeString('tr-TR'));
+      const now = new Date();
+      console.log('🔔 Hatırlatma kontrolü:', now.toLocaleTimeString('tr-TR'), '| Hatırlatmalar:', reminderSettings.enabled ? 'AÇIK' : 'KAPALI');
+
+      if (!reminderSettings.enabled) {
+        console.log('❌ Hatırlatmalar kapalı');
+        return;
+      }
 
       if (!todaysWorkout) {
         console.log('❌ Bugünkü antrenman yok');
@@ -491,20 +497,22 @@ function App() {
       }
 
       if (Notification.permission !== 'granted') {
-        console.log('❌ Bildirim izni yok');
+        console.log('❌ Bildirim izni yok (Ayarlar > Hatırlatmalar > Test Bildirimi ile izin verin)');
         return;
       }
 
       if (completedDays.includes(todaysWorkout.day)) {
-        console.log('✅ Gün zaten tamamlanmış');
+        console.log('✅ Gün zaten tamamlanmış - bildirim gerekmez');
         return;
       }
 
       const currentTime = getCurrentTimeString();
-      console.log('⏰ Şu anki saat:', currentTime);
-      console.log('📋 Ayarlı saatler:', reminderSettings.times);
+      console.log('⏰ Şu anki saat:', currentTime, '| Ayarlı saatler:', reminderSettings.times.join(', '));
 
-      if (!reminderSettings.times.includes(currentTime)) {
+      const isReminderTime = reminderSettings.times.includes(currentTime);
+      console.log('🎯 Saat eşleşmesi:', isReminderTime ? 'EVET ✓' : 'HAYIR ✗');
+
+      if (!isReminderTime) {
         console.log('⏭️ Şu an hatırlatma zamanı değil');
         return;
       }
@@ -534,7 +542,9 @@ function App() {
       lastReminderRef.current[todayKey] = true;
     };
 
-    const intervalId = setInterval(checkAndNotify, 60 * 1000);
+    // Her 20 saniyede bir kontrol et (daha güvenilir)
+    const intervalId = setInterval(checkAndNotify, 20 * 1000);
+    // İlk kontrolü hemen yap
     checkAndNotify();
 
     return () => clearInterval(intervalId);

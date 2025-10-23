@@ -122,6 +122,75 @@ const soundPatterns = {
         playTone(audioContext, 1000, audioContext.currentTime + delay, 0.1, 0.35);
       });
     }
+  },
+
+  longRingtone: {
+    name: 'Uzun Zil',
+    description: 'Uzun süre devam eden dikkat çekici zil sesi',
+    play: (audioContext) => {
+      // Uzun zil melodisi - yaklaşık 4 saniye
+      // Melodi: C-E-G-C, C-E-G-C (tekrar eden)
+      const pattern = [
+        { freq: 523.25, delay: 0, duration: 0.4 },     // C
+        { freq: 659.25, delay: 0.4, duration: 0.4 },   // E
+        { freq: 783.99, delay: 0.8, duration: 0.4 },   // G
+        { freq: 1046.5, delay: 1.2, duration: 0.6 },   // C (yüksek)
+
+        { freq: 523.25, delay: 1.9, duration: 0.4 },   // C
+        { freq: 659.25, delay: 2.3, duration: 0.4 },   // E
+        { freq: 783.99, delay: 2.7, duration: 0.4 },   // G
+        { freq: 1046.5, delay: 3.1, duration: 0.8 }    // C (yüksek, uzun)
+      ];
+      pattern.forEach(({ freq, delay, duration }) => {
+        playTone(audioContext, freq, audioContext.currentTime + delay, duration, 0.3);
+      });
+    }
+  },
+
+  phoneRing: {
+    name: 'Telefon Zili',
+    description: 'Klasik telefon zil sesi (uzun ve dikkat çekici)',
+    play: (audioContext) => {
+      // Klasik telefon zili paterni - 2 çift zil
+      const ringPattern = [
+        // İlk çift zil
+        { freq: 440, delay: 0, duration: 0.3 },
+        { freq: 480, delay: 0.05, duration: 0.3 },
+        { freq: 440, delay: 0.4, duration: 0.3 },
+        { freq: 480, delay: 0.45, duration: 0.3 },
+
+        // Kısa ara
+
+        // İkinci çift zil
+        { freq: 440, delay: 1.2, duration: 0.3 },
+        { freq: 480, delay: 1.25, duration: 0.3 },
+        { freq: 440, delay: 1.6, duration: 0.3 },
+        { freq: 480, delay: 1.65, duration: 0.3 }
+      ];
+      ringPattern.forEach(({ freq, delay, duration }) => {
+        playTone(audioContext, freq, audioContext.currentTime + delay, duration, 0.35);
+      });
+    }
+  },
+
+  alarm: {
+    name: 'Alarm',
+    description: 'Yüksek sesli uzun alarm sesi',
+    play: (audioContext) => {
+      // Yükselen-alçalan alarm sesi
+      const alarmPattern = [];
+      // 3 saniye boyunca 10 kez yükselen-alçalan ton
+      for (let i = 0; i < 10; i++) {
+        alarmPattern.push({
+          freq: i % 2 === 0 ? 900 : 700,
+          delay: i * 0.3,
+          duration: 0.25
+        });
+      }
+      alarmPattern.forEach(({ freq, delay, duration }) => {
+        playTone(audioContext, freq, audioContext.currentTime + delay, duration, 0.4);
+      });
+    }
   }
 };
 
