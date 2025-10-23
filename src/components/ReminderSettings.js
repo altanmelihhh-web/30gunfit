@@ -102,44 +102,90 @@ function ReminderSettings({
   };
 
   const handleTestNotification = () => {
-    // Bildirim izni kontrol et
+    console.log('🧪 Test bildirimi başlatıldı...');
+    console.log('📍 window.location:', window.location.href);
+    console.log('🔐 HTTPS mi?', window.location.protocol === 'https:');
+    console.log('🏠 Localhost mu?', window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
+    // Bildirim API'si var mı?
     if (!('Notification' in window)) {
-      alert('❌ Bu tarayıcı bildirimleri desteklemiyor!');
+      console.error('❌ Notification API bulunamadı');
+      alert('❌ Bu tarayıcı bildirimleri desteklemiyor!\n\nTarayıcı: ' + navigator.userAgent);
+      return;
+    }
+
+    console.log('✅ Notification API mevcut');
+    console.log('🔔 Mevcut izin durumu:', Notification.permission);
+
+    // HTTPS kontrolü (localhost hariç)
+    const isLocalhost = window.location.hostname === 'localhost' ||
+                        window.location.hostname === '127.0.0.1' ||
+                        window.location.hostname === '[::1]';
+    const isHTTPS = window.location.protocol === 'https:';
+
+    if (!isHTTPS && !isLocalhost) {
+      alert('❌ Web bildirimleri sadece HTTPS sitelerinde çalışır!\n\n' +
+            'Şu anda: ' + window.location.protocol + '\n' +
+            'Gerekli: https://\n\n' +
+            'Canlı siteyi (https://...) kullanın.');
       return;
     }
 
     if (Notification.permission === 'denied') {
-      alert('❌ Bildirim izni reddedilmiş! Lütfen tarayıcı ayarlarından izin verin.');
+      alert('❌ Bildirim izni reddedilmiş!\n\n' +
+            'Tarayıcı ayarlarından izin vermeniz gerekiyor:\n\n' +
+            'Chrome: Ayarlar > Gizlilik ve güvenlik > Site ayarları > Bildirimler\n' +
+            'Safari: Sistem Tercihleri > Bildirimler > [Tarayıcı]');
       return;
     }
 
     if (Notification.permission === 'default') {
+      console.log('📋 İzin isteniyor...');
       Notification.requestPermission().then((permission) => {
+        console.log('📋 İzin sonucu:', permission);
         if (permission === 'granted') {
           sendTestNotification();
         } else {
-          alert('❌ Bildirim izni verilmedi!');
+          alert('❌ Bildirim izni verilmedi!\n\nİzin durumu: ' + permission);
         }
+      }).catch((error) => {
+        console.error('❌ İzin hatası:', error);
+        alert('❌ İzin isteği başarısız: ' + error.message);
       });
     } else {
+      console.log('✅ İzin zaten verilmiş, bildirim gönderiliyor...');
       sendTestNotification();
     }
   };
 
   const sendTestNotification = () => {
     try {
-      new Notification('🧪 Test Bildirimi - 30 Gün Fit', {
+      console.log('📤 Bildirim oluşturuluyor...');
+      const notification = new Notification('🧪 Test Bildirimi - 30 Gün Fit', {
         body: 'Tebrikler! Bildirim sistemi çalışıyor! ✅',
-        icon: '/logo192.png'
+        icon: '/logo192.png',
+        badge: '/logo192.png',
+        requireInteraction: false,
+        silent: false
       });
+
+      console.log('✅ Bildirim objesi oluşturuldu:', notification);
+
+      // Bildirim olaylarını dinle
+      notification.onshow = () => console.log('✅ Bildirim gösterildi');
+      notification.onerror = (e) => console.error('❌ Bildirim hatası:', e);
+      notification.onclose = () => console.log('🔔 Bildirim kapatıldı');
 
       // Seçili bildirim sesini çal
       playNotificationSound(localSettings.soundType || 'phoneRing');
 
-      alert('✅ Bildirim gönderildi! Ekranınızı kontrol edin.');
+      alert('✅ Bildirim gönderildi!\n\nEkranınızın sağ üst köşesini kontrol edin.\n\n' +
+            '(Bildirim gösterimi birkaç saniye sürebilir)');
     } catch (error) {
-      alert('❌ Bildirim gönderilemedi: ' + error.message);
-      console.error('Bildirim hatası:', error);
+      console.error('❌ Bildirim hatası:', error);
+      alert('❌ Bildirim gönderilemedi!\n\n' +
+            'Hata: ' + error.message + '\n\n' +
+            'Tarayıcı: ' + navigator.userAgent);
     }
   };
 

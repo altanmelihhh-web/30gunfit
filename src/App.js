@@ -117,7 +117,12 @@ const getCurrentTimeString = () => {
 };
 
 function App() {
-  const notificationsSupported = typeof window !== 'undefined' && 'Notification' in window;
+  // Bildirim desteği kontrolü (HTTPS veya localhost gerekli)
+  const notificationsSupported = typeof window !== 'undefined' &&
+    'Notification' in window &&
+    (window.location.protocol === 'https:' ||
+     window.location.hostname === 'localhost' ||
+     window.location.hostname === '127.0.0.1');
 
   const [theme, setTheme] = useState(() => {
     const initialTheme = resolveInitialTheme();
