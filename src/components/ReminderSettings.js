@@ -294,7 +294,11 @@ function ReminderSettings({
       <div className="reminder-header">
         <div>
           <h2>Hatırlatmalar</h2>
-          <p>Günde en fazla 3 kez bildirim al. Gün tamamlanmadıysa hatırlatmalar tetiklenir.</p>
+          {mobileInfo.isIOS ? (
+            <p>iPhone/iPad için manuel hatırlatma seçenekleri aşağıda 👇</p>
+          ) : (
+            <p>Günde en fazla 3 kez bildirim al. Gün tamamlanmadıysa hatırlatmalar tetiklenir.</p>
+          )}
           {saveMessage && (
             <div style={{
               marginTop: '8px',
@@ -310,14 +314,17 @@ function ReminderSettings({
             </div>
           )}
         </div>
-        <label className="toggle">
-          <input
-            type="checkbox"
-            checked={localSettings.enabled}
-            onChange={handleToggle}
-          />
-          <span className="toggle-slider" />
-        </label>
+        {/* Toggle sadece iOS harici göster */}
+        {!mobileInfo.isIOS && (
+          <label className="toggle">
+            <input
+              type="checkbox"
+              checked={localSettings.enabled}
+              onChange={handleToggle}
+            />
+            <span className="toggle-slider" />
+          </label>
+        )}
       </div>
 
       {!notificationsSupported && mobileInfo.isIOS && (
@@ -378,8 +385,72 @@ function ReminderSettings({
       )}
 
       <div className="reminder-body">
-        <div className="reminder-block">
-          <span className="block-label">Bildirim Saatleri</span>
+        {/* iOS kullanıcılarına önce WhatsApp/SMS seçeneğini göster */}
+        {mobileInfo.isIOS && (
+          <div className="reminder-block" style={{
+            background: 'linear-gradient(135deg, #25D366 0%, #128C7E 100%)',
+            padding: '20px',
+            borderRadius: '12px',
+            marginBottom: '20px'
+          }}>
+            <span className="block-label" style={{ color: 'white', fontSize: '1.1rem', fontWeight: '700' }}>
+              📱 iPhone İçin Önerilen: Manuel Hatırlatma
+            </span>
+            <p style={{ color: 'white', marginTop: '12px', marginBottom: '16px', lineHeight: '1.6' }}>
+              iPhone'da web bildirimleri çalışmadığı için aşağıdaki butonlarla kendinize hatırlatma gönderin:
+            </p>
+            <div className="share-actions" style={{ display: 'flex', gap: '12px', marginTop: '12px' }}>
+              <a
+                href={whatsappLink}
+                className="share-btn whatsapp"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  flex: 1,
+                  padding: '14px 20px',
+                  background: '#25D366',
+                  color: 'white',
+                  textDecoration: 'none',
+                  borderRadius: '10px',
+                  fontWeight: '700',
+                  fontSize: '1rem',
+                  textAlign: 'center',
+                  boxShadow: '0 4px 12px rgba(37, 211, 102, 0.4)',
+                  border: '2px solid rgba(255,255,255,0.3)'
+                }}
+              >
+                💬 WhatsApp
+              </a>
+              <a
+                href={smsLink}
+                className="share-btn sms"
+                style={{
+                  flex: 1,
+                  padding: '14px 20px',
+                  background: '#007AFF',
+                  color: 'white',
+                  textDecoration: 'none',
+                  borderRadius: '10px',
+                  fontWeight: '700',
+                  fontSize: '1rem',
+                  textAlign: 'center',
+                  boxShadow: '0 4px 12px rgba(0, 122, 255, 0.4)',
+                  border: '2px solid rgba(255,255,255,0.3)'
+                }}
+              >
+                📱 SMS
+              </a>
+            </div>
+            <small style={{ display: 'block', marginTop: '12px', color: 'rgba(255,255,255,0.9)', fontSize: '0.9rem' }}>
+              💡 İpucu: Sabah, öğle ve akşam kendinize mesaj gönderin!
+            </small>
+          </div>
+        )}
+
+        {/* iOS'ta bildirim ayarlarını gizle, sadece bilgisayarda göster */}
+        {!mobileInfo.isIOS && (
+          <div className="reminder-block">
+            <span className="block-label">Bildirim Saatleri</span>
           <div className="time-list">
             {localSettings.times.map((time, index) => {
               const [hour, minute] = time.split(':');
@@ -437,7 +508,10 @@ function ReminderSettings({
             </button>
           )}
         </div>
+        )}
 
+        {/* Bildirim Sesi - sadece iOS harici */}
+        {!mobileInfo.isIOS && (
         <div className="reminder-block">
           <span className="block-label">Bildirim Sesi</span>
           <select
@@ -489,7 +563,10 @@ function ReminderSettings({
               : 'Sesi seçin ve önizleyin (hatırlatmaları aktif etmeyi unutmayın)'}
           </small>
         </div>
+        )}
 
+        {/* Bildirim Testi - sadece iOS harici */}
+        {!mobileInfo.isIOS && (
         <div className="reminder-block">
           <span className="block-label">Bildirim Testi</span>
           <button
@@ -516,8 +593,10 @@ function ReminderSettings({
             Bildirim sisteminizin çalışıp çalışmadığını test edin
           </small>
         </div>
+        )}
 
-        {hasChanges && (
+        {/* Kaydet Butonu - sadece iOS harici ve değişiklik varsa */}
+        {!mobileInfo.isIOS && hasChanges && (
           <div className="reminder-block" style={{ marginTop: '16px' }}>
             <button
               type="button"

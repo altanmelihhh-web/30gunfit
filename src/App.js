@@ -18,6 +18,7 @@ import WeightTracker from './components/WeightTracker';
 import ProgressPhotos from './components/ProgressPhotos';
 import BodyMeasurements from './components/BodyMeasurements';
 import BodyComposition from './components/BodyComposition';
+import IOSInstallPrompt from './components/IOSInstallPrompt';
 import {
   generate30DayProgram,
   calculateProgramSummary,
@@ -1018,6 +1019,9 @@ function App() {
         onClose={() => setIsAuthModalOpen(false)}
         onAuthSuccess={handleAuthSuccess}
       />
+
+      {/* iOS Ana Ekrana Ekle Prompt */}
+      <IOSInstallPrompt />
     </div>
   );
 }
