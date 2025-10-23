@@ -2,6 +2,18 @@ import React, { useMemo, useState, useEffect } from 'react';
 import './ReminderSettings.css';
 import { playNotificationSound, getSoundOptions } from '../utils/notificationSounds';
 
+// Mobil cihaz ve işletim sistemi algılama
+const getMobileInfo = () => {
+  const ua = navigator.userAgent || '';
+  const isIOS = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
+  const isAndroid = /Android/.test(ua);
+  const isMobile = isIOS || isAndroid || /Mobile/.test(ua);
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches ||
+                        window.navigator.standalone === true;
+
+  return { isIOS, isAndroid, isMobile, isStandalone, userAgent: ua };
+};
+
 const formatTime = (value) => {
   if (!value) return '00:00';
   const [hour = '00', minute = '00'] = value.split(':');
@@ -149,10 +161,42 @@ function ReminderSettings({
     console.log('🔐 HTTPS mi?', window.location.protocol === 'https:');
     console.log('🏠 Localhost mu?', window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
+    // Mobil bilgilerini al
+    const mobileInfo = getMobileInfo();
+    console.log('📱 Mobil bilgi:', mobileInfo);
+
     // Bildirim API'si var mı?
     if (!('Notification' in window)) {
       console.error('❌ Notification API bulunamadı');
-      alert('❌ Bu tarayıcı bildirimleri desteklemiyor!\n\nTarayıcı: ' + navigator.userAgent);
+
+      // iOS özel mesajı
+      if (mobileInfo.isIOS) {
+        alert('📱 iPhone/iPad Kullanıcısı\n\n' +
+              '❌ Maalesef iOS Safari\'de web bildirimleri tarayıcıdan çalışmıyor.\n' +
+              '(Apple\'ın kısıtlaması - iOS 16.4+ gerekli ve PWA modunda olmalı)\n\n' +
+              '✅ KOLAY ÇÖZÜM:\n' +
+              'Aşağıdaki "WhatsApp" veya "SMS" butonlarını kullanarak kendinize hatırlatma gönderebilirsiniz!\n\n' +
+              '💡 Alternatif Yöntemler:\n' +
+              '• iPhone Saat uygulamasından alarm kurun\n' +
+              '• Takvim\'e hatırlatıcı ekleyin\n' +
+              '• Chrome veya Firefox mobil kullanın (bu tarayıcılar iOS\'ta da çalışmaz)\n\n' +
+              'Web bildirimleri Mac Safari, Windows/Android Chrome, Firefox\'ta ÇALIŞIR ✅');
+      } else if (mobileInfo.isAndroid) {
+        alert('📱 Android Kullanıcısı\n\n' +
+              '❌ Bu tarayıcı bildirimleri desteklemiyor.\n\n' +
+              '✅ ÇOK KOLAY ÇÖZÜM:\n' +
+              'Android\'de Chrome veya Firefox kullanın.\n' +
+              'Bu tarayıcılarda bildirimler %100 çalışır!\n\n' +
+              'Şu an kullandığınız tarayıcı:\n' + mobileInfo.userAgent.substring(0, 60) + '...');
+      } else {
+        alert('❌ Bu tarayıcı bildirimleri desteklemiyor!\n\n' +
+              '✅ Modern tarayıcı kullanın:\n' +
+              '• Chrome (önerilen)\n' +
+              '• Firefox\n' +
+              '• Edge\n' +
+              '• Safari (macOS)\n\n' +
+              'Tarayıcı: ' + navigator.userAgent.substring(0, 60) + '...');
+      }
       return;
     }
 
@@ -242,6 +286,9 @@ function ReminderSettings({
   const whatsappLink = `https://wa.me/?text=${encodeURIComponent(reminderMessage)}`;
   const smsLink = `sms:?body=${encodeURIComponent(reminderMessage)}`;
 
+  // Mobil bilgilerini al
+  const mobileInfo = getMobileInfo();
+
   return (
     <section className="reminder-settings">
       <div className="reminder-header">
@@ -273,7 +320,58 @@ function ReminderSettings({
         </label>
       </div>
 
-      {!notificationsSupported && (
+      {!notificationsSupported && mobileInfo.isIOS && (
+        <div className="reminder-warning" style={{
+          background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+          color: 'white',
+          padding: '16px',
+          borderRadius: '12px',
+          marginBottom: '20px'
+        }}>
+          <strong style={{ fontSize: '1.1rem' }}>📱 iPhone/iPad Kullanıcısı</strong>
+          <p style={{ marginTop: '12px', marginBottom: '4px', fontSize: '0.95rem', lineHeight: '1.5' }}>
+            iOS Safari'de web bildirimleri çalışmıyor (Apple kısıtlaması).
+          </p>
+          <p style={{ marginTop: '12px', marginBottom: '8px', fontWeight: '600', fontSize: '1rem' }}>
+            ✅ ÇÖZÜM: Aşağıdaki butonları kullanın!
+          </p>
+          <ul style={{ marginLeft: '20px', marginTop: '8px', lineHeight: '1.6' }}>
+            <li><strong>WhatsApp/SMS</strong> ile kendinize hatırlatma gönderin 💬</li>
+            <li>iPhone Saat uygulamasından alarm kurun ⏰</li>
+            <li>Takvim'e hatırlatıcı ekleyin 📅</li>
+          </ul>
+          <p style={{ marginTop: '12px', fontSize: '0.85rem', opacity: '0.9' }}>
+            💡 Mac/PC'den kullanırsanız web bildirimleri çalışır!
+          </p>
+        </div>
+      )}
+
+      {!notificationsSupported && mobileInfo.isAndroid && (
+        <div className="reminder-warning" style={{
+          background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+          color: 'white',
+          padding: '16px',
+          borderRadius: '12px',
+          marginBottom: '20px'
+        }}>
+          <strong style={{ fontSize: '1.1rem' }}>📱 Android Kullanıcısı</strong>
+          <p style={{ marginTop: '12px', marginBottom: '8px', fontSize: '0.95rem', lineHeight: '1.5' }}>
+            Bu tarayıcı bildirimleri desteklemiyor.
+          </p>
+          <p style={{ marginTop: '12px', marginBottom: '8px', fontWeight: '600', fontSize: '1rem' }}>
+            ✅ KOLAY ÇÖZÜM:
+          </p>
+          <p style={{ marginTop: '8px', fontSize: '0.95rem', lineHeight: '1.5' }}>
+            <strong>Chrome</strong> veya <strong>Firefox</strong> tarayıcısı kullanın.<br/>
+            Bu tarayıcılarda bildirimler %100 çalışır! 🚀
+          </p>
+          <p style={{ marginTop: '12px', fontSize: '0.85rem', opacity: '0.9' }}>
+            💡 Alternatif: WhatsApp/SMS butonlarını kullanabilirsiniz (aşağıda)
+          </p>
+        </div>
+      )}
+
+      {!notificationsSupported && !mobileInfo.isMobile && (
         <div className="reminder-warning">
           Tarayıcınız bildirimleri desteklemiyor. Yine de WhatsApp veya SMS kısa yolunu kullanabilirsiniz.
         </div>
