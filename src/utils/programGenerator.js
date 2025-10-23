@@ -155,6 +155,56 @@ const getRandomItems = (array, count) => {
   return shuffled.slice(0, count);
 };
 
+/**
+ * Hibrit Seçim Sistemi: Kaliteli + Çeşitli Egzersiz Seçimi
+ *
+ * 1. Uygun egzersizleri filtrele + skorla (profil bazlı)
+ * 2. En iyi %30'luk dilimi al (kalite garantisi)
+ * 3. Kullanım geçmişine göre yeniden skorla (az kullanılan = öncelikli)
+ * 4. En az kullanılan %50'lik dilimden RASTGELE seç (hem çeşitlilik hem kalite)
+ *
+ * Sonuç: Her gün farklı AMA kaliteli egzersizler
+ */
+const selectExercisesWithVariety = (pool, count, usageHistory = {}) => {
+  if (pool.length === 0) return [];
+  if (pool.length <= count) return pool;
+
+  // Adım 1: En iyi %30'luk dilimi al (kalite garantisi)
+  const topPercentile = Math.max(
+    Math.ceil(pool.length * 0.3),
+    count * 2, // En az 2x istenen miktar
+    5 // En az 5 egzersiz
+  );
+  const topExercises = pool.slice(0, Math.min(topPercentile, pool.length));
+
+  // Adım 2: Kullanım geçmişine göre yeniden skorla
+  const scoredByUsage = topExercises.map(ex => {
+    const timesUsed = usageHistory[ex.id] || 0;
+    // Az kullanılan egzersizler daha yüksek skor alır
+    // Hiç kullanılmayanlar en yüksek skor
+    const usageScore = 1000 - (timesUsed * 100);
+
+    return {
+      ...ex,
+      usageScore,
+      timesUsed
+    };
+  }).sort((a, b) => {
+    // Önce kullanım skoruna göre
+    if (b.usageScore !== a.usageScore) {
+      return b.usageScore - a.usageScore;
+    }
+    // Eşitse orijinal profile skoruna göre
+    return (b.score || 1) - (a.score || 1);
+  });
+
+  // Adım 3: En az kullanılan %50'lik dilimden RASTGELE seç
+  const selectionPool = scoredByUsage.slice(0, Math.ceil(scoredByUsage.length * 0.5));
+  const selected = getRandomItems(selectionPool, count);
+
+  return selected;
+};
+
 // Helper: Egzersizi kullanıcı zorluk seviyesine göre filtrele
 const filterByUserDifficulty = (exercises, userDifficulty) => {
   const difficultyOrder = {
@@ -230,9 +280,52 @@ const getMainCategoriesForGoal = (goal) => {
 };
 
 /**
- * Tek bir günlük antrenman oluştur
+ * Günlük fokus belirleme - Kas grupları ve yoğunluğa göre dengeli rotasyon
+ * Her 30 gün için benzersiz, mantıklı bir plan oluşturur
  */
-const generateDayWorkout = (dayNumber, profile, isRestDay = false) => {
+const getDailyFocus = (dayNumber, goal) => {
+  // 7 günlük rotasyon (4 hafta boyunca tekrarlanır ama egzersizler farklı olur)
+  const dayOfWeek = ((dayNumber - 1) % 7) + 1;
+
+  // Genel fitness rotasyonu (tüm hedefler için temel)
+  const baseRotation = [
+    { day: 1, focus: 'upper', intensity: 'moderate', title: 'Üst Vücut', categories: [EXERCISE_CATEGORIES.STRENGTH_UPPER] },
+    { day: 2, focus: 'cardio', intensity: 'high', title: 'Kardiyovasküler', categories: [EXERCISE_CATEGORIES.CARDIO, EXERCISE_CATEGORIES.HIIT] },
+    { day: 3, focus: 'lower', intensity: 'moderate', title: 'Alt Vücut', categories: [EXERCISE_CATEGORIES.STRENGTH_LOWER] },
+    { day: 4, focus: 'core', intensity: 'light', title: 'Core & Esneklik', categories: [EXERCISE_CATEGORIES.STRENGTH_CORE, EXERCISE_CATEGORIES.FLEXIBILITY] },
+    { day: 5, focus: 'full', intensity: 'high', title: 'Tüm Vücut', categories: [EXERCISE_CATEGORIES.STRENGTH_UPPER, EXERCISE_CATEGORIES.STRENGTH_LOWER, EXERCISE_CATEGORIES.STRENGTH_CORE] },
+    { day: 6, focus: 'hiit', intensity: 'very_high', title: 'HIIT & Dayanıklılık', categories: [EXERCISE_CATEGORIES.HIIT, EXERCISE_CATEGORIES.CARDIO] },
+    { day: 7, focus: 'active_recovery', intensity: 'light', title: 'Aktif Toparlanma', categories: [EXERCISE_CATEGORIES.FLEXIBILITY, EXERCISE_CATEGORIES.STRENGTH_CORE] }
+  ];
+
+  // Hedefe göre rotasyonu özelleştir
+  if (goal === FITNESS_GOALS.WEIGHT_LOSS) {
+    // Kilo verme: Daha fazla kardiyovasküler ve HIIT
+    if (dayOfWeek === 2 || dayOfWeek === 6) {
+      return { ...baseRotation[dayOfWeek - 1], intensity: 'very_high' }; // Kardiyoyu arttır
+    }
+  } else if (goal === FITNESS_GOALS.MUSCLE_GAIN) {
+    // Kas kazanma: Daha fazla strength, daha az kardiyovasküler
+    if (dayOfWeek === 2) {
+      return { day: 2, focus: 'upper', intensity: 'high', title: 'Üst Vücut - Yoğun', categories: [EXERCISE_CATEGORIES.STRENGTH_UPPER] };
+    }
+    if (dayOfWeek === 6) {
+      return { day: 6, focus: 'lower', intensity: 'high', title: 'Alt Vücut - Yoğun', categories: [EXERCISE_CATEGORIES.STRENGTH_LOWER] };
+    }
+  } else if (goal === FITNESS_GOALS.HIIT_FOCUS) {
+    // HIIT odaklı: Her üçüncü gün HIIT
+    if (dayOfWeek % 3 === 0) {
+      return { ...baseRotation[dayOfWeek - 1], intensity: 'very_high', categories: [EXERCISE_CATEGORIES.HIIT] };
+    }
+  }
+
+  return baseRotation[dayOfWeek - 1];
+};
+
+/**
+ * Tek bir günlük antrenman oluştur - Hibrit sistem (kalite + çeşitlilik)
+ */
+const generateDayWorkout = (dayNumber, profile, usageHistory = {}, isRestDay = false) => {
   if (isRestDay) {
     return {
       day: dayNumber,
@@ -246,27 +339,32 @@ const generateDayWorkout = (dayNumber, profile, isRestDay = false) => {
   }
 
   const exerciseCounts = calculateExerciseCount(profile.dailyDuration);
-  const mainCategories = getMainCategoriesForGoal(profile.goal);
 
-  // Isınma egzersizleri (yaş/BMI/cinsiyet bazlı filtreleme)
+  // Günlük fokus belirle (kas grubu ve yoğunluk rotasyonu)
+  const dailyFocus = getDailyFocus(dayNumber, profile.goal);
+
+  // Isınma egzersizleri - HİBRİT SEÇİM (kalite + çeşitlilik)
   let warmupPool = filterByUserDifficulty(
     getExercisesByCategory(EXERCISE_CATEGORIES.WARMUP),
     profile.difficulty
   );
   warmupPool = filterAndScoreExercises(warmupPool, profile);
-  const warmupExercises = warmupPool.slice(0, exerciseCounts.warmup); // En yüksek skorlu olanları al
+  const warmupExercises = selectExercisesWithVariety(warmupPool, exerciseCounts.warmup, usageHistory);
 
-  // Ana egzersizler - kategoriler arası denge (cinsiyet/yaş/BMI filtrelemeli)
+  // Ana egzersizler - Günlük fokusa göre + HİBRİT SEÇİM
   const mainExercises = [];
-  const exercisesPerCategory = Math.ceil(exerciseCounts.main / mainCategories.length);
+  const focusCategories = dailyFocus.categories;
+  const exercisesPerCategory = Math.ceil(exerciseCounts.main / focusCategories.length);
 
-  mainCategories.forEach(category => {
+  focusCategories.forEach(category => {
     let categoryPool = filterByUserDifficulty(
       getExercisesByCategory(category),
       profile.difficulty
     );
     categoryPool = filterAndScoreExercises(categoryPool, profile);
-    const selected = categoryPool.slice(0, exercisesPerCategory); // Skorlu seçim
+
+    // HİBRİT SEÇİM: Hem kaliteli hem çeşitli
+    const selected = selectExercisesWithVariety(categoryPool, exercisesPerCategory, usageHistory);
     mainExercises.push(...selected);
   });
 
@@ -281,17 +379,21 @@ const generateDayWorkout = (dayNumber, profile, isRestDay = false) => {
       !mainExercises.some(m => m.id === ex.id)
     );
     allMainPool = filterAndScoreExercises(allMainPool, profile);
-    const additional = allMainPool.slice(0, exerciseCounts.main - mainExercises.length);
+    const additional = selectExercisesWithVariety(
+      allMainPool,
+      exerciseCounts.main - mainExercises.length,
+      usageHistory
+    );
     mainExercises.push(...additional);
   }
 
-  // Soğuma egzersizleri
+  // Soğuma egzersizleri - HİBRİT SEÇİM
   let cooldownPool = filterByUserDifficulty(
     [...getExercisesByCategory(EXERCISE_CATEGORIES.COOLDOWN), ...getExercisesByCategory(EXERCISE_CATEGORIES.FLEXIBILITY)],
     profile.difficulty
   );
   cooldownPool = filterAndScoreExercises(cooldownPool, profile);
-  const cooldownExercises = cooldownPool.slice(0, exerciseCounts.cooldown);
+  const cooldownExercises = selectExercisesWithVariety(cooldownPool, exerciseCounts.cooldown, usageHistory);
 
   // Tüm egzersizleri birleştir
   const allExercises = [...warmupExercises, ...mainExercises.slice(0, exerciseCounts.main), ...cooldownExercises];
@@ -304,35 +406,42 @@ const generateDayWorkout = (dayNumber, profile, isRestDay = false) => {
     return sum + calculateCalories(met, profile.weight, durationMinutes);
   }, 0);
 
-  // Gün başlığı oluştur
-  const titleByGoal = {
-    [FITNESS_GOALS.WEIGHT_LOSS]: 'Kilo Verme Antrenmanı',
-    [FITNESS_GOALS.MUSCLE_GAIN]: 'Kas Geliştirme Antrenmanı',
-    [FITNESS_GOALS.GENERAL_FITNESS]: 'Genel Fitness Antrenmanı',
-    [FITNESS_GOALS.HIIT_FOCUS]: 'HIIT Antrenmanı',
-    [FITNESS_GOALS.BEGINNER_FRIENDLY]: 'Başlangıç Antrenmanı'
+  // Gün başlığı oluştur - Günlük fokusa göre
+  const dayTitle = `Gün ${dayNumber}: ${dailyFocus.title}`;
+
+  // Yoğunluk bilgisi
+  const intensityDesc = {
+    'light': 'Hafif yoğunlukta',
+    'moderate': 'Orta yoğunlukta',
+    'high': 'Yoğun',
+    'very_high': 'Çok yoğun'
   };
 
-  const baseTitle = titleByGoal[profile.goal] || 'Antrenman';
-  const dayTitle = `Gün ${dayNumber}: ${baseTitle}`;
+  const intensityText = intensityDesc[dailyFocus.intensity] || '';
 
   return {
     day: dayNumber,
     title: dayTitle,
-    description: `${Math.round(totalDuration)} dakikalık antrenman. Yaklaşık ${totalCalories} kalori yakacaksınız.`, // totalDuration already in minutes
+    description: `${intensityText} ${Math.round(totalDuration)} dakikalık antrenman. Yaklaşık ${totalCalories} kalori yakacaksınız.`,
     isRest: false,
     exercises: allExercises,
     totalDuration,
-    totalCalories
+    totalCalories,
+    focus: dailyFocus.focus,
+    intensity: dailyFocus.intensity
   };
 };
 
 /**
- * 30 günlük program oluştur
+ * 30 günlük program oluştur - HİBRİT SİSTEM ile
+ * Her gün için egzersiz kullanım geçmişi takip edilerek benzersiz program oluşturulur
  */
 export const generate30DayProgram = (userProfile) => {
   const program = [];
   const totalDays = 30;
+
+  // Egzersiz kullanım geçmişi (her egzersiz kaç kez kullanıldı)
+  const usageHistory = {};
 
   // Haftalık antrenman gününe göre dinlenme günlerini belirle
   const daysPerWeek = userProfile.weeklyDays;
@@ -355,8 +464,18 @@ export const generate30DayProgram = (userProfile) => {
     const dayOfWeek = ((day - 1) % 7) + 1; // 1-7 arası
     const isRestDay = restDayPattern.includes(dayOfWeek);
 
-    const dayWorkout = generateDayWorkout(day, userProfile, isRestDay);
+    // Günlük antrenmanı oluştur (kullanım geçmişi ile)
+    const dayWorkout = generateDayWorkout(day, userProfile, usageHistory, isRestDay);
     program.push(dayWorkout);
+
+    // Kullanım geçmişini güncelle
+    if (!isRestDay && dayWorkout.exercises) {
+      dayWorkout.exercises.forEach(exercise => {
+        if (exercise && exercise.id) {
+          usageHistory[exercise.id] = (usageHistory[exercise.id] || 0) + 1;
+        }
+      });
+    }
   }
 
   return program;
