@@ -3,6 +3,7 @@ import NutritionCalculator from './NutritionCalculator';
 import FoodPhotoAnalyzer from './FoodPhotoAnalyzer';
 import CalorieTracker, { addMealFromAI } from './CalorieTracker';
 import WaterTracker from './WaterTracker';
+import ShoppingList from './ShoppingList';
 import './NutritionDashboard.css';
 
 /**
@@ -13,7 +14,7 @@ import './NutritionDashboard.css';
  */
 
 const NutritionDashboard = ({ userProfile }) => {
-  const [activeSection, setActiveSection] = useState('calculator'); // calculator, tracker, ai-analyzer, water
+  const [activeSection, setActiveSection] = useState('calculator'); // calculator, tracker, ai-analyzer, water, shopping-list
   const [nutritionResults, setNutritionResults] = useState(null);
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
   const [trackerRefreshKey, setTrackerRefreshKey] = useState(0);
@@ -81,6 +82,12 @@ const NutritionDashboard = ({ userProfile }) => {
           onClick={() => setActiveSection('ai-analyzer')}
         >
           🤖 AI Analiz
+        </button>
+        <button
+          className={`nav-btn ${activeSection === 'shopping-list' ? 'active' : ''}`}
+          onClick={() => setActiveSection('shopping-list')}
+        >
+          🛒 Alışveriş Listesi
         </button>
       </div>
 
@@ -157,6 +164,12 @@ const NutritionDashboard = ({ userProfile }) => {
             <WaterTracker />
           </div>
         )}
+
+        {activeSection === 'shopping-list' && (
+          <div className="section-content">
+            <ShoppingList />
+          </div>
+        )}
       </div>
 
       {/* Bilgilendirme kartı */}
@@ -174,6 +187,9 @@ const NutritionDashboard = ({ userProfile }) => {
           </li>
           <li>
             <strong>AI Analiz:</strong> Yemek fotoğrafı yükleyin, yapay zeka kalori ve makroları otomatik hesaplasın
+          </li>
+          <li>
+            <strong>Alışveriş Listesi:</strong> Diyetisyenin haftalık listesini girin, evdekileri işaretleyin, AI ile alternatif malzemeler bulun
           </li>
         </ul>
       </div>

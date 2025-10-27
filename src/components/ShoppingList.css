@@ -1,0 +1,899 @@
+/* ShoppingList.css */
+
+.shopping-list-container {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+/* Header */
+.shopping-list-header {
+  text-align: center;
+  margin-bottom: 30px;
+}
+
+.shopping-list-header h2 {
+  font-size: 28px;
+  color: #2c3e50;
+  margin-bottom: 10px;
+}
+
+.shopping-list-subtitle {
+  color: #7f8c8d;
+  font-size: 14px;
+}
+
+/* Malzeme Ekleme */
+.add-ingredient-section {
+  margin-bottom: 20px;
+}
+
+.add-buttons-group {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.btn-add-ingredient {
+  padding: 15px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.btn-add-ingredient:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
+}
+
+.btn-upload-file {
+  padding: 15px;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.btn-upload-file:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(16, 185, 129, 0.3);
+}
+
+.upload-success {
+  margin-top: 12px;
+  padding: 12px 16px;
+  background: #d1fae5;
+  border: 1px solid #10b981;
+  border-radius: 8px;
+  color: #065f46;
+  font-size: 14px;
+  font-weight: 500;
+  animation: slideIn 0.3s ease-out;
+}
+
+.upload-error {
+  margin-top: 12px;
+  padding: 12px 16px;
+  background: #fee2e2;
+  border: 1px solid #ef4444;
+  border-radius: 8px;
+  color: #dc2626;
+  font-size: 14px;
+  font-weight: 500;
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.ingredient-input-group {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.ingredient-input {
+  flex: 1;
+  padding: 12px 16px;
+  border: 2px solid #e0e0e0;
+  border-radius: 10px;
+  font-size: 15px;
+  transition: border-color 0.3s;
+}
+
+.ingredient-input:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.btn-save-ingredient,
+.btn-cancel-ingredient {
+  width: 45px;
+  height: 45px;
+  border: none;
+  border-radius: 10px;
+  font-size: 18px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-save-ingredient {
+  background: #10b981;
+  color: white;
+}
+
+.btn-save-ingredient:hover:not(:disabled) {
+  background: #059669;
+  transform: scale(1.05);
+}
+
+.btn-save-ingredient:disabled {
+  background: #d1d5db;
+  cursor: not-allowed;
+}
+
+.btn-cancel-ingredient {
+  background: #ef4444;
+  color: white;
+}
+
+.btn-cancel-ingredient:hover {
+  background: #dc2626;
+  transform: scale(1.05);
+}
+
+/* İstatistikler */
+.shopping-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 15px;
+  margin-bottom: 25px;
+}
+
+.stat-item {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 20px;
+  border-radius: 12px;
+  text-align: center;
+  color: white;
+}
+
+.stat-item.stat-available {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+}
+
+.stat-item.stat-missing {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+}
+
+.stat-label {
+  display: block;
+  font-size: 13px;
+  opacity: 0.9;
+  margin-bottom: 5px;
+}
+
+.stat-value {
+  display: block;
+  font-size: 28px;
+  font-weight: 700;
+}
+
+/* Diyetisyen Listesi Bölümü */
+.dietician-list-section {
+  margin-bottom: 30px;
+  background: white;
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 15px;
+  border-bottom: 2px solid #f3f4f6;
+}
+
+.section-header h3 {
+  font-size: 20px;
+  color: #1f2937;
+  margin: 0;
+}
+
+.btn-clear-list-small {
+  padding: 8px 16px;
+  background: #ef4444;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.2s;
+}
+
+.btn-clear-list-small:hover {
+  background: #dc2626;
+  transform: translateY(-1px);
+}
+
+.dietician-ingredients {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 12px;
+}
+
+.dietician-ingredient-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 14px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  transition: all 0.2s;
+}
+
+.dietician-ingredient-card:hover {
+  border-color: #d1d5db;
+  transform: translateY(-1px);
+}
+
+.dietician-ingredient-card.checked {
+  background: #f0fdf4;
+  border-color: #10b981;
+}
+
+.dietician-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  cursor: pointer;
+}
+
+.dietician-checkbox {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  accent-color: #10b981;
+}
+
+.dietician-ingredient-name {
+  font-size: 14px;
+  color: #374151;
+  font-weight: 500;
+}
+
+.dietician-ingredient-card.checked .dietician-ingredient-name {
+  color: #059669;
+}
+
+.btn-delete-small {
+  background: none;
+  border: none;
+  color: #9ca3af;
+  font-size: 18px;
+  cursor: pointer;
+  padding: 4px 8px;
+  transition: color 0.2s, transform 0.2s;
+}
+
+.btn-delete-small:hover {
+  color: #ef4444;
+  transform: scale(1.1);
+}
+
+/* İki Kolonlu Listeler */
+.two-column-lists {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+  margin-bottom: 30px;
+}
+
+.list-column {
+  background: white;
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.available-column {
+  border: 2px solid #10b981;
+}
+
+.missing-column {
+  border: 2px solid #f59e0b;
+}
+
+.column-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 15px;
+  border-bottom: 2px solid #f3f4f6;
+}
+
+.column-header h3 {
+  font-size: 18px;
+  margin: 0;
+}
+
+.available-column .column-header h3 {
+  color: #10b981;
+}
+
+.missing-column .column-header h3 {
+  color: #f59e0b;
+}
+
+.column-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  height: 32px;
+  padding: 0 10px;
+  background: #f3f4f6;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 700;
+  color: #6b7280;
+}
+
+.available-column .column-count {
+  background: #d1fae5;
+  color: #059669;
+}
+
+.missing-column .column-count {
+  background: #fef3c7;
+  color: #d97706;
+}
+
+.column-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.list-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 14px;
+  border-radius: 10px;
+  transition: all 0.2s;
+}
+
+.available-item {
+  background: #f0fdf4;
+  border: 1px solid #d1fae5;
+}
+
+.available-item:hover {
+  background: #dcfce7;
+  transform: translateX(4px);
+}
+
+.missing-item {
+  background: #fffbeb;
+  border: 1px solid #fef3c7;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.missing-item:hover {
+  background: #fef3c7;
+}
+
+.missing-item-main {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.item-icon {
+  font-size: 18px;
+  margin-right: 10px;
+}
+
+.item-name {
+  flex: 1;
+  font-size: 14px;
+  color: #374151;
+  font-weight: 500;
+}
+
+.btn-suggest-alternative-small {
+  background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  width: 36px;
+  height: 36px;
+  font-size: 16px;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.btn-suggest-alternative-small:hover:not(:disabled) {
+  transform: scale(1.1);
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
+}
+
+.btn-suggest-alternative-small:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.column-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  text-align: center;
+  color: #9ca3af;
+}
+
+.column-empty .empty-icon {
+  font-size: 48px;
+  margin-bottom: 12px;
+}
+
+.column-empty p {
+  margin: 0;
+  font-size: 14px;
+}
+
+/* Alternatifler Paneli */
+.alternatives-panel {
+  margin-top: 12px;
+  padding: 12px;
+  background: #f9fafb;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+}
+
+.alternatives-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #6b7280;
+  font-size: 13px;
+}
+
+.loading-spinner {
+  font-size: 16px;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.alternatives-header {
+  font-size: 13px;
+  color: #374151;
+  margin-bottom: 10px;
+}
+
+.alternatives-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.alternative-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 10px;
+  background: white;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+}
+
+.alternative-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.alternative-name {
+  font-weight: 600;
+  color: #1f2937;
+  font-size: 13px;
+}
+
+.alternative-reason {
+  font-size: 11px;
+  color: #6b7280;
+}
+
+.btn-add-alternative {
+  background: #10b981;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  width: 28px;
+  height: 28px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: transform 0.2s, background 0.2s;
+}
+
+.btn-add-alternative:hover {
+  background: #059669;
+  transform: scale(1.1);
+}
+
+.btn-close-alternatives {
+  width: 100%;
+  padding: 8px;
+  background: #6b7280;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn-close-alternatives:hover {
+  background: #4b5563;
+}
+
+.alternatives-error {
+  text-align: center;
+  padding: 12px;
+  color: #ef4444;
+  font-size: 13px;
+}
+
+/* Boş Durum */
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: #9ca3af;
+}
+
+.empty-icon {
+  font-size: 64px;
+  margin-bottom: 20px;
+}
+
+.empty-state h3 {
+  color: #6b7280;
+  margin-bottom: 10px;
+}
+
+.empty-state p {
+  font-size: 14px;
+  margin-bottom: 20px;
+}
+
+.empty-state-buttons {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.btn-add-from-empty {
+  padding: 12px 24px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.btn-add-from-empty:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
+}
+
+.btn-upload-from-empty {
+  padding: 12px 24px;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+  display: inline-block;
+}
+
+.btn-upload-from-empty:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(16, 185, 129, 0.3);
+}
+
+/* AI Asistan */
+.ai-assistant-section {
+  margin-top: 40px;
+  padding: 25px;
+  background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
+  border-radius: 16px;
+  border: 2px solid #667eea30;
+}
+
+.ai-header {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.ai-header h3 {
+  font-size: 20px;
+  color: #2c3e50;
+  margin-bottom: 5px;
+}
+
+.ai-header p {
+  font-size: 13px;
+  color: #7f8c8d;
+}
+
+.ai-input-group {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 15px;
+}
+
+.ai-question-input {
+  flex: 1;
+  padding: 14px 18px;
+  border: 2px solid #d1d5db;
+  border-radius: 12px;
+  font-size: 15px;
+  transition: all 0.3s;
+}
+
+.ai-question-input:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.btn-ask-ai {
+  width: 50px;
+  height: 50px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-size: 22px;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.btn-ask-ai:hover:not(:disabled) {
+  transform: scale(1.05);
+  box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
+}
+
+.btn-ask-ai:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* AI Örnekleri */
+.ai-examples {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.examples-label {
+  font-size: 12px;
+  color: #6b7280;
+  font-weight: 600;
+}
+
+.example-btn {
+  padding: 8px 14px;
+  background: white;
+  border: 1px solid #d1d5db;
+  border-radius: 20px;
+  font-size: 12px;
+  color: #4b5563;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.example-btn:hover {
+  background: #f3f4f6;
+  border-color: #667eea;
+  color: #667eea;
+}
+
+/* AI Yükleniyor */
+.ai-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 20px;
+  color: #667eea;
+  font-weight: 500;
+}
+
+/* AI Yanıtı */
+.ai-response {
+  margin-top: 15px;
+  background: white;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.ai-response-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.btn-clear-response {
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  color: white;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn-clear-response:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.ai-response-content {
+  padding: 18px;
+  color: #374151;
+  font-size: 15px;
+  line-height: 1.6;
+  white-space: pre-line;
+}
+
+.ai-error {
+  margin-top: 15px;
+  padding: 12px 16px;
+  background: #fee2e2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  color: #dc2626;
+  font-size: 14px;
+}
+
+/* Bilgilendirme */
+.shopping-info {
+  margin-top: 40px;
+  padding: 25px;
+  background: #f9fafb;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+}
+
+.shopping-info h4 {
+  font-size: 18px;
+  color: #1f2937;
+  margin-bottom: 15px;
+}
+
+.shopping-info ol {
+  margin-left: 20px;
+  margin-bottom: 20px;
+}
+
+.shopping-info li {
+  margin-bottom: 12px;
+  color: #4b5563;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.info-highlight {
+  padding: 15px;
+  background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
+  border-left: 4px solid #667eea;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #374151;
+  line-height: 1.6;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .shopping-list-container {
+    padding: 15px;
+  }
+
+  .shopping-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .shopping-list-header h2 {
+    font-size: 24px;
+  }
+
+  .add-buttons-group {
+    grid-template-columns: 1fr;
+  }
+
+  .ingredient-input-group {
+    flex-direction: column;
+  }
+
+  .btn-save-ingredient,
+  .btn-cancel-ingredient {
+    width: 100%;
+  }
+
+  .empty-state-buttons {
+    flex-direction: column;
+  }
+
+  .dietician-ingredients {
+    grid-template-columns: 1fr;
+  }
+
+  .two-column-lists {
+    grid-template-columns: 1fr;
+  }
+
+  .ai-examples {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .example-btn {
+    text-align: left;
+  }
+}
