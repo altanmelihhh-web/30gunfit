@@ -1,7 +1,7 @@
 /* eslint-disable no-restricted-globals */
 
 // Cache adını her önemli değişiklikte artır - eskisi activate sırasında otomatik silinir
-const CACHE_NAME = '30gunfit-v2';
+const CACHE_NAME = '30gunfit-v3';
 
 // Sadece adı hiç değişmeyen, stabil dosyalar - hashlenmiş JS/CSS burada YOK,
 // onlar runtime'da kendi kuralıyla (isStaticAsset) cache'leniyor
@@ -38,7 +38,7 @@ self.addEventListener('activate', (event) => {
 });
 
 const isSameOrigin = (url) => url.origin === self.location.origin;
-const isStaticAsset = (url) => url.pathname.startsWith('/static/') || /\.(png|jpg|jpeg|svg|ico|webp|woff2?)$/i.test(url.pathname);
+const isStaticAsset = (url) => url.pathname.startsWith('/assets/') || /\.(png|jpg|jpeg|svg|ico|webp|woff2?)$/i.test(url.pathname);
 
 const safeCachePut = (cache, request, response) => {
   if (request.method !== 'GET') return;
