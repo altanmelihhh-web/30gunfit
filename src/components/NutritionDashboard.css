@@ -37,9 +37,22 @@
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
   border: 1px solid var(--color-border);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  scroll-snap-type: x proximity;
+  -webkit-mask-image: linear-gradient(to right, transparent 0, black 20px, black calc(100% - 20px), transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0, black 20px, black calc(100% - 20px), transparent 100%);
+}
+
+.nutrition-nav::-webkit-scrollbar {
+  display: none;
 }
 
 .nav-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   padding: 14px 28px;
   background: transparent;
   border: none;
@@ -50,6 +63,7 @@
   cursor: pointer;
   transition: all var(--transition-base);
   position: relative;
+  scroll-snap-align: start;
 }
 
 .nav-btn:hover {
@@ -253,13 +267,28 @@
   }
 
   .nutrition-nav {
-    flex-direction: column;
-    gap: 8px;
+    justify-content: space-around;
+    gap: 0;
+    padding: 4px;
   }
 
   .nav-btn {
-    width: 100%;
-    padding: 12px 20px;
+    flex: 1;
+    min-width: 0;
+    flex-direction: column;
+    gap: 2px;
+    padding: 6px 2px;
+  }
+
+  .nav-btn-icon {
+    font-size: 18px;
+    line-height: 1;
+  }
+
+  .nav-btn-label {
+    font-size: 10px;
+    font-weight: 600;
+    white-space: nowrap;
   }
 
   .action-buttons {

@@ -92,11 +92,11 @@
   padding: 30px 40px;
 }
 
-.form-group {
+.auth-modal-form-group {
   margin-bottom: 20px;
 }
 
-.form-group label {
+.auth-modal-form-group label {
   display: block;
   margin-bottom: 8px;
   color: #333;
@@ -104,7 +104,7 @@
   font-size: 14px;
 }
 
-.form-group input {
+.auth-modal-form-group input {
   width: 100%;
   padding: 12px 16px;
   border: 2px solid #e0e0e0;
@@ -114,13 +114,13 @@
   box-sizing: border-box;
 }
 
-.form-group input:focus {
+.auth-modal-form-group input:focus {
   outline: none;
   border-color: #4CAF50;
   box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.1);
 }
 
-.form-group input::placeholder {
+.auth-modal-form-group input::placeholder {
   color: #999;
 }
 

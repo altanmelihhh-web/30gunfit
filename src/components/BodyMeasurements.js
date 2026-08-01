@@ -166,7 +166,7 @@ const BodyMeasurements = () => {
 
           <div className="measurements-grid">
             {measurementFields.map((field) => (
-              <div key={field.key} className="form-group">
+              <div key={field.key} className="body-measurements-form-group">
                 <label>{field.label}</label>
                 <div className="input-with-unit">
                   <input
@@ -182,7 +182,7 @@ const BodyMeasurements = () => {
             ))}
           </div>
 
-          <div className="form-group">
+          <div className="body-measurements-form-group">
             <label>📝 Notlar (Opsiyonel)</label>
             <textarea
               value={notes}
@@ -192,7 +192,7 @@ const BodyMeasurements = () => {
             />
           </div>
 
-          <button className="btn-save" onClick={handleAddMeasurement}>
+          <button className="body-measurements-btn-save" onClick={handleAddMeasurement}>
             💾 Kaydet
           </button>
         </div>
@@ -234,7 +234,7 @@ const BodyMeasurements = () => {
         <h3>Ölçüm Geçmişi ({measurements.length})</h3>
 
         {measurements.length === 0 ? (
-          <div className="empty-state">
+          <div className="body-measurements-empty-state">
             <span className="empty-icon">📏</span>
             <p>Henüz ölçüm kaydı yok</p>
             <p className="empty-hint">Vücut ölçülerinizi takip etmeye başlayın</p>

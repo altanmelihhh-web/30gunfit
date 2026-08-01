@@ -1,86 +1,97 @@
 /* eslint-disable no-restricted-globals */
 
-// Cache ismi ve versiyonu
-const CACHE_NAME = '30gunfit-v1';
-const urlsToCache = [
-  '/',
-  '/index.html',
-  '/static/css/main.css',
-  '/static/js/main.js',
+// Cache adını her önemli değişiklikte artır - eskisi activate sırasında otomatik silinir
+const CACHE_NAME = '30gunfit-v2';
+
+// Sadece adı hiç değişmeyen, stabil dosyalar - hashlenmiş JS/CSS burada YOK,
+// onlar runtime'da kendi kuralıyla (isStaticAsset) cache'leniyor
+const STATIC_CACHE_URLS = [
   '/manifest.json',
   '/logo192.png',
   '/logo512.png',
   '/favicon.ico'
 ];
 
-// Service Worker yüklendiğinde
 self.addEventListener('install', (event) => {
   console.log('[Service Worker] Installing...');
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then((cache) => {
-        console.log('[Service Worker] Caching app shell');
-        return cache.addAll(urlsToCache);
-      })
-      .catch((error) => {
-        console.log('[Service Worker] Cache failed:', error);
-      })
+      .then((cache) => cache.addAll(STATIC_CACHE_URLS))
+      .catch((error) => console.log('[Service Worker] Cache failed:', error))
   );
-  // Yeni service worker'ı hemen aktif et
   self.skipWaiting();
 });
 
-// Service Worker aktif olduğunda
 self.addEventListener('activate', (event) => {
   console.log('[Service Worker] Activating...');
   event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames.map((cacheName) => {
-          if (cacheName !== CACHE_NAME) {
-            console.log('[Service Worker] Deleting old cache:', cacheName);
-            return caches.delete(cacheName);
-          }
+    caches.keys().then((cacheNames) => Promise.all(
+      cacheNames
+        .filter((name) => name !== CACHE_NAME)
+        .map((name) => {
+          console.log('[Service Worker] Deleting old cache:', name);
+          return caches.delete(name);
         })
-      );
-    })
+    ))
   );
-  // Service worker'ı hemen kontrol altına al
-  return self.clients.claim();
+  self.clients.claim();
 });
 
-// Fetch istekleri
+const isSameOrigin = (url) => url.origin === self.location.origin;
+const isStaticAsset = (url) => url.pathname.startsWith('/static/') || /\.(png|jpg|jpeg|svg|ico|webp|woff2?)$/i.test(url.pathname);
+
+const safeCachePut = (cache, request, response) => {
+  if (request.method !== 'GET') return;
+  if (!/^https?:$/.test(new URL(request.url).protocol)) return;
+  cache.put(request, response).catch(() => {});
+};
+
 self.addEventListener('fetch', (event) => {
-  event.respondWith(
-    caches.match(event.request)
-      .then((response) => {
-        // Cache'de varsa onu döndür
-        if (response) {
-          return response;
-        }
-        // Yoksa network'ten çek
-        return fetch(event.request).then((response) => {
-          // Geçerli bir response değilse cache'leme
-          if (!response || response.status !== 200 || response.type === 'error') {
-            return response;
-          }
+  const { request } = event;
+  const url = new URL(request.url);
 
-          // Response'u klonla (stream sadece 1 kez okunabilir)
+  // Sadece kendi origin'imizdeki GET isteklerine müdahale et - Firestore/Auth/Gemini/Drive
+  // gibi cross-origin API çağrılarına hiç dokunma, tarayıcı normal şekilde yönetsin
+  // (bu aynı zamanda "Failed to execute 'put' on 'Cache'" hatalarının da kaynağıydı)
+  if (request.method !== 'GET' || !isSameOrigin(url)) {
+    return;
+  }
+
+  // Navigasyon istekleri (sayfa yüklemeleri) - önce ağa git, en güncel index.html'i al.
+  // Deploy sonrası kullanıcı hep en son sürümü görsün diye. Sadece offline'ken cache'e düş.
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
           const responseToCache = response.clone();
-
-          // Yeni response'u cache'e ekle
-          caches.open(CACHE_NAME)
-            .then((cache) => {
-              cache.put(event.request, responseToCache);
-            });
-
+          caches.open(CACHE_NAME).then((cache) => safeCachePut(cache, request, responseToCache));
           return response;
-        }).catch(() => {
-          // Network hatası, offline sayfası göster
-          return caches.match('/index.html');
+        })
+        .catch(() => caches.match(request).then((cached) => cached || caches.match('/index.html')))
+    );
+    return;
+  }
+
+  // Hashlenmiş statik dosyalar (JS/CSS/görsel) - içerik değişirse dosya adı da değişir,
+  // bu yüzden sonsuza kadar cache'den okumak güvenli
+  if (isStaticAsset(url)) {
+    event.respondWith(
+      caches.match(request).then((cached) => {
+        if (cached) return cached;
+        return fetch(request).then((response) => {
+          if (response.ok) {
+            const responseToCache = response.clone();
+            caches.open(CACHE_NAME).then((cache) => safeCachePut(cache, request, responseToCache));
+          }
+          return response;
         });
       })
-  );
+    );
+    return;
+  }
+
+  // Diğer same-origin istekler - direkt ağa git, sadece offline'da cache'e düş
+  event.respondWith(fetch(request).catch(() => caches.match(request)));
 });
 
 // Push bildirimleri için

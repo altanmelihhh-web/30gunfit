@@ -54,6 +54,11 @@
   box-sizing: border-box;
 }
 
+html,
+body {
+  overflow-x: hidden;
+}
+
 body {
   font-family: var(--font-family-base);
   background: var(--color-page);
@@ -128,6 +133,7 @@ body {
   opacity: 0.92;
   max-width: 420px;
   line-height: 1.5;
+  overflow-wrap: break-word;
 }
 
 .progress-container {
@@ -176,6 +182,10 @@ body {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 18px;
+}
+
+.insight-strip > * {
+  min-width: 0;
 }
 
 .insight-card {
@@ -234,6 +244,10 @@ body {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
   gap: 28px;
+}
+
+.dashboard-sections > * {
+  min-width: 0;
 }
 
 .main-sections {
@@ -324,7 +338,7 @@ body {
   }
 
   .app-main {
-    padding: 0 18px 60px;
+    padding: 0 18px calc(84px + env(safe-area-inset-bottom));
     margin-top: 20px;
   }
 
@@ -350,20 +364,69 @@ body {
       border-color var(--transition-base), transform 0.3s ease;
   }
 
+  /* Alt sabit navigasyon barı - mobilde birincil navigasyon deseni (iOS/Material) */
   .tab-navigation {
-    padding: 0 16px;
-    gap: 8px;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 100;
+    max-width: none;
+    width: 100%;
+    margin: 0;
+    padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
+    justify-content: space-around;
+    gap: 0;
+    border-bottom: none;
+    border-top: 1px solid var(--color-border);
+    background: var(--color-surface);
+    box-shadow: 0 -6px 20px rgba(2, 6, 23, 0.08);
+    overflow-x: visible;
+    -webkit-mask-image: none;
+    mask-image: none;
   }
 
   .tab-btn {
-    font-size: 13px;
-    padding: 12px 16px;
-    min-width: auto;
+    flex: 1;
+    min-width: 0;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    padding: 6px 2px;
+    border-bottom: none;
+    border-radius: var(--radius-sm);
+    margin-bottom: 0;
+  }
+
+  .tab-btn-icon {
+    font-size: 20px;
+    line-height: 1;
+  }
+
+  .tab-btn-label {
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .tab-btn.active {
+    background: rgba(99, 102, 241, 0.1);
+  }
+
+  .tab-content {
+    padding: 0 16px;
   }
 }
 
-/* Tablet responsive (768px - 1024px) */
-@media (max-width: 1024px) {
+@media (max-width: 480px) {
+  .tab-content {
+    padding: 0 12px;
+  }
+}
+
+/* Tablet responsive (769px - 1024px) - 768px ve altı kendi alt-bar kuralını kullanıyor */
+@media (min-width: 769px) and (max-width: 1024px) {
   .tab-navigation {
     padding: 0 20px;
     gap: 8px;
@@ -378,6 +441,8 @@ body {
 /* Tab Navigation Styles */
 .tab-navigation {
   max-width: 1280px;
+  width: 100%;
+  min-width: 0;
   margin: 0 auto 32px;
   display: flex;
   gap: 12px;
@@ -385,24 +450,21 @@ body {
   border-bottom: 2px solid var(--color-border);
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
-  scrollbar-width: thin;
+  scrollbar-width: none;
+  scroll-snap-type: x proximity;
+  -webkit-mask-image: linear-gradient(to right, transparent 0, black 20px, black calc(100% - 20px), transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0, black 20px, black calc(100% - 20px), transparent 100%);
 }
 
-/* Webkit scrollbar styling */
+/* Kaydırma çubuğunu gizle - kayan uçlardaki fade zaten "daha fazla var" ipucunu veriyor */
 .tab-navigation::-webkit-scrollbar {
-  height: 4px;
-}
-
-.tab-navigation::-webkit-scrollbar-track {
-  background: var(--color-surface-muted);
-}
-
-.tab-navigation::-webkit-scrollbar-thumb {
-  background: var(--color-border);
-  border-radius: 2px;
+  display: none;
 }
 
 .tab-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   background: none;
   border: none;
   border-bottom: 3px solid transparent;
@@ -415,6 +477,7 @@ body {
   margin-bottom: -2px;
   white-space: nowrap;
   flex-shrink: 0;
+  scroll-snap-align: start;
 }
 
 .tab-btn:hover {
@@ -430,6 +493,8 @@ body {
 
 .tab-content {
   max-width: 1280px;
+  width: 100%;
+  min-width: 0;
   margin: 0 auto;
   padding: 0 32px;
   animation: fadeIn 0.3s ease-in-out;
@@ -454,4 +519,75 @@ body {
   margin-bottom: 20px;
   color: var(--color-text-primary);
   font-size: 24px;
+}
+
+/* "Daha Fazla" sekmesi - ikincil menü listesi */
+.more-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.more-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  padding: 18px 20px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  text-align: left;
+  transition: all var(--transition-base);
+}
+
+.more-menu-item:hover {
+  border-color: rgba(99, 102, 241, 0.3);
+  transform: translateY(-1px);
+}
+
+.more-menu-icon {
+  font-size: 1.75rem;
+  flex-shrink: 0;
+}
+
+.more-menu-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.more-menu-text strong {
+  color: var(--color-text-primary);
+  font-size: 1.05rem;
+}
+
+.more-menu-text small {
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+}
+
+.more-menu-arrow {
+  font-size: 1.5rem;
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+.more-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 20px;
+  padding: 10px 16px;
+  background: var(--color-surface-muted);
+  border: none;
+  border-radius: var(--radius-md);
+  color: var(--color-text-primary);
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
 }

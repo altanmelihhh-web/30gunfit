@@ -24,3 +24,6 @@ yarn-error.log*
 
 # Vercel
 .vercel
+
+# Firebase local cache
+/.firebase

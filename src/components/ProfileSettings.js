@@ -255,7 +255,7 @@ function ProfileSettings({ profile, onSave, onRegenerateProgram }) {
             <button className="btn-cancel" onClick={handleCancel}>
               İptal
             </button>
-            <button className="btn-save" onClick={handleSave}>
+            <button className="profile-settings-btn-save" onClick={handleSave}>
               Değişiklikleri Kaydet
             </button>
           </>

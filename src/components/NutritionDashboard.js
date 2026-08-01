@@ -4,6 +4,11 @@ import FoodPhotoAnalyzer from './FoodPhotoAnalyzer';
 import CalorieTracker, { addMealFromAI } from './CalorieTracker';
 import WaterTracker from './WaterTracker';
 import ShoppingList from './ShoppingList';
+import AIDailyLog from './AIDailyLog';
+import TrendView from './TrendView';
+import ManualQuickEntry from './ManualQuickEntry';
+import MealPhotoGallery from './MealPhotoGallery';
+import { saveDailyCalories } from '../firebase/dataService';
 import './NutritionDashboard.css';
 
 /**
@@ -13,11 +18,16 @@ import './NutritionDashboard.css';
  * - Günlük kalori takibi
  */
 
-const NutritionDashboard = ({ userProfile }) => {
-  const [activeSection, setActiveSection] = useState('calculator'); // calculator, tracker, ai-analyzer, water, shopping-list
+const NutritionDashboard = ({ userProfile, user, driveAccessToken, onRequestDriveAccess }) => {
+  // tracker, water, add-menu, ai-analyzer, ai-daily-log, manual-entry,
+  // more-menu, calculator, trends, photo-gallery, shopping-list
+  const [activeSection, setActiveSection] = useState('tracker');
   const [nutritionResults, setNutritionResults] = useState(null);
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
   const [trackerRefreshKey, setTrackerRefreshKey] = useState(0);
+
+  const ADD_SECTIONS = ['ai-analyzer', 'ai-daily-log', 'manual-entry'];
+  const MORE_SECTIONS = ['calculator', 'trends', 'photo-gallery', 'shopping-list'];
 
   // Hesaplayıcıdan gelen sonuçları kaydet
   const handleNutritionResults = (results) => {
@@ -34,11 +44,15 @@ const NutritionDashboard = ({ userProfile }) => {
   }, []);
 
   // AI analizinden yemek ekle
-  const handleFoodAnalyzed = (foodData) => {
-    console.log('🍽️ NutritionDashboard: handleFoodAnalyzed çağrıldı:', foodData);
+  const handleFoodAnalyzed = async (foodData) => {
+    addMealFromAI(foodData);
 
-    const addedMeal = addMealFromAI(foodData);
-    console.log('✅ addMealFromAI sonucu:', addedMeal);
+    // Giriş yapmışsa, güncellenmiş günün tamamını Firestore'a da yaz
+    if (user) {
+      const today = new Date().toISOString().split('T')[0];
+      const allTrackerData = JSON.parse(localStorage.getItem('calorie_tracker') || '{}');
+      await saveDailyCalories(user.uid, today, allTrackerData[today] || []);
+    }
 
     setShowSuccessMessage(true);
 
@@ -57,51 +71,179 @@ const NutritionDashboard = ({ userProfile }) => {
         <p>Kişiselleştirilmiş beslenme planınızı oluşturun, günlük kalorinizi takip edin</p>
       </div>
 
-      {/* Navigasyon tabları */}
+      {/* Navigasyon - 4 ana hedef, ikincil özellikler "Ekle" ve "Daha Fazla" menülerinde */}
       <div className="nutrition-nav">
-        <button
-          className={`nav-btn ${activeSection === 'calculator' ? 'active' : ''}`}
-          onClick={() => setActiveSection('calculator')}
-        >
-          📊 Hesaplayıcı
-        </button>
         <button
           className={`nav-btn ${activeSection === 'tracker' ? 'active' : ''}`}
           onClick={() => setActiveSection('tracker')}
         >
-          📝 Kalori Takibi
+          <span className="nav-btn-icon">📝</span>
+          <span className="nav-btn-label">Bugün</span>
         </button>
         <button
           className={`nav-btn ${activeSection === 'water' ? 'active' : ''}`}
           onClick={() => setActiveSection('water')}
         >
-          💧 Su Takibi
+          <span className="nav-btn-icon">💧</span>
+          <span className="nav-btn-label">Su</span>
         </button>
         <button
-          className={`nav-btn ${activeSection === 'ai-analyzer' ? 'active' : ''}`}
-          onClick={() => setActiveSection('ai-analyzer')}
+          className={`nav-btn ${activeSection === 'add-menu' || ADD_SECTIONS.includes(activeSection) ? 'active' : ''}`}
+          onClick={() => setActiveSection('add-menu')}
         >
-          🤖 AI Analiz
+          <span className="nav-btn-icon">➕</span>
+          <span className="nav-btn-label">Ekle</span>
         </button>
         <button
-          className={`nav-btn ${activeSection === 'shopping-list' ? 'active' : ''}`}
-          onClick={() => setActiveSection('shopping-list')}
+          className={`nav-btn ${activeSection === 'more-menu' || MORE_SECTIONS.includes(activeSection) ? 'active' : ''}`}
+          onClick={() => setActiveSection('more-menu')}
         >
-          🛒 Alışveriş Listesi
+          <span className="nav-btn-icon">☰</span>
+          <span className="nav-btn-label">Diğer</span>
         </button>
       </div>
 
       {/* Başarı mesajı */}
       {showSuccessMessage && (
         <div className="success-message">
-          ✅ Yemek başarıyla günlük takibinize eklendi! Kalori Takibi sekmesine yönlendiriliyorsunuz...
+          ✅ Yemek başarıyla günlük takibinize eklendi! Bugün sekmesine yönlendiriliyorsunuz...
         </div>
       )}
 
       {/* İçerik bölümleri */}
       <div className="dashboard-content">
+        {activeSection === 'tracker' && (
+          <div className="section-content">
+            {!nutritionResults ? (
+              <div className="no-plan-warning">
+                <span className="warning-icon">⚠️</span>
+                <h3>Henüz bir beslenme planınız yok</h3>
+                <p>Kalori takibi yapabilmek için önce beslenme hesaplayıcıyı kullanarak hedeflerinizi belirleyin.</p>
+                <button
+                  className="btn-go-calculator"
+                  onClick={() => setActiveSection('calculator')}
+                >
+                  📊 Hesaplayıcıya Git
+                </button>
+              </div>
+            ) : (
+              <CalorieTracker
+                key={trackerRefreshKey}
+                targetCalories={nutritionResults.targetCalories}
+                targetMacros={nutritionResults.macros}
+                user={user}
+              />
+            )}
+          </div>
+        )}
+
+        {activeSection === 'water' && (
+          <div className="section-content">
+            <WaterTracker user={user} />
+          </div>
+        )}
+
+        {/* "Ekle" menüsü - yemek/günlük giriş yöntemleri arasından seçim */}
+        {activeSection === 'add-menu' && (
+          <div className="section-content">
+            <div className="more-menu">
+              <button className="more-menu-item" onClick={() => setActiveSection('ai-analyzer')}>
+                <span className="more-menu-icon">🤖</span>
+                <span className="more-menu-text">
+                  <strong>AI Fotoğraf Analizi</strong>
+                  <small>Yemek fotoğrafı çek, AI kalori/makro hesaplasın</small>
+                </span>
+                <span className="more-menu-arrow">›</span>
+              </button>
+              <button className="more-menu-item" onClick={() => setActiveSection('ai-daily-log')}>
+                <span className="more-menu-icon">🤖</span>
+                <span className="more-menu-text">
+                  <strong>AI Günlük Giriş</strong>
+                  <small>Serbest metin veya ekran görüntüsü yapıştır, AI ayırsın</small>
+                </span>
+                <span className="more-menu-arrow">›</span>
+              </button>
+              <button className="more-menu-item" onClick={() => setActiveSection('manual-entry')}>
+                <span className="more-menu-icon">⌨️</span>
+                <span className="more-menu-text">
+                  <strong>Hızlı Giriş</strong>
+                  <small>Anahtar kelimeyle kendin yaz, AI'ya hiç gitmez</small>
+                </span>
+                <span className="more-menu-arrow">›</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {activeSection === 'ai-analyzer' && (
+          <div className="section-content">
+            <button className="more-back-btn" onClick={() => setActiveSection('add-menu')}>‹ Ekle</button>
+            <FoodPhotoAnalyzer onFoodAnalyzed={handleFoodAnalyzed} />
+          </div>
+        )}
+
+        {activeSection === 'ai-daily-log' && (
+          <div className="section-content">
+            <button className="more-back-btn" onClick={() => setActiveSection('add-menu')}>‹ Ekle</button>
+            <AIDailyLog
+              user={user}
+              driveAccessToken={driveAccessToken}
+              onRequestDriveAccess={onRequestDriveAccess}
+              onSaved={() => setTrackerRefreshKey((prev) => prev + 1)}
+            />
+          </div>
+        )}
+
+        {activeSection === 'manual-entry' && (
+          <div className="section-content">
+            <button className="more-back-btn" onClick={() => setActiveSection('add-menu')}>‹ Ekle</button>
+            <ManualQuickEntry user={user} onSaved={() => setTrackerRefreshKey((prev) => prev + 1)} />
+          </div>
+        )}
+
+        {/* "Daha Fazla" menüsü - ikincil özellikler */}
+        {activeSection === 'more-menu' && (
+          <div className="section-content">
+            <div className="more-menu">
+              <button className="more-menu-item" onClick={() => setActiveSection('calculator')}>
+                <span className="more-menu-icon">📊</span>
+                <span className="more-menu-text">
+                  <strong>Hesaplayıcı</strong>
+                  <small>Günlük kalori ve makro hedeflerinizi belirleyin</small>
+                </span>
+                <span className="more-menu-arrow">›</span>
+              </button>
+              <button className="more-menu-item" onClick={() => setActiveSection('trends')}>
+                <span className="more-menu-icon">📈</span>
+                <span className="more-menu-text">
+                  <strong>Trend</strong>
+                  <small>Geçmiş günlerin özeti ve grafikleri</small>
+                </span>
+                <span className="more-menu-arrow">›</span>
+              </button>
+              <button className="more-menu-item" onClick={() => setActiveSection('photo-gallery')}>
+                <span className="more-menu-icon">📷</span>
+                <span className="more-menu-text">
+                  <strong>Yemek Galerisi</strong>
+                  <small>Kaydedilen yemek fotoğrafları</small>
+                </span>
+                <span className="more-menu-arrow">›</span>
+              </button>
+              <button className="more-menu-item" onClick={() => setActiveSection('shopping-list')}>
+                <span className="more-menu-icon">🛒</span>
+                <span className="more-menu-text">
+                  <strong>Alışveriş Listesi</strong>
+                  <small>Haftalık listeni işaretle, AI ile alternatif bul</small>
+                </span>
+                <span className="more-menu-arrow">›</span>
+              </button>
+            </div>
+          </div>
+        )}
+
         {activeSection === 'calculator' && (
           <div className="section-content">
+            <button className="more-back-btn" onClick={() => setActiveSection('more-menu')}>‹ Daha Fazla</button>
             <NutritionCalculator
               userProfile={userProfile}
               onSaveResults={handleNutritionResults}
@@ -129,45 +271,28 @@ const NutritionDashboard = ({ userProfile }) => {
           </div>
         )}
 
-        {activeSection === 'tracker' && (
-          <div className="section-content">
-            {!nutritionResults ? (
-              <div className="no-plan-warning">
-                <span className="warning-icon">⚠️</span>
-                <h3>Henüz bir beslenme planınız yok</h3>
-                <p>Kalori takibi yapabilmek için önce beslenme hesaplayıcıyı kullanarak hedeflerinizi belirleyin.</p>
-                <button
-                  className="btn-go-calculator"
-                  onClick={() => setActiveSection('calculator')}
-                >
-                  📊 Hesaplayıcıya Git
-                </button>
-              </div>
-            ) : (
-              <CalorieTracker
-                key={trackerRefreshKey}
-                targetCalories={nutritionResults.targetCalories}
-                targetMacros={nutritionResults.macros}
-              />
-            )}
-          </div>
-        )}
-
-        {activeSection === 'ai-analyzer' && (
-          <div className="section-content">
-            <FoodPhotoAnalyzer onFoodAnalyzed={handleFoodAnalyzed} />
-          </div>
-        )}
-
-        {activeSection === 'water' && (
-          <div className="section-content">
-            <WaterTracker />
-          </div>
-        )}
-
         {activeSection === 'shopping-list' && (
           <div className="section-content">
+            <button className="more-back-btn" onClick={() => setActiveSection('more-menu')}>‹ Daha Fazla</button>
             <ShoppingList />
+          </div>
+        )}
+
+        {activeSection === 'trends' && (
+          <div className="section-content">
+            <button className="more-back-btn" onClick={() => setActiveSection('more-menu')}>‹ Daha Fazla</button>
+            <TrendView user={user} />
+          </div>
+        )}
+
+        {activeSection === 'photo-gallery' && (
+          <div className="section-content">
+            <button className="more-back-btn" onClick={() => setActiveSection('more-menu')}>‹ Daha Fazla</button>
+            <MealPhotoGallery
+              user={user}
+              driveAccessToken={driveAccessToken}
+              onRequestDriveAccess={onRequestDriveAccess}
+            />
           </div>
         )}
       </div>

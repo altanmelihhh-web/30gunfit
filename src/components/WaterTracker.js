@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import './WaterTracker.css';
+import { saveWaterTracker, getWaterTracker } from '../firebase/dataService';
 
 /**
  * WaterTracker - Günlük su tüketimi takibi
@@ -9,7 +10,7 @@ import './WaterTracker.css';
  * - localStorage ile kalıcı veri
  */
 
-const WaterTracker = () => {
+const WaterTracker = ({ user }) => {
   const [dailyGoal, setDailyGoal] = useState(2500); // ml cinsinden varsayılan hedef
   const [waterEntries, setWaterEntries] = useState([]);
   const [customAmount, setCustomAmount] = useState('');
@@ -24,7 +25,7 @@ const WaterTracker = () => {
     { label: '🍶 Şişe', amount: 1000, icon: '🍶' }
   ];
 
-  // localStorage'dan yükle
+  // localStorage'dan yükle (hızlı ilk gösterim / offline yedek)
   useEffect(() => {
     const savedEntries = localStorage.getItem('water_tracker');
     if (savedEntries) {
@@ -37,12 +38,42 @@ const WaterTracker = () => {
     }
   }, []);
 
+  // Giriş yapmışsa Firestore'dan yükle (cihaz bağımsız kalıcı kayıt)
+  useEffect(() => {
+    if (!user) return;
+
+    const loadFromCloud = async () => {
+      const result = await getWaterTracker(user.uid);
+      if (result.success) {
+        setWaterEntries(result.data.entries || []);
+        if (result.data.dailyGoal) {
+          setDailyGoal(result.data.dailyGoal);
+        }
+      } else {
+        // Firestore'da henüz kayıt yok - localStorage'daki mevcut veriyi bir kere yükle
+        const localEntries = JSON.parse(localStorage.getItem('water_tracker') || '[]');
+        if (localEntries.length > 0) {
+          saveWaterTracker(user.uid, localEntries, dailyGoal).catch(error =>
+            console.error('Su Firestore ilk yükleme hatası:', error)
+          );
+        }
+      }
+    };
+    loadFromCloud();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
   // localStorage'a kaydet
   useEffect(() => {
     if (waterEntries.length > 0) {
       localStorage.setItem('water_tracker', JSON.stringify(waterEntries));
     }
-  }, [waterEntries]);
+    if (user) {
+      saveWaterTracker(user.uid, waterEntries, dailyGoal).catch(error =>
+        console.error('Su Firestore kayıt hatası:', error)
+      );
+    }
+  }, [waterEntries, user, dailyGoal]);
 
   // Hedefi kaydet
   useEffect(() => {
@@ -282,7 +313,7 @@ const WaterTracker = () => {
       <div className="entries-section">
         <h3>Bugünün Kayıtları ({todayEntries.length})</h3>
         {todayEntries.length === 0 ? (
-          <div className="empty-state">
+          <div className="water-tracker-empty-state">
             <span className="empty-icon">💧</span>
             <p>Henüz su kaydı yok</p>
             <p className="empty-hint">Yukarıdaki butonlarla su tüketiminizi kaydedin</p>

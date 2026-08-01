@@ -1,7 +1,9 @@
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
-  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
+  GoogleAuthProvider,
   signOut,
   updateProfile,
   sendPasswordResetEmail
@@ -54,18 +56,33 @@ export const loginWithEmail = async (email, password) => {
 };
 
 /**
- * Google ile giriş yap
+ * Google ile giriş yap - redirect yöntemi kullanılır (popup mobil tarayıcılarda
+ * ve PWA modunda güvenilir çalışmıyor, oturum hatalarına yol açabiliyor)
+ * Sayfa Google'a yönlenip geri döner; sonuç handleGoogleRedirectResult() ile alınır.
  */
 export const loginWithGoogle = async () => {
   try {
-    const result = await signInWithPopup(auth, googleProvider);
-    const user = result.user;
+    await signInWithRedirect(auth, googleProvider);
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+};
 
-    // Kullanıcı ilk defa mı giriş yapıyor kontrol et
+/**
+ * Uygulama açılışında bir kere çağrılır - kullanıcı Google'dan yeni yönlendiyse
+ * ilk girişse Firestore kullanıcı belgesini oluşturur, değilse son giriş zamanını günceller
+ */
+export const handleGoogleRedirectResult = async () => {
+  try {
+    const result = await getRedirectResult(auth);
+    if (!result?.user) {
+      return { success: false };
+    }
+    const user = result.user;
     const userDoc = await getDoc(doc(db, 'users', user.uid));
 
     if (!userDoc.exists()) {
-      // İlk giriş - kullanıcı belgesi oluştur
       await setDoc(doc(db, 'users', user.uid), {
         uid: user.uid,
         email: user.email,
@@ -75,13 +92,17 @@ export const loginWithGoogle = async () => {
         lastLogin: new Date().toISOString()
       });
     } else {
-      // Var olan kullanıcı - son giriş zamanını güncelle
       await setDoc(doc(db, 'users', user.uid), {
         lastLogin: new Date().toISOString()
       }, { merge: true });
     }
 
-    return { success: true, user };
+    // Google Drive erişim token'ı - sadece bellekte tutulur, Firestore'a kaydedilmez
+    // (kısa ömürlü, ~1 saat sonra süresi doluyor, gerekirse tekrar giriş istenir)
+    const credential = GoogleAuthProvider.credentialFromResult(result);
+    const driveAccessToken = credential?.accessToken || null;
+
+    return { success: true, user, driveAccessToken };
   } catch (error) {
     return { success: false, error: error.message };
   }
@@ -122,6 +143,7 @@ export default {
   registerWithEmail,
   loginWithEmail,
   loginWithGoogle,
+  handleGoogleRedirectResult,
   logout,
   resetPassword,
   getCurrentUser

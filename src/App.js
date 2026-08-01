@@ -29,7 +29,7 @@ import { playNotificationSound } from './utils/notificationSounds';
 import { FITNESS_GOALS, DIFFICULTY_LEVELS } from './data/exerciseLibrary';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from './firebase/config';
-import { logout } from './firebase/authService';
+import { logout, handleGoogleRedirectResult, loginWithGoogle } from './firebase/authService';
 import {
   getAllUserData,
   saveUserProfile,
@@ -133,10 +133,14 @@ function App() {
     return initialTheme;
   });
   const [user, setUser] = useState(null);
+  // Google Drive erişim token'ı - sadece bellekte, ~1 saat sonra süresi dolar
+  const [driveAccessToken, setDriveAccessToken] = useState(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
   const [isProfileOnboardingOpen, setIsProfileOnboardingOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState('home'); // 'home', 'stats', 'calendar', 'nutrition', 'settings', 'videos'
+  const [activeTab, setActiveTab] = useState('home'); // 'home', 'stats', 'calendar', 'nutrition', 'more'
+  // "Daha Fazla" sekmesi altında ikincil bir menü - null iken menü listesi, dolu iken o alt sayfa gösterilir
+  const [moreSection, setMoreSection] = useState(null); // null, 'settings', 'videos'
 
   // Kullanıcı profili
   const [userProfile, setUserProfile] = useState(() => {
@@ -421,7 +425,20 @@ function App() {
 
   // Firebase Authentication State Listener
   useEffect(() => {
+    // Google ile yönlendirmeli girişten dönüldüyse sonucu işle (ilk girişte Firestore kullanıcı
+    // belgesini oluşturur). onAuthStateChanged bu Promise'i bekler ki yeni bir Google girişinde
+    // kullanıcı belgesi henüz oluşmadan Firestore'dan veri okumaya çalışıp "Missing or
+    // insufficient permissions" hatası almayalım.
+    const redirectResultPromise = handleGoogleRedirectResult().then((result) => {
+      if (result?.driveAccessToken) {
+        setDriveAccessToken(result.driveAccessToken);
+      }
+      return result;
+    });
+
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      await redirectResultPromise;
+
       if (firebaseUser) {
         // Kullanıcı giriş yaptı
         setUser(firebaseUser);
@@ -435,6 +452,9 @@ function App() {
             // Profil varsa yükle
             if (data.profile) {
               setUserProfile(data.profile);
+              // Kayıtlı kullanıcının profili var - onboarding ekranını atla
+              localStorage.setItem(PROFILE_ONBOARDING_STORAGE_KEY, 'true');
+              setIsProfileOnboardingOpen(false);
             }
 
             // Program varsa yükle
@@ -835,43 +855,42 @@ function App() {
       </header>
 
       <main className="app-main">
-        {/* Tab Navigation */}
+        {/* Tab Navigation - mobilde alt sabit bar, masaüstünde üst bar (bkz. App.css) */}
         <nav className="tab-navigation">
           <button
             className={`tab-btn ${activeTab === 'home' ? 'active' : ''}`}
             onClick={() => setActiveTab('home')}
           >
-            🏠 Ana Sayfa
-          </button>
-          <button
-            className={`tab-btn ${activeTab === 'stats' ? 'active' : ''}`}
-            onClick={() => setActiveTab('stats')}
-          >
-            📊 İlerlemem
+            <span className="tab-btn-icon">🏠</span>
+            <span className="tab-btn-label">Bugün</span>
           </button>
           <button
             className={`tab-btn ${activeTab === 'calendar' ? 'active' : ''}`}
             onClick={() => setActiveTab('calendar')}
           >
-            📅 Takvim
+            <span className="tab-btn-icon">📅</span>
+            <span className="tab-btn-label">Program</span>
           </button>
           <button
             className={`tab-btn ${activeTab === 'nutrition' ? 'active' : ''}`}
             onClick={() => setActiveTab('nutrition')}
           >
-            🍎 Beslenme
+            <span className="tab-btn-icon">🍎</span>
+            <span className="tab-btn-label">Beslenme</span>
           </button>
           <button
-            className={`tab-btn ${activeTab === 'settings' ? 'active' : ''}`}
-            onClick={() => setActiveTab('settings')}
+            className={`tab-btn ${activeTab === 'stats' ? 'active' : ''}`}
+            onClick={() => setActiveTab('stats')}
           >
-            ⚙️ Ayarlar
+            <span className="tab-btn-icon">📊</span>
+            <span className="tab-btn-label">İlerleme</span>
           </button>
           <button
-            className={`tab-btn ${activeTab === 'videos' ? 'active' : ''}`}
-            onClick={() => setActiveTab('videos')}
+            className={`tab-btn ${activeTab === 'more' ? 'active' : ''}`}
+            onClick={() => setActiveTab('more')}
           >
-            🎥 Video Portal
+            <span className="tab-btn-icon">☰</span>
+            <span className="tab-btn-label">Daha Fazla</span>
           </button>
         </nav>
 
@@ -961,7 +980,7 @@ function App() {
 
             {/* Kilo Takibi */}
             <div className="dashboard-sections" style={{ marginTop: '28px' }}>
-              <WeightTracker />
+              <WeightTracker user={user} />
             </div>
 
             {/* İlerleme Fotoğrafları */}
@@ -1011,42 +1030,68 @@ function App() {
           </div>
         )}
 
-        {/* Ayarlar Tab */}
-        {activeTab === 'settings' && (
+        {/* Daha Fazla Tab - alt menü: Ayarlar / Video Portal */}
+        {activeTab === 'more' && (
           <div className="tab-content">
-            <div className="dashboard-sections">
-              <ProfileSettings
-                profile={userProfile}
-                onSave={handleProfileSave}
-                onRegenerateProgram={handleRegenerateProgram}
-              />
-              <ReminderSettings
-                settings={reminderSettings}
-                onChange={handleReminderChange}
-                startDate={startDate}
-                onStartDateChange={handleStartDateChange}
-                todaysProgress={todaysProgress}
-                todaysWorkout={todaysWorkout}
-                currentDay={currentDay}
-                notificationsSupported={notificationsSupported}
-              />
-              <DataBackup
-                completedDays={completedDays}
-                completedExercises={completedExercises}
-                startDate={startDate}
-                reminderSettings={reminderSettings}
-                onImport={handleDataImport}
-              />
-            </div>
-          </div>
-        )}
+            {!moreSection && (
+              <div className="more-menu">
+                <button className="more-menu-item" onClick={() => setMoreSection('settings')}>
+                  <span className="more-menu-icon">⚙️</span>
+                  <span className="more-menu-text">
+                    <strong>Ayarlar</strong>
+                    <small>Profil, hatırlatmalar, yedekleme</small>
+                  </span>
+                  <span className="more-menu-arrow">›</span>
+                </button>
+                <button className="more-menu-item" onClick={() => setMoreSection('videos')}>
+                  <span className="more-menu-icon">🎥</span>
+                  <span className="more-menu-text">
+                    <strong>Video Portal</strong>
+                    <small>Egzersiz videolarını yönet</small>
+                  </span>
+                  <span className="more-menu-arrow">›</span>
+                </button>
+              </div>
+            )}
 
-        {/* Video Portal Tab */}
-        {activeTab === 'videos' && (
-          <div className="tab-content">
-            <VideoManager
-              onSave={handleVideoSave}
-            />
+            {moreSection && (
+              <>
+                <button className="more-back-btn" onClick={() => setMoreSection(null)}>
+                  ‹ Daha Fazla
+                </button>
+
+                {moreSection === 'settings' && (
+                  <div className="dashboard-sections">
+                    <ProfileSettings
+                      profile={userProfile}
+                      onSave={handleProfileSave}
+                      onRegenerateProgram={handleRegenerateProgram}
+                    />
+                    <ReminderSettings
+                      settings={reminderSettings}
+                      onChange={handleReminderChange}
+                      startDate={startDate}
+                      onStartDateChange={handleStartDateChange}
+                      todaysProgress={todaysProgress}
+                      todaysWorkout={todaysWorkout}
+                      currentDay={currentDay}
+                      notificationsSupported={notificationsSupported}
+                    />
+                    <DataBackup
+                      completedDays={completedDays}
+                      completedExercises={completedExercises}
+                      startDate={startDate}
+                      reminderSettings={reminderSettings}
+                      onImport={handleDataImport}
+                    />
+                  </div>
+                )}
+
+                {moreSection === 'videos' && (
+                  <VideoManager onSave={handleVideoSave} />
+                )}
+              </>
+            )}
           </div>
         )}
 
@@ -1055,6 +1100,11 @@ function App() {
           <div className="tab-content">
             <NutritionDashboard
               userProfile={userProfile}
+              user={user}
+              driveAccessToken={driveAccessToken}
+              onRequestDriveAccess={async () => {
+                await loginWithGoogle();
+              }}
             />
           </div>
         )}

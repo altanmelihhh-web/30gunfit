@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import './WeightTracker.css';
+import { saveWeightTracker, getWeightTracker } from '../firebase/dataService';
 
 /**
  * WeightTracker - Kilo takibi ve görselleştirme
@@ -8,14 +9,14 @@ import './WeightTracker.css';
  * - İlerleme hesaplama
  */
 
-const WeightTracker = ({ initialWeight }) => {
+const WeightTracker = ({ initialWeight, user }) => {
   const [weightEntries, setWeightEntries] = useState([]);
   const [newWeight, setNewWeight] = useState('');
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [targetWeight, setTargetWeight] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
 
-  // localStorage'dan yükle
+  // localStorage'dan yükle (hızlı ilk gösterim / offline yedek)
   useEffect(() => {
     const saved = localStorage.getItem('weight_tracker');
     if (saved) {
@@ -28,12 +29,41 @@ const WeightTracker = ({ initialWeight }) => {
     }
   }, []);
 
+  // Giriş yapmışsa Firestore'dan yükle (cihaz bağımsız kalıcı kayıt)
+  useEffect(() => {
+    if (!user) return;
+
+    const loadFromCloud = async () => {
+      const result = await getWeightTracker(user.uid);
+      if (result.success) {
+        setWeightEntries(result.data.entries || []);
+        if (result.data.targetWeight) {
+          setTargetWeight(result.data.targetWeight);
+        }
+      } else {
+        const localEntries = JSON.parse(localStorage.getItem('weight_tracker') || '[]');
+        if (localEntries.length > 0) {
+          saveWeightTracker(user.uid, localEntries, targetWeight).catch(error =>
+            console.error('Kilo Firestore ilk yükleme hatası:', error)
+          );
+        }
+      }
+    };
+    loadFromCloud();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
   // localStorage'a kaydet
   useEffect(() => {
     if (weightEntries.length > 0) {
       localStorage.setItem('weight_tracker', JSON.stringify(weightEntries));
     }
-  }, [weightEntries]);
+    if (user) {
+      saveWeightTracker(user.uid, weightEntries, targetWeight).catch(error =>
+        console.error('Kilo Firestore kayıt hatası:', error)
+      );
+    }
+  }, [weightEntries, user, targetWeight]);
 
   // Hedef kiloya kaydet
   useEffect(() => {
@@ -164,7 +194,7 @@ const WeightTracker = ({ initialWeight }) => {
       {showAddForm && (
         <div className="add-weight-form">
           <div className="form-row">
-            <div className="form-group">
+            <div className="weight-tracker-form-group">
               <label>Tarih</label>
               <input
                 type="date"
@@ -173,7 +203,7 @@ const WeightTracker = ({ initialWeight }) => {
                 max={new Date().toISOString().split('T')[0]}
               />
             </div>
-            <div className="form-group">
+            <div className="weight-tracker-form-group">
               <label>Kilo (kg)</label>
               <input
                 type="number"
@@ -184,7 +214,7 @@ const WeightTracker = ({ initialWeight }) => {
               />
             </div>
           </div>
-          <button className="btn-save" onClick={handleAddWeight}>
+          <button className="weight-tracker-btn-save" onClick={handleAddWeight}>
             💾 Kaydet
           </button>
         </div>
@@ -251,7 +281,7 @@ const WeightTracker = ({ initialWeight }) => {
             </div>
             <div className="progress-bar">
               <div
-                className="progress-fill"
+                className="weight-tracker-progress-fill"
                 style={{ width: `${Math.max(0, getTargetProgress())}%` }}
               />
             </div>
@@ -370,7 +400,7 @@ const WeightTracker = ({ initialWeight }) => {
       <div className="weight-list">
         <h3>Kayıtlar ({weightEntries.length})</h3>
         {weightEntries.length === 0 ? (
-          <div className="empty-state">
+          <div className="weight-tracker-empty-state">
             <span className="empty-icon">⚖️</span>
             <p>Henüz kilo kaydı eklenmemiş</p>
           </div>

@@ -41,6 +41,9 @@ const app = initializeApp(firebaseConfig);
 // Authentication
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
+// Yemek fotoğraflarını kullanıcının kendi Google Drive'ına yüklemek için
+// (sadece uygulamanın oluşturduğu dosyalara erişim - en dar kapsamlı izin)
+googleProvider.addScope('https://www.googleapis.com/auth/drive.file');
 
 // Firestore Database
 export const db = getFirestore(app);

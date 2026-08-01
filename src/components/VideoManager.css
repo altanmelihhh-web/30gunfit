@@ -261,11 +261,11 @@
   margin-bottom: 6px;
 }
 
-.form-group {
+.video-manager-form-group {
   margin-bottom: 24px;
 }
 
-.form-group label {
+.video-manager-form-group label {
   display: block;
   font-size: 0.9rem;
   font-weight: 600;
@@ -289,7 +289,7 @@
   box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
 }
 
-.form-group small {
+.video-manager-form-group small {
   display: block;
   margin-top: 6px;
   font-size: 0.85rem;
@@ -317,7 +317,7 @@
 }
 
 .btn-cancel,
-.btn-save {
+.video-manager-btn-save {
   padding: 12px 24px;
   border-radius: var(--radius-sm);
   font-size: 1rem;
@@ -333,18 +333,18 @@
   border: 1px solid var(--color-border);
 }
 
-.btn-save {
+.video-manager-btn-save {
   background: var(--gradient-primary);
   color: white;
   box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
 }
 
-.btn-save:disabled {
+.video-manager-btn-save:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 
-.btn-save:hover:not(:disabled) {
+.video-manager-btn-save:hover:not(:disabled) {
   transform: translateY(-2px);
   box-shadow: 0 8px 20px rgba(99, 102, 241, 0.4);
 }
@@ -356,6 +356,10 @@
 
   .video-manager-filters {
     flex-direction: column;
+  }
+
+  .category-select {
+    width: 100%;
   }
 
   .exercise-item {
@@ -384,7 +388,7 @@
   }
 
   .btn-cancel,
-  .btn-save {
+  .video-manager-btn-save {
     width: 100%;
   }
 }

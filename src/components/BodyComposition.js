@@ -201,7 +201,7 @@ const BodyComposition = () => {
 
           <div className="composition-grid">
             {compositionFields.map((field) => (
-              <div key={field.key} className="form-group">
+              <div key={field.key} className="body-composition-form-group">
                 <label>{field.label}</label>
                 <div className="input-with-unit">
                   <input
@@ -217,7 +217,7 @@ const BodyComposition = () => {
             ))}
           </div>
 
-          <div className="form-group">
+          <div className="body-composition-form-group">
             <label>📝 Notlar (Opsiyonel)</label>
             <textarea
               value={notes}
@@ -227,7 +227,7 @@ const BodyComposition = () => {
             />
           </div>
 
-          <button className="btn-save" onClick={handleAddComposition}>
+          <button className="body-composition-btn-save" onClick={handleAddComposition}>
             💾 Kaydet
           </button>
         </div>
@@ -274,7 +274,7 @@ const BodyComposition = () => {
         <h3>Analiz Geçmişi ({compositions.length})</h3>
 
         {compositions.length === 0 ? (
-          <div className="empty-state">
+          <div className="body-composition-empty-state">
             <span className="empty-icon">🧬</span>
             <p>Henüz vücut kompozisyonu kaydı yok</p>
             <p className="empty-hint">Akıllı terazinizden veya analiz cihazınızdan alınan verileri kaydedin</p>

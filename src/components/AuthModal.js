@@ -75,19 +75,10 @@ function AuthModal({ isOpen, onClose, onAuthSuccess }) {
     setError('');
     setLoading(true);
 
-    try {
-      const result = await loginWithGoogle();
-      if (result.success) {
-        setSuccessMessage('✅ Google ile giriş başarılı!');
-        setTimeout(() => {
-          if (onAuthSuccess) onAuthSuccess(result.user);
-        }, 1000);
-      } else {
-        setError(getErrorMessage(result.error));
-      }
-    } catch (err) {
-      setError('Google girişi sırasında bir hata oluştu.');
-    } finally {
+    // Google'a yönlenir - sayfa buradan ayrılır, sonuç App.js açılışta işlenir
+    const result = await loginWithGoogle();
+    if (!result.success) {
+      setError(getErrorMessage(result.error));
       setLoading(false);
     }
   };
@@ -134,7 +125,7 @@ function AuthModal({ isOpen, onClose, onAuthSuccess }) {
 
         <form onSubmit={handleSubmit} className="auth-form">
           {mode === AUTH_MODES.REGISTER && (
-            <div className="form-group">
+            <div className="auth-modal-form-group">
               <label>Adınız</label>
               <input
                 type="text"
@@ -146,7 +137,7 @@ function AuthModal({ isOpen, onClose, onAuthSuccess }) {
             </div>
           )}
 
-          <div className="form-group">
+          <div className="auth-modal-form-group">
             <label>Email</label>
             <input
               type="email"
@@ -158,7 +149,7 @@ function AuthModal({ isOpen, onClose, onAuthSuccess }) {
           </div>
 
           {mode !== AUTH_MODES.RESET_PASSWORD && (
-            <div className="form-group">
+            <div className="auth-modal-form-group">
               <label>Şifre</label>
               <input
                 type="password"

@@ -33,7 +33,7 @@ function Calendar({ workouts, completedDays, onDayClick, selectedDay, completedE
                   <div className="day-progress">
                     <div className="progress-track">
                       <div
-                        className="progress-fill"
+                        className="calendar-progress-fill"
                         style={{ width: `${progress.percent}%` }}
                       />
                     </div>

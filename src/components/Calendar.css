@@ -133,13 +133,13 @@
   background: rgba(255, 255, 255, 0.25);
 }
 
-.progress-fill {
+.calendar-progress-fill {
   height: 100%;
   background: var(--gradient-primary);
   transition: width 0.4s ease;
 }
 
-.day-card.selected .progress-fill {
+.day-card.selected .calendar-progress-fill {
   background: rgba(255, 255, 255, 0.9);
 }
 

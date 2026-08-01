@@ -1,0 +1,28 @@
+.gemini-quota-badge {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  margin-bottom: 10px;
+  background: rgba(0,0,0,0.04);
+}
+
+.gemini-quota-badge.warning {
+  background: rgba(234, 179, 8, 0.15);
+}
+
+.gemini-quota-badge.danger {
+  background: rgba(239, 68, 68, 0.15);
+}
+
+.quota-retry-status {
+  font-weight: 600;
+}
+
+@media (max-width: 480px) {
+  .gemini-quota-badge {
+    font-size: 0.75rem;
+  }
+}

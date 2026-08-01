@@ -146,7 +146,7 @@ const NutritionCalculator = ({ userProfile, onSaveResults }) => {
 
       <div className="calculator-form">
         <div className="form-row">
-          <div className="form-group">
+          <div className="nutrition-calc-form-group">
             <label>Kilo (kg)</label>
             <input
               type="number"
@@ -157,7 +157,7 @@ const NutritionCalculator = ({ userProfile, onSaveResults }) => {
             />
           </div>
 
-          <div className="form-group">
+          <div className="nutrition-calc-form-group">
             <label>Boy (cm)</label>
             <input
               type="number"
@@ -168,7 +168,7 @@ const NutritionCalculator = ({ userProfile, onSaveResults }) => {
             />
           </div>
 
-          <div className="form-group">
+          <div className="nutrition-calc-form-group">
             <label>Yaş</label>
             <input
               type="number"
@@ -181,7 +181,7 @@ const NutritionCalculator = ({ userProfile, onSaveResults }) => {
         </div>
 
         <div className="form-row">
-          <div className="form-group">
+          <div className="nutrition-calc-form-group">
             <label>Cinsiyet</label>
             <div className="radio-group">
               <label className={formData.gender === 'male' ? 'selected' : ''}>
@@ -208,7 +208,7 @@ const NutritionCalculator = ({ userProfile, onSaveResults }) => {
           </div>
         </div>
 
-        <div className="form-group">
+        <div className="nutrition-calc-form-group">
           <label>Aktivite Seviyeniz</label>
           <select
             value={formData.activityLevel}
@@ -222,7 +222,7 @@ const NutritionCalculator = ({ userProfile, onSaveResults }) => {
           </select>
         </div>
 
-        <div className="form-group">
+        <div className="nutrition-calc-form-group">
           <label>Hedefiniz</label>
           <select
             value={formData.goal}

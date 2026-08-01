@@ -1,0 +1,49 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isOwner(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    // Kullanıcı hesap belgesi
+    match /users/{uid} {
+      allow read, write: if isOwner(uid);
+    }
+
+    // Kullanıcının kendi alt koleksiyonları (dailyLogs, meals, supplementLogs, vb.)
+    match /users/{uid}/{document=**} {
+      allow read, write: if isOwner(uid);
+    }
+
+    match /userProfiles/{uid} {
+      allow read, write: if isOwner(uid);
+    }
+    match /userPrograms/{uid} {
+      allow read, write: if isOwner(uid);
+    }
+    match /userProgress/{uid} {
+      allow read, write: if isOwner(uid);
+    }
+    match /userSettings/{uid} {
+      allow read, write: if isOwner(uid);
+    }
+    match /nutritionPlans/{uid} {
+      allow read, write: if isOwner(uid);
+    }
+    match /calorieTracking/{docId} {
+      allow read, write: if request.auth != null &&
+        docId.matches(request.auth.uid + '_.*');
+    }
+    match /waterTracking/{uid} {
+      allow read, write: if isOwner(uid);
+    }
+    match /weightTracking/{uid} {
+      allow read, write: if isOwner(uid);
+    }
+    match /dailyLogs/{docId} {
+      allow read, write: if request.auth != null &&
+        docId.matches(request.auth.uid + '_.*');
+    }
+  }
+}

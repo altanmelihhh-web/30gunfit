@@ -1,0 +1,273 @@
+.ai-daily-log {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+.ai-log-header h3 {
+  margin: 0 0 4px;
+}
+
+.ai-log-header p {
+  opacity: 0.75;
+  font-size: 0.9rem;
+  margin: 0 0 16px;
+}
+
+.ai-log-login-warning {
+  padding: 16px;
+  background: #fff3cd;
+  border-radius: 8px;
+  color: #664d03;
+}
+
+.ai-log-date {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.ai-log-date label {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.ai-log-textarea {
+  width: 100%;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(0,0,0,0.15);
+  font-size: 1rem;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.ai-log-image-section {
+  margin: 12px 0;
+}
+
+.ai-log-image-upload {
+  display: inline-block;
+  padding: 10px 16px;
+  border-radius: 8px;
+  border: 1px dashed rgba(0,0,0,0.25);
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.ai-log-image-preview img {
+  max-width: 200px;
+  border-radius: 8px;
+  display: block;
+  margin-bottom: 8px;
+}
+
+.ai-log-drive-hint {
+  font-size: 0.8rem;
+  opacity: 0.8;
+  margin-top: 6px;
+}
+
+.ai-log-drive-connect-btn {
+  border: none;
+  background: rgba(99, 102, 241, 0.15);
+  color: #4f46e5;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ai-log-error {
+  background: #fdecea;
+  color: #b3261e;
+  padding: 10px 14px;
+  border-radius: 8px;
+  margin: 10px 0;
+}
+
+.ai-log-success {
+  background: #e6f4ea;
+  color: #1e7e34;
+  padding: 10px 14px;
+  border-radius: 8px;
+  margin: 10px 0;
+}
+
+.ai-log-analyze-btn, .ai-log-save-btn {
+  width: 100%;
+  padding: 14px;
+  border: none;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #6366f1, #4f46e5);
+  color: white;
+  font-weight: 600;
+  font-size: 1rem;
+  cursor: pointer;
+  margin-top: 8px;
+}
+
+.ai-log-analyze-btn:disabled, .ai-log-save-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.ai-log-draft {
+  margin-top: 20px;
+  padding: 16px;
+  border-radius: 12px;
+  background: rgba(99, 102, 241, 0.06);
+}
+
+.draft-section {
+  margin-bottom: 14px;
+}
+
+.draft-section h5 {
+  margin: 0 0 6px;
+}
+
+.draft-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px;
+  background: rgba(255,255,255,0.6);
+  border-radius: 8px;
+  margin-bottom: 6px;
+  font-size: 0.9rem;
+}
+
+.draft-item button {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.ai-log-empty-draft {
+  opacity: 0.7;
+  font-size: 0.9rem;
+}
+
+.draft-item-total {
+  justify-content: flex-start;
+  background: rgba(99, 102, 241, 0.1);
+}
+
+.ai-log-refine {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px dashed rgba(0,0,0,0.15);
+}
+
+.ai-log-refine label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.ai-log-refine-textarea {
+  width: 100%;
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(0,0,0,0.15);
+  font-size: 0.9rem;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.ai-log-refine-btn {
+  width: 100%;
+  padding: 10px;
+  margin-top: 8px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(99, 102, 241, 0.15);
+  color: #4f46e5;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ai-log-refine-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.draft-item-workout {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.draft-workout-summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.draft-exercise-list {
+  list-style: none;
+  padding: 0;
+  margin: 6px 0 0;
+}
+
+.draft-exercise-list li {
+  padding: 4px 0;
+  font-size: 0.85rem;
+  border-top: 1px solid rgba(0,0,0,0.06);
+}
+
+.draft-coach-note {
+  opacity: 0.75;
+  font-size: 0.8rem;
+  margin-top: 2px;
+}
+
+/* Tablet / mobil */
+@media (max-width: 768px) {
+  .ai-daily-log {
+    padding: 12px;
+  }
+
+  .ai-log-image-preview img {
+    max-width: 160px;
+  }
+}
+
+/* Küçük telefon */
+@media (max-width: 480px) {
+  .ai-log-date {
+    flex-wrap: wrap;
+  }
+
+  .draft-item {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .draft-workout-summary {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  /* Dokunma hedefleri en az 40x40px olsun (küçük 🗑️ butonları) */
+  .draft-item button,
+  .draft-workout-summary button {
+    min-width: 40px;
+    min-height: 40px;
+    font-size: 1.1rem;
+  }
+
+  .ai-log-analyze-btn,
+  .ai-log-save-btn {
+    padding: 16px;
+    font-size: 1.05rem;
+  }
+
+  .ai-log-image-upload {
+    display: block;
+    text-align: center;
+    padding: 14px;
+  }
+}

@@ -93,7 +93,7 @@ function ProfileOnboarding({ isOpen, onComplete, onSkip }) {
     <div className="onboarding-progress">
       <div className="progress-bar">
         <div
-          className="progress-fill"
+          className="profile-onboarding-progress-fill"
           style={{ width: `${((currentStep + 1) / TOTAL_STEPS) * 100}%` }}
         />
       </div>
@@ -125,7 +125,7 @@ function ProfileOnboarding({ isOpen, onComplete, onSkip }) {
       <h2>Kendini Tanıtalım</h2>
       <p className="step-description">Bu bilgiler programınızı kişiselleştirmemize yardımcı olacak.</p>
 
-      <div className="form-group">
+      <div className="profile-onboarding-form-group">
         <label>İsminiz</label>
         <input
           type="text"
@@ -138,7 +138,7 @@ function ProfileOnboarding({ isOpen, onComplete, onSkip }) {
       </div>
 
       <div className="form-row">
-        <div className="form-group">
+        <div className="profile-onboarding-form-group">
           <label>Yaş</label>
           <input
             type="number"
@@ -152,7 +152,7 @@ function ProfileOnboarding({ isOpen, onComplete, onSkip }) {
           {errors.age && <span className="error-text">{errors.age}</span>}
         </div>
 
-        <div className="form-group">
+        <div className="profile-onboarding-form-group">
           <label>Cinsiyet</label>
           <select
             value={formData.gender}
@@ -166,7 +166,7 @@ function ProfileOnboarding({ isOpen, onComplete, onSkip }) {
       </div>
 
       <div className="form-row">
-        <div className="form-group">
+        <div className="profile-onboarding-form-group">
           <label>Kilo (kg)</label>
           <input
             type="number"
@@ -180,7 +180,7 @@ function ProfileOnboarding({ isOpen, onComplete, onSkip }) {
           {errors.weight && <span className="error-text">{errors.weight}</span>}
         </div>
 
-        <div className="form-group">
+        <div className="profile-onboarding-form-group">
           <label>Boy (cm)</label>
           <input
             type="number"
@@ -282,7 +282,7 @@ function ProfileOnboarding({ isOpen, onComplete, onSkip }) {
         </button>
       </div>
 
-      <div className="form-group" style={{ marginTop: '32px' }}>
+      <div className="profile-onboarding-form-group" style={{ marginTop: '32px' }}>
         <label>Günlük Ne Kadar Süre Ayırabilirsiniz?</label>
         <p className="slider-description" style={{ fontSize: '0.9rem', color: 'var(--color-text-muted)', marginBottom: '16px' }}>
           Hızlı seçim için tıklayın veya kaydırıcıyı kullanın (10-90 dakika)
@@ -439,15 +439,15 @@ function ProfileOnboarding({ isOpen, onComplete, onSkip }) {
   };
 
   return (
-    <div className="onboarding-overlay">
-      <div className="onboarding-modal">
+    <div className="profile-onboarding-overlay">
+      <div className="profile-onboarding-modal">
         {currentStep !== STEPS.WELCOME && renderProgress()}
 
         <div className="onboarding-content">
           {renderStep()}
         </div>
 
-        <div className="onboarding-actions">
+        <div className="profile-onboarding-actions">
           {currentStep === STEPS.WELCOME ? (
             <>
               <button className="btn-secondary" onClick={handleSkip}>

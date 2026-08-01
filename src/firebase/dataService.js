@@ -268,6 +268,134 @@ export const getDailyCalories = async (userId, date) => {
   }
 };
 
+/**
+ * Günlük su takibini kaydet (tüm kayıtlar tek dokümanda, WaterTracker'ın localStorage yapısıyla birebir aynı)
+ */
+export const saveWaterTracker = async (userId, entries, dailyGoal) => {
+  try {
+    await setDoc(doc(db, 'waterTracking', userId), {
+      entries,
+      dailyGoal,
+      updatedAt: new Date().toISOString()
+    });
+    return { success: true };
+  } catch (error) {
+    console.error('Water tracker save error:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Su takibini al
+ */
+export const getWaterTracker = async (userId) => {
+  try {
+    const docRef = doc(db, 'waterTracking', userId);
+    const docSnap = await getDoc(docRef);
+
+    if (docSnap.exists()) {
+      return { success: true, data: docSnap.data() };
+    } else {
+      return { success: false, error: 'Su takibi bulunamadı' };
+    }
+  } catch (error) {
+    console.error('Water tracker fetch error:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Günlük log kaydet (uyku, takviyeler, antrenman özeti, serbest not)
+ * Var olan alanları korur, sadece gönderilenleri günceller
+ */
+export const saveDailyLog = async (userId, date, fields) => {
+  try {
+    await setDoc(doc(db, 'dailyLogs', `${userId}_${date}`), {
+      userId,
+      date,
+      ...fields,
+      updatedAt: new Date().toISOString()
+    }, { merge: true });
+    return { success: true };
+  } catch (error) {
+    console.error('Daily log save error:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Günlük logu al
+ */
+export const getDailyLog = async (userId, date) => {
+  try {
+    const docRef = doc(db, 'dailyLogs', `${userId}_${date}`);
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists()) {
+      return { success: true, data: docSnap.data() };
+    }
+    return { success: false, error: 'Günlük log bulunamadı' };
+  } catch (error) {
+    console.error('Daily log fetch error:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Birden fazla günün loglarını/kalori kayıtlarını tek seferde al (trend ekranı için)
+ */
+export const getDailyLogsRange = async (userId, dates) => {
+  const results = await Promise.all(
+    dates.map((date) => getDoc(doc(db, 'dailyLogs', `${userId}_${date}`)))
+  );
+  const data = {};
+  results.forEach((snap, i) => {
+    if (snap.exists()) data[dates[i]] = snap.data();
+  });
+  return data;
+};
+
+export const getCalorieTrackingRange = async (userId, dates) => {
+  const results = await Promise.all(
+    dates.map((date) => getDoc(doc(db, 'calorieTracking', `${userId}_${date}`)))
+  );
+  const data = {};
+  results.forEach((snap, i) => {
+    if (snap.exists()) data[dates[i]] = snap.data();
+  });
+  return data;
+};
+
+/**
+ * Kilo takibini kaydet (tüm kayıtlar tek dokümanda, WeightTracker'ın localStorage yapısıyla birebir aynı)
+ */
+export const saveWeightTracker = async (userId, entries, targetWeight) => {
+  try {
+    await setDoc(doc(db, 'weightTracking', userId), {
+      entries,
+      targetWeight: targetWeight || null,
+      updatedAt: new Date().toISOString()
+    });
+    return { success: true };
+  } catch (error) {
+    console.error('Weight tracker save error:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+export const getWeightTracker = async (userId) => {
+  try {
+    const docRef = doc(db, 'weightTracking', userId);
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists()) {
+      return { success: true, data: docSnap.data() };
+    }
+    return { success: false, error: 'Kilo takibi bulunamadı' };
+  } catch (error) {
+    console.error('Weight tracker fetch error:', error);
+    return { success: false, error: error.message };
+  }
+};
+
 export default {
   saveUserProfile,
   getUserProfile,
@@ -282,5 +410,13 @@ export default {
   saveNutritionPlan,
   getNutritionPlan,
   saveDailyCalories,
-  getDailyCalories
+  getDailyCalories,
+  saveWaterTracker,
+  getWaterTracker,
+  saveWeightTracker,
+  getWeightTracker,
+  saveDailyLog,
+  getDailyLog,
+  getDailyLogsRange,
+  getCalorieTrackingRange
 };

@@ -169,7 +169,7 @@ function VideoManager({ onSave }) {
               </ol>
             </div>
 
-            <div className="form-group">
+            <div className="video-manager-form-group">
               <label>YouTube Video URL</label>
               <input
                 type="text"
@@ -208,7 +208,7 @@ function VideoManager({ onSave }) {
                 İptal
               </button>
               <button
-                className="btn-save"
+                className="video-manager-btn-save"
                 onClick={handleSaveVideo}
                 disabled={!videoUrl}
               >

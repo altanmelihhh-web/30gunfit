@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './CalorieTracker.css';
+import { saveDailyCalories, getDailyCalories } from '../firebase/dataService';
 
 /**
  * CalorieTracker - Günlük kalori ve makro takibi
@@ -9,7 +10,7 @@ import './CalorieTracker.css';
  * - Geçmiş gün görüntüleme
  */
 
-const CalorieTracker = ({ targetCalories, targetMacros, onDataChange }) => {
+const CalorieTracker = ({ targetCalories, targetMacros, onDataChange, user }) => {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [meals, setMeals] = useState([]);
   const [isAddingMeal, setIsAddingMeal] = useState(false);
@@ -30,45 +31,59 @@ const CalorieTracker = ({ targetCalories, targetMacros, onDataChange }) => {
     snack: { label: 'Atıştırmalık', icon: '🍎' }
   };
 
-  // localStorage'dan günlük verileri yükle
+  // Hangi tarihin verisi şu an meals state'inde yüklü - save effect'in yanlış tarihe yazmasını önler
+  const loadedDateRef = useRef(null);
+
+  // Günlük verileri yükle - giriş yapmışsa Firestore, yoksa localStorage
   useEffect(() => {
-    const loadMeals = () => {
-      const allTrackerData = JSON.parse(localStorage.getItem('calorie_tracker') || '{}');
-      const todayMeals = allTrackerData[selectedDate] || [];
-      console.log('📥 CalorieTracker MOUNT - Tarih:', selectedDate);
-      console.log('📥 localStorage içeriği:', allTrackerData);
-      console.log('📥 Bu tarih için meal sayısı:', todayMeals.length);
-      if (todayMeals.length > 0) {
-        console.log('📥 İlk meal:', todayMeals[0]);
+    const loadMeals = async () => {
+      if (user) {
+        const result = await getDailyCalories(user.uid, selectedDate);
+        const cloudMeals = result.success ? (result.data.meals || []) : [];
+        setMeals(cloudMeals);
+        loadedDateRef.current = selectedDate;
+        // localStorage'ı da güncelle (offline yedek)
+        const allTrackerData = JSON.parse(localStorage.getItem('calorie_tracker') || '{}');
+        allTrackerData[selectedDate] = cloudMeals;
+        localStorage.setItem('calorie_tracker', JSON.stringify(allTrackerData));
+        return;
       }
-      setMeals(todayMeals);
+
+      const allTrackerData = JSON.parse(localStorage.getItem('calorie_tracker') || '{}');
+      setMeals(allTrackerData[selectedDate] || []);
+      loadedDateRef.current = selectedDate;
     };
     loadMeals();
-  }, [selectedDate]);
+  }, [selectedDate, user]);
 
-  // Veri değiştiğinde localStorage'a kaydet (ilk render'ı atla)
+  // Veri değiştiğinde kaydet (ilk render'ı ve tarih henüz yüklenmemişken tetiklenmeyi atla)
   const isFirstRender = useRef(true);
   useEffect(() => {
     if (isFirstRender.current) {
       isFirstRender.current = false;
-      console.log('⏭️ İlk render - localStorage yazma atlandı');
-      return; // İlk render'da localStorage'a yazma
+      return; // İlk render'da yazma
+    }
+    // selectedDate değişti ama bu tarihin verisi henüz yüklenmedi - eski günün meals'ini yeni tarihe yazma
+    if (loadedDateRef.current !== selectedDate) {
+      return;
     }
 
-    console.log('💾 CalorieTracker SAVE - Meal sayısı:', meals.length, 'Tarih:', selectedDate);
-    if (meals.length > 0) {
-      console.log('💾 Kaydedilecek ilk meal:', meals[0]);
-    }
     const allTrackerData = JSON.parse(localStorage.getItem('calorie_tracker') || '{}');
     allTrackerData[selectedDate] = meals;
     localStorage.setItem('calorie_tracker', JSON.stringify(allTrackerData));
-    console.log('💾 localStorage güncellendi');
+
+    // Giriş yapmışsa Firestore'a da kaydet - cihaz bağımsız kalıcı kayıt
+    if (user) {
+      saveDailyCalories(user.uid, selectedDate, meals).catch(error =>
+        console.error('Kalori Firestore kayıt hatası:', error)
+      );
+    }
 
     // Parent component'e bildir
     if (onDataChange) {
       onDataChange(meals);
     }
-  }, [meals, selectedDate, onDataChange]);
+  }, [meals, selectedDate, onDataChange, user]);
 
   // Günlük toplamları hesapla
   const calculateTotals = () => {
@@ -209,7 +224,7 @@ const CalorieTracker = ({ targetCalories, targetMacros, onDataChange }) => {
             </div>
             <div className="progress-bar">
               <div
-                className="progress-fill"
+                className="calorie-tracker-progress-fill"
                 style={{
                   width: `${getProgressPercentage(totals.calories, targetCalories)}%`,
                   background: totals.calories > targetCalories ?
@@ -302,7 +317,7 @@ const CalorieTracker = ({ targetCalories, targetMacros, onDataChange }) => {
           <h4>Yeni Yemek Ekle</h4>
 
           <div className="form-row">
-            <div className="form-group">
+            <div className="calorie-tracker-form-group">
               <label>Yemek Adı *</label>
               <input
                 type="text"
@@ -312,7 +327,7 @@ const CalorieTracker = ({ targetCalories, targetMacros, onDataChange }) => {
               />
             </div>
 
-            <div className="form-group">
+            <div className="calorie-tracker-form-group">
               <label>Öğün Tipi</label>
               <select
                 value={newMeal.mealType}
@@ -328,7 +343,7 @@ const CalorieTracker = ({ targetCalories, targetMacros, onDataChange }) => {
           </div>
 
           <div className="form-row">
-            <div className="form-group">
+            <div className="calorie-tracker-form-group">
               <label>Kalori (kcal) *</label>
               <input
                 type="number"
@@ -338,7 +353,7 @@ const CalorieTracker = ({ targetCalories, targetMacros, onDataChange }) => {
               />
             </div>
 
-            <div className="form-group">
+            <div className="calorie-tracker-form-group">
               <label>Porsiyon</label>
               <input
                 type="text"
@@ -350,7 +365,7 @@ const CalorieTracker = ({ targetCalories, targetMacros, onDataChange }) => {
           </div>
 
           <div className="form-row">
-            <div className="form-group">
+            <div className="calorie-tracker-form-group">
               <label>Protein (g)</label>
               <input
                 type="number"
@@ -360,7 +375,7 @@ const CalorieTracker = ({ targetCalories, targetMacros, onDataChange }) => {
               />
             </div>
 
-            <div className="form-group">
+            <div className="calorie-tracker-form-group">
               <label>Karbonhidrat (g)</label>
               <input
                 type="number"
@@ -370,7 +385,7 @@ const CalorieTracker = ({ targetCalories, targetMacros, onDataChange }) => {
               />
             </div>
 
-            <div className="form-group">
+            <div className="calorie-tracker-form-group">
               <label>Yağ (g)</label>
               <input
                 type="number"

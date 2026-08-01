@@ -279,7 +279,7 @@ const ProgressPhotos = () => {
       {/* Fotoğraf galerisi */}
       <div className="photos-gallery">
         {photos.length === 0 ? (
-          <div className="empty-state">
+          <div className="progress-photos-empty-state">
             <span className="empty-icon">📸</span>
             <h3>Henüz fotoğraf eklenmemiş</h3>
             <p>İlerlemenizi takip etmek için fotoğraf eklemeye başlayın</p>

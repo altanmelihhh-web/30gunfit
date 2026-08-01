@@ -471,7 +471,7 @@ const ShoppingList = () => {
           </div>
         </>
       ) : (
-        <div className="empty-state">
+        <div className="shopping-list-empty-state">
           <div className="empty-icon">📝</div>
           <h3>Liste Boş</h3>
           <p>Diyetisyenin verdiği haftalık malzeme listesini buraya ekleyin</p>

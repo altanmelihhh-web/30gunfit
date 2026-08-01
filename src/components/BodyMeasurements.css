@@ -95,13 +95,13 @@
   gap: 16px;
 }
 
-.form-group {
+.body-measurements-form-group {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
-.form-group label {
+.body-measurements-form-group label {
   font-size: 0.85rem;
   font-weight: 600;
   color: var(--color-text-secondary);
@@ -139,7 +139,7 @@
   pointer-events: none;
 }
 
-.form-group textarea {
+.body-measurements-form-group textarea {
   padding: 12px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
@@ -151,13 +151,13 @@
   transition: border-color var(--transition-base), box-shadow var(--transition-base);
 }
 
-.form-group textarea:focus {
+.body-measurements-form-group textarea:focus {
   outline: none;
   border-color: #6366f1;
   box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
 }
 
-.btn-save {
+.body-measurements-btn-save {
   padding: 12px 24px;
   background: var(--gradient-success);
   color: white;
@@ -170,7 +170,7 @@
   align-self: flex-end;
 }
 
-.btn-save:hover {
+.body-measurements-btn-save:hover {
   transform: translateY(-2px);
   box-shadow: 0 8px 20px rgba(34, 197, 94, 0.3);
 }
@@ -250,7 +250,7 @@
   color: var(--color-text-primary);
 }
 
-.empty-state {
+.body-measurements-empty-state {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -267,7 +267,7 @@
   opacity: 0.5;
 }
 
-.empty-state p {
+.body-measurements-empty-state p {
   margin: 0;
   color: var(--color-text-muted);
   font-size: 0.95rem;
