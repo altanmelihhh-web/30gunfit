@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import './TrendView.css';
 import { getCalorieTrackingRange, getDailyLogsRange, getWaterTracker, saveWaterTracker, saveDailyLog, getDailyLog, getNutritionGoals, saveNutritionGoals, getUserProfile } from '../firebase/dataService';
-import { computeBMR, dayBurned, dayDeficit, avgDeficit as avgDeficitFn } from '../utils/calorieMath';
+import { computeBMR, dayBurned, dayDeficit, getBMRProfileIssue, avgDeficit as avgDeficitFn } from '../utils/calorieMath';
 import {
   saveSleep, deleteSleep, saveVitals, deleteVitals,
   addSupplement, updateSupplement, deleteSupplement,
@@ -74,6 +74,28 @@ const formatShort = (dateStr) => {
   return d.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' });
 };
 
+const activityTotals = (day) => {
+  const vitals = day.vitals || {};
+  const workoutDuration = day.workouts.reduce((s, w) => s + (parseFloat(w.duration_min) || 0), 0);
+  const workoutCalories = day.workouts.reduce((s, w) => s + (parseFloat(w.calories) || 0), 0);
+  const workoutDistance = day.workouts.reduce((s, w) => s + (parseFloat(w.distance_km) || 0), 0);
+  return {
+    steps: parseFloat(vitals.steps) || null,
+    activeCalories: parseFloat(vitals.active_calories) || workoutCalories || null,
+    durationMin: parseFloat(vitals.exercise_minutes) || workoutDuration || null,
+    distanceKm: parseFloat(vitals.distance_km) || workoutDistance || null
+  };
+};
+
+const activitySummary = (activity) => {
+  const parts = [];
+  if (activity.activeCalories) parts.push(`${Math.round(activity.activeCalories)} kcal`);
+  if (activity.durationMin) parts.push(`${Math.round(activity.durationMin)} dk`);
+  if (activity.distanceKm) parts.push(`${activity.distanceKm} km`);
+  if (activity.steps) parts.push(`${Math.round(activity.steps)} adım`);
+  return parts.join(' · ');
+};
+
 const TrendView = ({ user }) => {
   const [rangeKey, setRangeKey] = useState('week');
   const [anchorDate, setAnchorDate] = useState(new Date().toISOString().split('T')[0]);
@@ -95,13 +117,35 @@ const TrendView = ({ user }) => {
   const [recentMeals, setRecentMeals] = useState([]);
   const [goals, setGoals] = useState(null); // {calories, protein, carbs, fats, water}
   const [bmr, setBmr] = useState(null); // profil BMR'si (gerçek kalori açığı için)
+  const [bmrIssue, setBmrIssue] = useState(null);
 
   // Profil → BMR (kalori açığı hesabı için)
   useEffect(() => {
     if (!user) return;
     getUserProfile(user.uid).then((res) => {
-      if (res?.success && res.data) setBmr(computeBMR(res.data));
-    }).catch(() => {});
+      if (res?.success && res.data) {
+        setBmr(computeBMR(res.data));
+        setBmrIssue(getBMRProfileIssue(res.data));
+        return;
+      }
+      try {
+        const savedProfile = JSON.parse(localStorage.getItem('userProfile') || 'null');
+        setBmr(computeBMR(savedProfile));
+        setBmrIssue(getBMRProfileIssue(savedProfile));
+      } catch {
+        setBmr(null);
+        setBmrIssue('Profil okunamadı.');
+      }
+    }).catch(() => {
+      try {
+        const savedProfile = JSON.parse(localStorage.getItem('userProfile') || 'null');
+        setBmr(computeBMR(savedProfile));
+        setBmrIssue(getBMRProfileIssue(savedProfile));
+      } catch {
+        setBmr(null);
+        setBmrIssue('Profil okunamadı.');
+      }
+    });
   }, [user]);
 
   // SABİT hedefleri yükle: önce Firestore, yoksa localStorage, yoksa Hesaplayıcı planından türet
@@ -216,36 +260,29 @@ const TrendView = ({ user }) => {
   const avgSleep = sleepDays.length
     ? (sleepDays.reduce((s, d) => s + d.sleepHours, 0) / sleepDays.length).toFixed(1)
     : null;
-  const stepsDays = dailyTotals.filter((d) => d.vitals?.steps);
+  const activityDays = dailyTotals
+    .map((d) => ({ ...d, activity: activityTotals(d) }))
+    .filter((d) => d.activity.steps || d.activity.activeCalories || d.activity.durationMin || d.activity.distanceKm);
+  const stepsDays = activityDays.filter((d) => d.activity.steps);
   const avgSteps = stepsDays.length
-    ? Math.round(stepsDays.reduce((s, d) => s + (d.vitals.steps || 0), 0) / stepsDays.length)
+    ? Math.round(stepsDays.reduce((s, d) => s + (d.activity.steps || 0), 0) / stepsDays.length)
     : null;
-  // Antrenman süresi ortalaması - antrenman yapılan günler üzerinden (seanslardaki dk toplamı)
-  const workoutMinByDay = dailyTotals.map((d) =>
-    d.workouts.reduce((s, w) => s + (parseFloat(w.duration_min) || 0), 0)
-  );
-  const workoutDaysMin = workoutMinByDay.filter((m) => m > 0);
-  const avgWorkoutMin = workoutDaysMin.length
-    ? Math.round(workoutDaysMin.reduce((s, m) => s + m, 0) / workoutDaysMin.length)
+  const activityDaysMin = activityDays.map((d) => d.activity.durationMin).filter((m) => m > 0);
+  const avgWorkoutMin = activityDaysMin.length
+    ? Math.round(activityDaysMin.reduce((s, m) => s + m, 0) / activityDaysMin.length)
     : null;
-  // Aktif kalori ortalaması - vitals verisi olan günler üzerinden
-  const activeCalDays = dailyTotals.filter((d) => d.vitals?.active_calories);
+  // Aktif kalori ortalaması - Apple Watch varsa vitals, yoksa eski workout kalorisi.
+  const activeCalDays = activityDays.filter((d) => d.activity.activeCalories);
   const avgActiveCal = activeCalDays.length
-    ? Math.round(activeCalDays.reduce((s, d) => s + (d.vitals.active_calories || 0), 0) / activeCalDays.length)
+    ? Math.round(activeCalDays.reduce((s, d) => s + (d.activity.activeCalories || 0), 0) / activeCalDays.length)
     : null;
-  // Gerçek kalori açığı ortalaması: (BMR + aktif) − alınan, sadece öğün girilen günler
+  // Bilimsel kalori açığı: toplam harcama (BMR + aktif) - alınan, sadece öğün girilen günler
   const calorieDays = dailyTotals.filter((d) => d.calories > 0);
   const avgRealDeficit = avgDeficitFn(
     bmr,
-    calorieDays.map((d) => ({ consumed: d.calories, activeCalories: d.vitals?.active_calories }))
+    calorieDays.map((d) => ({ consumed: d.calories, activeCalories: activityTotals(d).activeCalories }))
   );
-  // BMR yoksa hedef-bazlı yedek (hedef − alınan) — kart hep görünsün
-  const avgGoalDeficit = (goals?.calories && calorieDays.length)
-    ? Math.round(goals.calories - (calorieDays.reduce((s, d) => s + d.calories, 0) / calorieDays.length))
-    : null;
-  const avgShownDeficit = avgRealDeficit != null ? avgRealDeficit : avgGoalDeficit;
-  const deficitIsReal = avgRealDeficit != null;
-  // Ort. yakılan (toplam): BMR + ort. aktif kalori
+  // Ort. harcama (toplam): BMR + ort. aktif kalori
   const avgBurned = bmr != null ? Math.round(bmr + (avgActiveCal || 0)) : null;
   const maxCalories = Math.max(...dailyTotals.map((d) => d.calories), 1);
   const maxWater = Math.max(...dailyTotals.map((d) => d.water), 1);
@@ -268,8 +305,8 @@ const TrendView = ({ user }) => {
       if (d.calories) lines.push(`  Kalori: ${Math.round(d.calories)} kcal, Protein: ${Math.round(d.protein)}g, Karbonhidrat: ${Math.round(d.carbs)}g, Yağ: ${Math.round(d.fats)}g`);
       if (d.water) lines.push(`  Su: ${d.water} ml`);
       if (d.sleepHours) lines.push(`  Uyku: ${d.sleepHours} saat${d.sleepScore ? `, Skor: ${d.sleepScore}` : ''}`);
-      d.workouts.forEach((w) => lines.push(`  ${WORKOUT_TYPE_LABELS[w.type] || 'Antrenman'}: ${workoutSummary(w)}`));
-      if (d.vitals && vitalsSummary(d.vitals)) lines.push(`  Apple Watch: ${vitalsSummary(d.vitals)}`);
+      const activity = activityTotals(d);
+      if (activitySummary(activity)) lines.push(`  Aktivite: ${activitySummary(activity)}`);
       if (d.supplements.length) lines.push(`  Takviyeler: ${d.supplements.map((s) => s.name).join(', ')}`);
       if (d.notes) lines.push(`  Not: ${d.notes}`);
       lines.push('');
@@ -760,18 +797,25 @@ const TrendView = ({ user }) => {
               <span className="trend-card-value">{avgCalories}</span>
               <span className="trend-card-label">Ort. Kalori</span>
             </div>
-            {avgShownDeficit != null && (
-              <div className="trend-card" title={deficitIsReal ? '(BMR + aktif kalori) − alınan' : 'hedef − alınan (BMR için profilini doldur)'}>
-                <span className="trend-card-icon">{avgShownDeficit >= 0 ? '📉' : '📈'}</span>
-                <span className="trend-card-value" style={{ color: avgShownDeficit >= 0 ? '#16a34a' : '#dc2626' }}>{Math.abs(avgShownDeficit)}</span>
-                <span className="trend-card-label">Ort. Kalori {avgShownDeficit >= 0 ? 'Açığı' : 'Fazlası'}{deficitIsReal ? '' : '*'}</span>
+            {avgRealDeficit != null && (
+              <div className="trend-card" title="(BMR + aktif kalori) - alınan kalori">
+                <span className="trend-card-icon">{avgRealDeficit >= 0 ? '📉' : '📈'}</span>
+                <span className="trend-card-value" style={{ color: avgRealDeficit >= 0 ? '#16a34a' : '#dc2626' }}>{Math.abs(avgRealDeficit)}</span>
+                <span className="trend-card-label">Ort. Kalori {avgRealDeficit >= 0 ? 'Açığı' : 'Fazlası'}</span>
+              </div>
+            )}
+            {avgRealDeficit == null && calorieDays.length > 0 && (
+              <div className="trend-card" title={bmrIssue || 'Kalori açığı için geçerli profil bilgisi gerekir'}>
+                <span className="trend-card-icon">⚠️</span>
+                <span className="trend-card-value">BMR</span>
+                <span className="trend-card-label">Profil Değeri Geçersiz</span>
               </div>
             )}
             {avgBurned != null && (
               <div className="trend-card">
                 <span className="trend-card-icon">🔥</span>
                 <span className="trend-card-value">{avgBurned}</span>
-                <span className="trend-card-label">Ort. Yakılan (BMR+aktif)</span>
+                <span className="trend-card-label">Ort. Harcama (BMR+aktif)</span>
               </div>
             )}
             <div className="trend-card">
@@ -792,7 +836,7 @@ const TrendView = ({ user }) => {
             <div className="trend-card">
               <span className="trend-card-icon">🏋️</span>
               <span className="trend-card-value">{avgWorkoutMin || '-'}</span>
-              <span className="trend-card-label">Ort. Antrenman (dk)</span>
+              <span className="trend-card-label">Ort. Aktivite (dk)</span>
             </div>
             <div className="trend-card">
               <span className="trend-card-icon">⚡</span>
@@ -975,87 +1019,37 @@ const TrendView = ({ user }) => {
                 )}
               </div>
 
-              {/* Antrenman - seansın kendisi (tür, hareket, süre). Aktif kalori burada DEĞİL,
-                  günün geneline ait olduğu için Apple Watch bölümünde tutulur. */}
+              {/* Aktivite - Apple Watch varsa o esas alınır; eski workout alanları sadece yedek veridir. */}
               <div className="trend-day-section">
-                <h5>🏋️ Antrenman</h5>
-                {dailyTotals[0].workouts.map((w, i) => (
-                  editingSection === `workout-${i}` ? (
-                    <div key={i} className="trend-edit-form">
-                      <select value={editForm.type} onChange={(e) => setEditForm({ ...editForm, type: e.target.value })}>
-                        <option value="strength">Kuvvet</option>
-                        <option value="cardio">Kardiyo</option>
-                        <option value="walk">Yürüyüş</option>
-                        <option value="other">Aktivite</option>
-                      </select>
-                      <input type="text" placeholder="Antrenman adı (örn: Full Body)" value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} />
-                      <div className="trend-edit-grid">
-                        <input type="number" placeholder="Süre (dk)" value={editForm.duration_min} onChange={(e) => setEditForm({ ...editForm, duration_min: e.target.value })} />
-                        <input type="number" step="0.1" placeholder="Mesafe (km, kardiyo için)" value={editForm.distance_km} onChange={(e) => setEditForm({ ...editForm, distance_km: e.target.value })} />
-                      </div>
-                      <div className="trend-edit-actions">
-                        <button onClick={() => saveWorkoutEdit(i)} disabled={isSavingEdit}>Kaydet</button>
-                        <button onClick={closeEdit}>İptal</button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div key={i} className="trend-day-item">
-                      <span>{WORKOUT_TYPE_LABELS[w.type] || w.type}: {workoutSummary(w)}</span>
-                      <div className="trend-day-item-actions">
-                        <button onClick={() => startEditWorkout(i, w)} title="Düzenle">✏️</button>
-                        <button onClick={() => handleDeleteWorkoutEntry(i)} title="Sil">🗑️</button>
-                      </div>
-                    </div>
-                  )
-                ))}
-                {editingSection === 'workout-new' ? (
-                  <div className="trend-edit-form">
-                    <select value={editForm.type} onChange={(e) => setEditForm({ ...editForm, type: e.target.value })}>
-                      <option value="strength">Kuvvet</option>
-                      <option value="cardio">Kardiyo</option>
-                      <option value="walk">Yürüyüş</option>
-                      <option value="other">Aktivite</option>
-                    </select>
-                    <input type="text" placeholder="Antrenman adı (örn: Full Body)" value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} />
-                    <div className="trend-edit-grid">
-                      <input type="number" placeholder="Süre (dk)" value={editForm.duration_min} onChange={(e) => setEditForm({ ...editForm, duration_min: e.target.value })} />
-                      <input type="number" step="0.1" placeholder="Mesafe (km, kardiyo için)" value={editForm.distance_km} onChange={(e) => setEditForm({ ...editForm, distance_km: e.target.value })} />
-                    </div>
-                    <div className="trend-edit-actions">
-                      <button onClick={() => saveWorkoutEdit(null)} disabled={isSavingEdit}>Kaydet</button>
-                      <button onClick={closeEdit}>İptal</button>
-                    </div>
-                  </div>
-                ) : (
-                  <button className="trend-add-btn" onClick={startAddWorkout}>➕ Antrenman Ekle</button>
-                )}
-              </div>
-
-              {/* Apple Watch - günün geneli: adım, aktif kalori, egzersiz dk, mesafe */}
-              <div className="trend-day-section">
-                <h5>⌚ Apple Watch / Aktivite</h5>
+                <h5>⌚ Aktivite</h5>
                 {editingSection === 'vitals' ? (
                   <div className="trend-edit-form">
                     <div className="trend-edit-grid">
-                      <input type="number" placeholder="Adım" value={editForm.steps} onChange={(e) => setEditForm({ ...editForm, steps: e.target.value })} />
                       <input type="number" placeholder="Aktif kalori" value={editForm.active_calories} onChange={(e) => setEditForm({ ...editForm, active_calories: e.target.value })} />
                       <input type="number" placeholder="Egzersiz (dk)" value={editForm.exercise_minutes} onChange={(e) => setEditForm({ ...editForm, exercise_minutes: e.target.value })} />
                       <input type="number" step="0.01" placeholder="Mesafe (km)" value={editForm.distance_km} onChange={(e) => setEditForm({ ...editForm, distance_km: e.target.value })} />
+                      <input type="number" placeholder="Adım" value={editForm.steps} onChange={(e) => setEditForm({ ...editForm, steps: e.target.value })} />
                     </div>
                     <div className="trend-edit-actions">
                       <button onClick={saveVitalsEdit} disabled={isSavingEdit}>Kaydet</button>
                       <button onClick={closeEdit}>İptal</button>
                     </div>
                   </div>
-                ) : dailyTotals[0].vitals && vitalsSummary(dailyTotals[0].vitals) ? (
-                  <div className="trend-day-item">
-                    <span>{vitalsSummary(dailyTotals[0].vitals)}</span>
-                    <div className="trend-day-item-actions">
-                      <button onClick={startEditVitals} title="Düzenle">✏️</button>
-                      <button onClick={handleDeleteVitalsEntry} title="Sil">🗑️</button>
+                ) : (() => {
+                  const activity = activityTotals(dailyTotals[0]);
+                  const summary = activitySummary(activity);
+                  return summary ? (
+                    <div className="trend-day-item">
+                      <span>{summary}</span>
+                      <div className="trend-day-item-actions">
+                        <button onClick={startEditVitals} title="Düzenle">✏️</button>
+                        {dailyTotals[0].vitals && (
+                          <button onClick={handleDeleteVitalsEntry} title="Sil">🗑️</button>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ) : (
+                  ) : null;
+                })() || (
                   <button className="trend-add-btn" onClick={startEditVitals}>➕ Aktivite Verisi Ekle</button>
                 )}
               </div>
@@ -1125,19 +1119,19 @@ const TrendView = ({ user }) => {
                   <span>Yağ: <strong>{Math.round(dailyTotals[0].fats)}g</strong>{goals ? ` / ${goals.fats}g` : ''}</span>
                 </div>
                 {bmr != null && dailyTotals[0].calories > 0 && (() => {
-                  const active = dailyTotals[0].vitals?.active_calories || 0;
+                  const active = activityTotals(dailyTotals[0]).activeCalories || 0;
                   const burned = dayBurned(bmr, active);
                   const def = dayDeficit(bmr, active, dailyTotals[0].calories);
                   return (
                     <div className={`trend-day-deficit ${def >= 0 ? 'good' : 'over'}`}>
                       {def >= 0 ? '📉' : '📈'} Bu gün <strong>{Math.abs(def)} kcal {def >= 0 ? 'açık' : 'fazla'}</strong>
-                      <span> (yakılan {burned} = BMR {bmr}{active ? ` + aktif ${Math.round(active)}` : ''} · alınan {Math.round(dailyTotals[0].calories)})</span>
+                      <span> (harcama {burned} = BMR {bmr}{active ? ` + aktif ${Math.round(active)}` : ''} · alınan {Math.round(dailyTotals[0].calories)})</span>
                     </div>
                   );
                 })()}
                 {bmr == null && dailyTotals[0].calories > 0 && (
                   <div className="trend-day-deficit over">
-                    ⚠️ Kalori açığı için profilinde <strong>boy · kilo · yaş · cinsiyet</strong> dolu olmalı (Ayarlar → Profil).
+                    ⚠️ Kalori açığı hesaplanamadı: <strong>{bmrIssue || 'profil değerleri geçersiz.'}</strong>
                   </div>
                 )}
               </div>

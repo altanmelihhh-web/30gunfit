@@ -98,9 +98,10 @@ function ProfileSettings({ profile, onSave }) {
               <input
                 type="number"
                 value={editedProfile.weight || ''}
-                onChange={(e) => handleChange('weight', parseInt(e.target.value))}
+                onChange={(e) => handleChange('weight', parseFloat(e.target.value))}
                 min="30"
                 max="300"
+                step="0.1"
               />
             </div>
 

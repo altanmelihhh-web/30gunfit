@@ -126,18 +126,18 @@ const DailyLogForm = ({ user, nutritionResults, onSaved }) => {
           };
         }
 
-        if (form.spor.name || form.spor.duration_min) {
+        if (form.spor.name) {
           const isCardio = /kardiyo|yürüyüş|yuruyus|koşu|kosu/i.test(form.spor.name);
           const newWorkout = {
             type: isCardio ? 'cardio' : 'strength',
-            duration_min: form.spor.duration_min ? parseFloat(form.spor.duration_min) : null,
+            duration_min: null,
             calories: null,
             exercises: form.spor.name.trim() ? [{ name: form.spor.name.trim(), sets: [] }] : []
           };
           logFields.workouts = [...(existingLog.workouts || []), newWorkout];
         }
 
-        if (form.spor.active_calories || form.spor.steps || form.spor.distance_km) {
+        if (form.spor.duration_min || form.spor.active_calories || form.spor.steps || form.spor.distance_km) {
           logFields.vitals = {
             active_calories: form.spor.active_calories ? parseFloat(form.spor.active_calories) : null,
             steps: form.spor.steps ? parseInt(form.spor.steps, 10) : null,
@@ -251,11 +251,11 @@ const DailyLogForm = ({ user, nutritionResults, onSaved }) => {
         </div>
       ))}
 
-      {/* Spor */}
+      {/* Aktivite */}
       <div className="dlf-section">
-        <h4>🏋️ Spor</h4>
+        <h4>⌚ Aktivite</h4>
         <div className="dlf-field">
-          <label>Antrenman</label>
+          <label>Aktivite / Antrenman</label>
           <input type="text" placeholder="Full Body + Günlük Aktivite" value={form.spor.name} onChange={(e) => setForm({ ...form, spor: { ...form.spor, name: e.target.value } })} />
         </div>
         <div className="dlf-field-grid dlf-field-grid-4">

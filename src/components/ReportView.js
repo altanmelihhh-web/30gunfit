@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import './ReportView.css';
-import { getDailyLogsRange, getCalorieTrackingRange, getWaterTracker, getWeightTracker, getNutritionGoals } from '../firebase/dataService';
+import { getDailyLogsRange, getCalorieTrackingRange, getWaterTracker, getWeightTracker, getNutritionGoals, getUserProfile } from '../firebase/dataService';
 import { analyzeRegions, REGION_LABELS } from '../utils/muscleMap';
 import { workoutStats } from '../utils/hevyParser';
+import { computeBMR, avgDeficit as avgDeficitFn } from '../utils/calorieMath';
 
 /**
  * ReportView - Haftalık/Aylık sağlık raporu.
@@ -35,12 +36,13 @@ const ReportView = ({ user }) => {
     setLoading(true);
     try {
       const dates = dateList(RANGES[rangeKey]);
-      const [logs, calories, water, weight, goalsRes] = await Promise.all([
+      const [logs, calories, water, weight, goalsRes, profileRes] = await Promise.all([
         getDailyLogsRange(user.uid, dates),
         getCalorieTrackingRange(user.uid, dates),
         getWaterTracker(user.uid),
         getWeightTracker(user.uid),
-        getNutritionGoals(user.uid)
+        getNutritionGoals(user.uid),
+        getUserProfile(user.uid)
       ]);
 
       // Beslenme
@@ -108,14 +110,17 @@ const ReportView = ({ user }) => {
       }
 
       const goals = goalsRes.success ? goalsRes.data : null;
+      const bmr = profileRes.success ? computeBMR(profileRes.data) : null;
 
-      // Kalori açığı (hedef − alınan) - sadece öğün girilen günler üzerinden
-      let totalDeficit = null, avgDeficit = null;
-      if (goals?.calories && dayCals.length > 0) {
-        const deficits = dayCals.map((c) => goals.calories - c);
-        totalDeficit = Math.round(deficits.reduce((s, x) => s + x, 0));
-        avgDeficit = Math.round(totalDeficit / dayCals.length);
-      }
+      // Bilimsel kalori açığı: toplam harcama (BMR + aktif kalori) - alınan kalori.
+      const calorieDays = dates.map((d) => {
+        const meals = calories[d]?.meals || [];
+        const consumed = meals.reduce((s, m) => s + (parseFloat(m.calories) || 0), 0);
+        const workoutCalories = (logs[d]?.workouts || []).reduce((s, w) => s + (parseFloat(w.calories) || 0), 0);
+        return { consumed, activeCalories: logs[d]?.vitals?.active_calories || workoutCalories };
+      }).filter((d) => d.consumed > 0);
+      const avgDeficit = avgDeficitFn(bmr, calorieDays);
+      const totalDeficit = avgDeficit != null ? Math.round(avgDeficit * calorieDays.length) : null;
 
       setData({
         dates,

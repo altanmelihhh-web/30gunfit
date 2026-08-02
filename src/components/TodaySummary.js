@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import './TodaySummary.css';
-import { getDailyCalories, getDailyLog, getWaterTracker } from '../firebase/dataService';
+import { getDailyCalories, getDailyLog, getWaterTracker, getNutritionGoals, getUserProfile } from '../firebase/dataService';
+import { computeBMR, dayDeficit, getBMRProfileIssue } from '../utils/calorieMath';
 
 /**
  * TodaySummary - Ana "Bugün" sekmesinin üstündeki günlük özet panosu.
@@ -44,10 +45,12 @@ const TodaySummary = ({ user, refreshKey }) => {
 
   const load = useCallback(async () => {
     if (!user) return;
-    const [cal, log, water] = await Promise.all([
+    const [cal, log, water, goals, profile] = await Promise.all([
       getDailyCalories(user.uid, today),
       getDailyLog(user.uid, today),
-      getWaterTracker(user.uid)
+      getWaterTracker(user.uid),
+      getNutritionGoals(user.uid),
+      getUserProfile(user.uid)
     ]);
 
     const meals = cal.success ? (cal.data.meals || []) : [];
@@ -64,11 +67,31 @@ const TodaySummary = ({ user, refreshKey }) => {
     }
 
     const logData = log.success ? log.data : {};
-    let plan = null;
-    try {
-      const saved = localStorage.getItem('nutrition_plan');
-      if (saved) plan = JSON.parse(saved);
-    } catch { /* yoksay */ }
+    let targetCalories = goals.success ? goals.data?.calories : 0;
+    let targetProtein = goals.success ? goals.data?.protein : 0;
+    if (!targetCalories || !targetProtein) {
+      try {
+        const saved = localStorage.getItem('nutrition_plan');
+        if (saved) {
+          const plan = JSON.parse(saved);
+          targetCalories = targetCalories || plan?.targetCalories || 0;
+          targetProtein = targetProtein || plan?.macros?.protein?.grams || 0;
+        }
+      } catch { /* yoksay */ }
+    }
+    let profileData = profile.success ? profile.data : null;
+    let bmr = computeBMR(profileData);
+    if (bmr == null) {
+      try {
+        const savedProfile = JSON.parse(localStorage.getItem('userProfile') || 'null');
+        profileData = profileData || savedProfile;
+        bmr = computeBMR(savedProfile);
+      } catch { /* yoksay */ }
+    }
+    const bmrIssue = getBMRProfileIssue(profileData);
+    const workoutCalories = (logData.workouts || []).reduce((s, w) => s + (parseFloat(w.calories) || 0), 0);
+    const activeCalories = logData.vitals?.active_calories || workoutCalories || 0;
+    const realDeficit = dayDeficit(bmr, activeCalories, calories);
 
     setData({
       calories, protein, meals: meals.length,
@@ -76,8 +99,12 @@ const TodaySummary = ({ user, refreshKey }) => {
       sleep: logData.sleep || null,
       steps: logData.vitals?.steps || null,
       workouts: logData.workouts || [],
-      targetCalories: plan?.targetCalories || 0,
-      targetProtein: plan?.macros?.protein?.grams || 0
+      targetCalories,
+      targetProtein,
+      bmr,
+      bmrIssue,
+      activeCalories,
+      realDeficit
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, refreshKey]);
@@ -97,24 +124,31 @@ const TodaySummary = ({ user, refreshKey }) => {
         )}
       </div>
 
-      {data.targetCalories > 0 && data.meals > 0 && (() => {
-        const deficit = Math.round(data.targetCalories - data.calories);
-        const isDeficit = deficit >= 0;
+      {data.meals > 0 && data.realDeficit != null && (() => {
+        const isDeficit = data.realDeficit >= 0;
         return (
           <div className={`today-deficit ${isDeficit ? 'good' : 'over'}`}>
             <span className="today-deficit-icon">{isDeficit ? '📉' : '📈'}</span>
             <span className="today-deficit-text">
               {isDeficit
-                ? <>Bugün <strong>{deficit} kcal açık</strong> (hedef {data.targetCalories} · alınan {Math.round(data.calories)})</>
-                : <>Bugün <strong>{Math.abs(deficit)} kcal fazla</strong> (hedef {data.targetCalories} · alınan {Math.round(data.calories)})</>}
+                ? <>Bugün <strong>{Math.abs(data.realDeficit)} kcal açık</strong> (BMR {data.bmr}{data.activeCalories ? ` + aktif ${Math.round(data.activeCalories)}` : ''} · alınan {Math.round(data.calories)})</>
+                : <>Bugün <strong>{Math.abs(data.realDeficit)} kcal fazla</strong> (BMR {data.bmr}{data.activeCalories ? ` + aktif ${Math.round(data.activeCalories)}` : ''} · alınan {Math.round(data.calories)})</>}
             </span>
           </div>
         );
       })()}
+      {data.meals > 0 && data.realDeficit == null && (
+        <div className="today-deficit over">
+          <span className="today-deficit-icon">⚠️</span>
+          <span className="today-deficit-text">
+            Kalori açığı hesaplanamadı: <strong>{data.bmrIssue || 'profil değerleri geçersiz.'}</strong>
+          </span>
+        </div>
+      )}
       <div className="today-stats">
         <StatCard icon="😴" value={data.sleep?.duration_hours ? `${data.sleep.duration_hours} sa` : '—'} label="Uyku" />
         <StatCard icon="👟" value={data.steps ? data.steps.toLocaleString('tr-TR') : '—'} label="Adım" />
-        <StatCard icon="🏋️" value={data.workouts.length > 0 ? '✓' : '—'} label="Antrenman" />
+        <StatCard icon="⌚" value={data.activeCalories ? `${Math.round(data.activeCalories)} kcal` : data.workouts.length > 0 ? '✓' : '—'} label="Aktivite" />
         <StatCard icon="🍽️" value={data.meals} label="Öğün" />
       </div>
     </div>
