@@ -4,7 +4,7 @@
  */
 
 const REGION_KEYWORDS = [
-  ['gogus', ['göğüs', 'gogus', 'chest', 'bench', 'press (makine)', 'chest press', 'chest fly', 'fly', 'push up', 'şınav', 'sinav', 'dips', 'pec']],
+  ['gogus', ['göğüs', 'gogus', 'chest', 'bench', 'chest press', 'chest fly', 'fly', 'push up', 'şınav', 'sinav', 'dips', 'pec']],
   ['sirt', ['sırt', 'sirt', 'row', 'lat', 'pulldown', 'pull up', 'pull-up', 'barfiks', 'deadlift', 'çekiş', 'cekis', 'back']],
   ['bacak', ['bacak', 'leg', 'squat', 'çömelme', 'comelme', 'lunge', 'hamstring', 'quad', 'calf', 'baldır', 'baldir', 'hip', 'kalça', 'kalca', 'glute', 'leg press', 'leg curl', 'leg extension', 'abduction', 'adduction']],
   ['omuz', ['omuz', 'shoulder', 'deltoid', 'lateral raise', 'yan kaldırma', 'front raise', 'overhead', 'ohp', 'arnold']],

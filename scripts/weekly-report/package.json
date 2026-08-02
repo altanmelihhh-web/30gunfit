@@ -1,0 +1,10 @@
+{
+  "name": "30gunfit-weekly-report",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Her Pazar 12:00 (Europe/Istanbul) her kullanıcıya haftalık sağlık raporu e-postası (GitHub Actions cron ile, Blaze gerektirmez).",
+  "dependencies": {
+    "firebase-admin": "^12.6.0"
+  }
+}
