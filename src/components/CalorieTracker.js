@@ -395,13 +395,13 @@ const CalorieTracker = ({ targetCalories, targetMacros, onDataChange, user }) =>
                         🔥 {Math.round(meal.calories)} kcal
                       </div>
                       {meal.protein > 0 && (
-                        <div className="nutrition-badge">P: {Math.round(meal.protein)}g</div>
+                        <div className="nutrition-badge">Protein: {Math.round(meal.protein)}g</div>
                       )}
                       {meal.carbs > 0 && (
-                        <div className="nutrition-badge">C: {Math.round(meal.carbs)}g</div>
+                        <div className="nutrition-badge">Karbonhidrat: {Math.round(meal.carbs)}g</div>
                       )}
                       {meal.fats > 0 && (
-                        <div className="nutrition-badge">F: {Math.round(meal.fats)}g</div>
+                        <div className="nutrition-badge">Yağ: {Math.round(meal.fats)}g</div>
                       )}
                     </div>
 
