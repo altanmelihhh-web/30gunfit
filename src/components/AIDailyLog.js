@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import './AIDailyLog.css';
 import { callGeminiForJSON, fileToBase64Image } from '../utils/geminiClient';
-import { getDailyCalories, saveDailyCalories, getWaterTracker, saveWaterTracker, saveDailyLog } from '../firebase/dataService';
+import { getWaterTracker, saveWaterTracker, saveDailyLog, getDailyLog } from '../firebase/dataService';
+import { addMeals, getMealsSummary } from '../firebase/mealsService';
 import { normalizeImageFile } from '../utils/imageUtils';
 import { uploadMealPhotoToDrive } from '../utils/driveService';
 import GeminiQuotaBadge from './GeminiQuotaBadge';
@@ -242,11 +243,24 @@ const AIDailyLog = ({ user, onSaved, driveAccessToken, onRequestDriveAccess }) =
 
   const handleSave = async () => {
     if (!user || !draft) return;
+
+    // Mükerrer kayıt uyarısı - bu tarihte zaten öğün varsa kullanıcıya sor
+    if (draft.meals && draft.meals.length > 0) {
+      const summary = await getMealsSummary(user.uid, selectedDate);
+      if (summary.count > 0) {
+        const confirmed = window.confirm(
+          `${selectedDate} için zaten ${summary.count} öğün kayıtlı (toplam ${summary.totalCalories} kcal). ` +
+          `Bu ${draft.meals.length} yeni öğünü yine de eklemek istiyor musunuz? (Aynı günü daha önce zaten kaydettiyseniz "İptal"e basıp mevcut kayıtları kontrol edin.)`
+        );
+        if (!confirmed) return;
+      }
+    }
+
     setIsSaving(true);
     setError(null);
 
     try {
-      // Öğünler - o günün mevcut kayıtlarına ekle
+      // Öğünler - mealsService üzerinden GÜNCEL listeye ekle (bayat state üzerine yazmaz)
       if (draft.meals && draft.meals.length > 0) {
         // Fotoğraf eklenmişse Drive'a yükle, meal(lar)a bağla - başarısız olursa öğün kaydı yine de devam etsin
         let driveFileId = null;
@@ -262,11 +276,7 @@ const AIDailyLog = ({ user, onSaved, driveAccessToken, onRequestDriveAccess }) =
           }
         }
 
-        const existing = await getDailyCalories(user.uid, selectedDate);
-        const currentMeals = existing.success ? (existing.data.meals || []) : [];
         const newMeals = draft.meals.map((m) => ({
-          id: Date.now() + Math.random(),
-          timestamp: new Date().toISOString(),
           name: m.food_name,
           calories: m.calories || 0,
           protein: m.protein || 0,
@@ -278,7 +288,7 @@ const AIDailyLog = ({ user, onSaved, driveAccessToken, onRequestDriveAccess }) =
           source: 'AI Günlük Giriş',
           ...(driveFileId ? { photoDriveId: driveFileId } : {})
         }));
-        await saveDailyCalories(user.uid, selectedDate, [...currentMeals, ...newMeals]);
+        await addMeals(user.uid, selectedDate, newMeals);
       }
 
       // Su - mevcut su kayıtlarına ekle
@@ -295,11 +305,21 @@ const AIDailyLog = ({ user, onSaved, driveAccessToken, onRequestDriveAccess }) =
         await saveWaterTracker(user.uid, [...currentEntries, newEntry], currentGoal);
       }
 
-      // Uyku / takviye / antrenman / vitals / not - günlük log dokümanına yaz
+      // Uyku / takviye / antrenman / vitals / not - günlük log dokümanına yaz.
+      // Diziler (supplements/workouts) MEVCUT kayıtla birleştirilir - Firestore merge:true
+      // dizi alanlarını deep-merge etmediği için, birleştirmeyi burada elle yapıyoruz.
+      const existingLog = (draft.sleep || draft.supplements?.length || draft.workouts?.length || draft.vitals || draft.notes)
+        ? (await getDailyLog(user.uid, selectedDate)).data || {}
+        : {};
+
       const logFields = {};
       if (draft.sleep) logFields.sleep = draft.sleep;
-      if (draft.supplements && draft.supplements.length > 0) logFields.supplements = draft.supplements;
-      if (draft.workouts && draft.workouts.length > 0) logFields.workouts = draft.workouts;
+      if (draft.supplements && draft.supplements.length > 0) {
+        logFields.supplements = [...(existingLog.supplements || []), ...draft.supplements];
+      }
+      if (draft.workouts && draft.workouts.length > 0) {
+        logFields.workouts = [...(existingLog.workouts || []), ...draft.workouts];
+      }
       if (draft.vitals) logFields.vitals = draft.vitals;
       if (draft.notes) logFields.notes = draft.notes;
 

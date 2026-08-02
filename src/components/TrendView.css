@@ -47,9 +47,13 @@
 
 .trend-summary-cards {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(85px, 1fr));
   gap: 10px;
   margin-bottom: 20px;
+}
+
+.trend-summary-cards > * {
+  min-width: 0;
 }
 
 .trend-card {
@@ -83,6 +87,7 @@
   height: 160px;
   margin-bottom: 20px;
   padding: 0 4px;
+  overflow-x: auto;
 }
 
 .trend-bar-day {
@@ -117,22 +122,115 @@
   background: linear-gradient(180deg, #38bdf8, #0284c7);
 }
 
+.trend-bar-fill.sleep {
+  background: linear-gradient(180deg, #a78bfa, #7c3aed);
+}
+
 .trend-bar-label {
   font-size: 0.65rem;
   margin-top: 4px;
   opacity: 0.7;
 }
 
-.trend-day-detail ul {
-  list-style: none;
-  padding: 0;
+.trend-day-section {
+  margin-bottom: 18px;
 }
 
-.trend-day-detail li {
+.trend-day-section h5 {
+  margin: 0 0 8px;
+  font-size: 0.95rem;
+}
+
+.trend-day-empty {
+  opacity: 0.6;
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+.trend-day-plain {
+  margin: 0;
+  padding: 8px 12px;
+  background: rgba(0,0,0,0.03);
+  border-radius: 8px;
+}
+
+.trend-day-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
   padding: 8px 12px;
   background: rgba(0,0,0,0.03);
   border-radius: 8px;
   margin-bottom: 6px;
+  font-size: 0.9rem;
+}
+
+.trend-day-item-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.trend-day-item-actions button {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 1rem;
+}
+
+.trend-add-btn {
+  width: 100%;
+  padding: 10px;
+  border: 1px dashed rgba(99, 102, 241, 0.4);
+  border-radius: 8px;
+  background: rgba(99, 102, 241, 0.05);
+  color: #4f46e5;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.trend-edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: rgba(99, 102, 241, 0.06);
+  border-radius: 8px;
+  margin-bottom: 6px;
+}
+
+.trend-edit-form input,
+.trend-edit-form select {
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(0,0,0,0.15);
+  font-size: 0.9rem;
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.trend-edit-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.trend-edit-actions button {
+  flex: 1;
+  padding: 8px;
+  border: none;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.trend-edit-actions button:first-child {
+  background: var(--gradient-primary, linear-gradient(135deg, #6366f1, #4f46e5));
+  color: white;
+}
+
+.trend-edit-actions button:last-child {
+  background: rgba(0,0,0,0.06);
 }
 
 .trend-note-editor {
@@ -253,4 +351,125 @@
     width: 100%;
     padding: 12px;
   }
+}
+
+.trend-day-date h5 {
+  font-size: 1.05rem;
+}
+
+.trend-day-goals {
+  padding: 12px;
+  background: rgba(99, 102, 241, 0.06);
+  border-radius: 10px;
+}
+
+.trend-day-totals {
+  padding: 12px;
+  background: rgba(34, 197, 94, 0.07);
+  border-radius: 10px;
+}
+
+.trend-goals-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 6px;
+  font-size: 0.85rem;
+}
+
+.trend-goals-grid > * {
+  min-width: 0;
+}
+
+.trend-edit-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.trend-edit-grid input {
+  min-width: 0;
+}
+
+.trend-quick-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.trend-quick-chip {
+  padding: 7px 12px;
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  border-radius: 999px;
+  background: rgba(99, 102, 241, 0.05);
+  color: #4f46e5;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.trend-quick-chip.taken {
+  background: rgba(34, 197, 94, 0.1);
+  border-color: rgba(34, 197, 94, 0.35);
+  color: #16a34a;
+  cursor: default;
+}
+
+.trend-recent-meals {
+  margin-bottom: 4px;
+}
+
+.trend-recent-label {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  margin-bottom: 6px;
+}
+
+.trend-recent-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.trend-recent-chip {
+  padding: 6px 11px;
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  border-radius: 999px;
+  background: rgba(99, 102, 241, 0.06);
+  color: #4f46e5;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trend-day-date-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.trend-clean-btn {
+  padding: 6px 12px;
+  border: 1px solid rgba(0,0,0,0.12);
+  border-radius: 999px;
+  background: var(--color-surface-muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.trend-goals-edit {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 0.9rem;
+  margin-left: 6px;
 }

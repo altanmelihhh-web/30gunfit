@@ -1,28 +1,36 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import './CalorieTracker.css';
-import { saveDailyCalories, getDailyCalories } from '../firebase/dataService';
+import { getMeals, addMeal, updateMeal, deleteMeal } from '../firebase/mealsService';
 
 /**
  * CalorieTracker - Günlük kalori ve makro takibi
- * - Manuel yemek ekleme
+ * - Manuel yemek ekleme/düzenleme
  * - AI fotoğraf analizinden otomatik ekleme
  * - Günlük hedef karşılaştırması
  * - Geçmiş gün görüntüleme
+ *
+ * Not: Tüm yazma işlemleri mealsService üzerinden gidiyor - her ekleme/silme/düzenleme
+ * önce Firestore'dan GÜNCEL listeyi okuyup üzerine işliyor, bu component'in kendi
+ * (bayat olabilecek) state'ini olduğu gibi geri yazmıyor.
  */
+
+const EMPTY_MEAL = {
+  name: '',
+  calories: '',
+  protein: '',
+  carbs: '',
+  fats: '',
+  mealType: 'breakfast',
+  portion: ''
+};
 
 const CalorieTracker = ({ targetCalories, targetMacros, onDataChange, user }) => {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [meals, setMeals] = useState([]);
   const [isAddingMeal, setIsAddingMeal] = useState(false);
-  const [newMeal, setNewMeal] = useState({
-    name: '',
-    calories: '',
-    protein: '',
-    carbs: '',
-    fats: '',
-    mealType: 'breakfast',
-    portion: ''
-  });
+  const [editingMealId, setEditingMealId] = useState(null);
+  const [newMeal, setNewMeal] = useState(EMPTY_MEAL);
+  const [isSaving, setIsSaving] = useState(false);
 
   const MEAL_TYPES = {
     breakfast: { label: 'Kahvaltı', icon: '🌅' },
@@ -31,61 +39,17 @@ const CalorieTracker = ({ targetCalories, targetMacros, onDataChange, user }) =>
     snack: { label: 'Atıştırmalık', icon: '🍎' }
   };
 
-  // Hangi tarihin verisi şu an meals state'inde yüklü - save effect'in yanlış tarihe yazmasını önler
-  const loadedDateRef = useRef(null);
+  const refreshMeals = async () => {
+    const freshMeals = await getMeals(user?.uid, selectedDate);
+    setMeals(freshMeals);
+    if (onDataChange) onDataChange(freshMeals);
+  };
 
-  // Günlük verileri yükle - giriş yapmışsa Firestore, yoksa localStorage
   useEffect(() => {
-    const loadMeals = async () => {
-      if (user) {
-        const result = await getDailyCalories(user.uid, selectedDate);
-        const cloudMeals = result.success ? (result.data.meals || []) : [];
-        setMeals(cloudMeals);
-        loadedDateRef.current = selectedDate;
-        // localStorage'ı da güncelle (offline yedek)
-        const allTrackerData = JSON.parse(localStorage.getItem('calorie_tracker') || '{}');
-        allTrackerData[selectedDate] = cloudMeals;
-        localStorage.setItem('calorie_tracker', JSON.stringify(allTrackerData));
-        return;
-      }
-
-      const allTrackerData = JSON.parse(localStorage.getItem('calorie_tracker') || '{}');
-      setMeals(allTrackerData[selectedDate] || []);
-      loadedDateRef.current = selectedDate;
-    };
-    loadMeals();
+    refreshMeals();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDate, user]);
 
-  // Veri değiştiğinde kaydet (ilk render'ı ve tarih henüz yüklenmemişken tetiklenmeyi atla)
-  const isFirstRender = useRef(true);
-  useEffect(() => {
-    if (isFirstRender.current) {
-      isFirstRender.current = false;
-      return; // İlk render'da yazma
-    }
-    // selectedDate değişti ama bu tarihin verisi henüz yüklenmedi - eski günün meals'ini yeni tarihe yazma
-    if (loadedDateRef.current !== selectedDate) {
-      return;
-    }
-
-    const allTrackerData = JSON.parse(localStorage.getItem('calorie_tracker') || '{}');
-    allTrackerData[selectedDate] = meals;
-    localStorage.setItem('calorie_tracker', JSON.stringify(allTrackerData));
-
-    // Giriş yapmışsa Firestore'a da kaydet - cihaz bağımsız kalıcı kayıt
-    if (user) {
-      saveDailyCalories(user.uid, selectedDate, meals).catch(error =>
-        console.error('Kalori Firestore kayıt hatası:', error)
-      );
-    }
-
-    // Parent component'e bildir
-    if (onDataChange) {
-      onDataChange(meals);
-    }
-  }, [meals, selectedDate, onDataChange, user]);
-
-  // Günlük toplamları hesapla
   const calculateTotals = () => {
     return meals.reduce(
       (totals, meal) => ({
@@ -100,85 +64,73 @@ const CalorieTracker = ({ targetCalories, targetMacros, onDataChange, user }) =>
 
   const totals = calculateTotals();
 
-  // Debug: Her render'da totals'ı logla
-  useEffect(() => {
-    console.log('🔢 Güncel totals:', totals, '- Meal sayısı:', meals.length);
-  });
+  const resetForm = () => {
+    setNewMeal(EMPTY_MEAL);
+    setIsAddingMeal(false);
+    setEditingMealId(null);
+  };
 
-  // Yemek ekleme
-  const handleAddMeal = () => {
+  const handleSaveMeal = async () => {
     if (!newMeal.name || !newMeal.calories) {
       alert('Lütfen en az yemek adı ve kalori bilgisi girin');
       return;
     }
-
-    const mealToAdd = {
-      id: Date.now(),
-      timestamp: new Date().toISOString(),
-      ...newMeal,
-      calories: parseFloat(newMeal.calories) || 0,
-      protein: parseFloat(newMeal.protein) || 0,
-      carbs: parseFloat(newMeal.carbs) || 0,
-      fats: parseFloat(newMeal.fats) || 0
-    };
-
-    setMeals([...meals, mealToAdd]);
-    setNewMeal({
-      name: '',
-      calories: '',
-      protein: '',
-      carbs: '',
-      fats: '',
-      mealType: 'breakfast',
-      portion: ''
-    });
-    setIsAddingMeal(false);
-  };
-
-  // AI analizinden yemek ekle (kullanılmıyor şu an - addMealFromAI export fonksiyonu kullanılıyor)
-  // const handleAddFromAI = (foodData) => {
-  //   const aiMeal = {
-  //     id: Date.now(),
-  //     timestamp: new Date().toISOString(),
-  //     name: foodData.food_name,
-  //     calories: foodData.calories,
-  //     protein: foodData.protein,
-  //     carbs: foodData.carbs,
-  //     fats: foodData.fats,
-  //     portion: foodData.portion_size,
-  //     mealType: 'snack',
-  //     source: 'AI Analysis'
-  //   };
-  //
-  //   setMeals([...meals, aiMeal]);
-  // };
-
-  // Yemek silme
-  const handleDeleteMeal = (mealId) => {
-    if (window.confirm('Bu yemeği silmek istediğinize emin misiniz?')) {
-      setMeals(meals.filter(m => m.id !== mealId));
+    setIsSaving(true);
+    try {
+      if (editingMealId) {
+        await updateMeal(user?.uid, selectedDate, editingMealId, newMeal);
+      } else {
+        await addMeal(user?.uid, selectedDate, newMeal);
+      }
+      await refreshMeals();
+      resetForm();
+    } catch (error) {
+      alert('Kaydetme sırasında hata oluştu: ' + error.message);
+    } finally {
+      setIsSaving(false);
     }
   };
 
-  // Progress yüzdesi
+  const handleStartEdit = (meal) => {
+    setNewMeal({
+      name: meal.name,
+      calories: meal.calories,
+      protein: meal.protein,
+      carbs: meal.carbs,
+      fats: meal.fats,
+      mealType: meal.mealType || 'snack',
+      portion: meal.portion || ''
+    });
+    setEditingMealId(meal.id);
+    setIsAddingMeal(true);
+  };
+
+  const handleDeleteMeal = async (mealId) => {
+    if (!window.confirm('Bu yemeği silmek istediğinize emin misiniz?')) return;
+    try {
+      await deleteMeal(user?.uid, selectedDate, mealId);
+      await refreshMeals();
+      if (editingMealId === mealId) resetForm();
+    } catch (error) {
+      alert('Silme sırasında hata oluştu: ' + error.message);
+    }
+  };
+
   const getProgressPercentage = (current, target) => {
     if (!target || target === 0) return 0;
     return Math.min((current / target) * 100, 100);
   };
 
-  // Tarih değiştirme
   const changeDate = (direction) => {
     const currentDate = new Date(selectedDate);
     currentDate.setDate(currentDate.getDate() + direction);
     setSelectedDate(currentDate.toISOString().split('T')[0]);
   };
 
-  // Bugüne dön
   const goToToday = () => {
     setSelectedDate(new Date().toISOString().split('T')[0]);
   };
 
-  // Tarih formatla
   const formatDate = (dateString) => {
     const date = new Date(dateString);
     const today = new Date().toISOString().split('T')[0];
@@ -305,16 +257,16 @@ const CalorieTracker = ({ targetCalories, targetMacros, onDataChange, user }) =>
       <div className="add-meal-section">
         <button
           className="btn-add-meal"
-          onClick={() => setIsAddingMeal(!isAddingMeal)}
+          onClick={() => (isAddingMeal ? resetForm() : setIsAddingMeal(true))}
         >
           {isAddingMeal ? '❌ İptal' : '➕ Yemek Ekle'}
         </button>
       </div>
 
-      {/* Manuel yemek ekleme formu */}
+      {/* Manuel yemek ekleme/düzenleme formu */}
       {isAddingMeal && (
         <div className="add-meal-form">
-          <h4>Yeni Yemek Ekle</h4>
+          <h4>{editingMealId ? 'Yemeği Düzenle' : 'Yeni Yemek Ekle'}</h4>
 
           <div className="form-row">
             <div className="calorie-tracker-form-group">
@@ -396,15 +348,15 @@ const CalorieTracker = ({ targetCalories, targetMacros, onDataChange, user }) =>
             </div>
           </div>
 
-          <button className="btn-save-meal" onClick={handleAddMeal}>
-            💾 Kaydet
+          <button className="btn-save-meal" onClick={handleSaveMeal} disabled={isSaving}>
+            {isSaving ? '💾 Kaydediliyor...' : editingMealId ? '💾 Güncelle' : '💾 Kaydet'}
           </button>
         </div>
       )}
 
       {/* Yemek listesi */}
       <div className="meals-list">
-        <h4>Bugünün Öğünleri ({meals.length})</h4>
+        <h4>Öğünler ({meals.length})</h4>
 
         {meals.length === 0 ? (
           <div className="empty-meals">
@@ -428,7 +380,8 @@ const CalorieTracker = ({ targetCalories, targetMacros, onDataChange, user }) =>
                 {mealsByType.map((meal) => (
                   <div key={meal.id} className="meal-item">
                     <div className="meal-info">
-                      <div className="meal-name">{meal.name}</div>
+                      <div className="meal-name">{meal.mealLabel || meal.name}</div>
+                      {meal.mealLabel && <div className="meal-portion">{meal.name}</div>}
                       {meal.portion && (
                         <div className="meal-portion">{meal.portion}</div>
                       )}
@@ -452,13 +405,22 @@ const CalorieTracker = ({ targetCalories, targetMacros, onDataChange, user }) =>
                       )}
                     </div>
 
-                    <button
-                      className="btn-delete-meal"
-                      onClick={() => handleDeleteMeal(meal.id)}
-                      title="Sil"
-                    >
-                      🗑️
-                    </button>
+                    <div className="meal-actions">
+                      <button
+                        className="btn-edit-meal"
+                        onClick={() => handleStartEdit(meal)}
+                        title="Düzenle"
+                      >
+                        ✏️
+                      </button>
+                      <button
+                        className="btn-delete-meal"
+                        onClick={() => handleDeleteMeal(meal.id)}
+                        title="Sil"
+                      >
+                        🗑️
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -466,48 +428,8 @@ const CalorieTracker = ({ targetCalories, targetMacros, onDataChange, user }) =>
           })
         )}
       </div>
-
-      {/* AI'dan import için gizli callback */}
-      <div style={{ display: 'none' }}>
-        {/* Bu bir placeholder, gerçek entegrasyon App.js'te olacak */}
-      </div>
     </div>
   );
-};
-
-// AI analizinden yemek eklemek için export edilen fonksiyon
-export const addMealFromAI = (foodData, date = new Date().toISOString().split('T')[0]) => {
-  console.log('🤖 addMealFromAI çağrıldı - Tarih:', date);
-  console.log('🤖 foodData:', foodData);
-
-  const aiMeal = {
-    id: Date.now(),
-    timestamp: new Date().toISOString(),
-    name: foodData.food_name,
-    calories: foodData.calories,
-    protein: foodData.protein,
-    carbs: foodData.carbs,
-    fats: foodData.fats,
-    portion: foodData.portion_size,
-    mealType: 'snack',
-    source: 'AI Analysis'
-  };
-
-  console.log('🤖 Oluşturulan aiMeal:', aiMeal);
-
-  const allTrackerData = JSON.parse(localStorage.getItem('calorie_tracker') || '{}');
-  console.log('🤖 Mevcut localStorage:', allTrackerData);
-
-  const dayMeals = allTrackerData[date] || [];
-  console.log('🤖 Bu tarih için mevcut meals:', dayMeals.length);
-
-  dayMeals.push(aiMeal);
-  allTrackerData[date] = dayMeals;
-
-  localStorage.setItem('calorie_tracker', JSON.stringify(allTrackerData));
-  console.log('🤖 localStorage güncellendi - Yeni meal sayısı:', dayMeals.length);
-
-  return aiMeal;
 };
 
 export default CalorieTracker;

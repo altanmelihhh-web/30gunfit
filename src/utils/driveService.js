@@ -1,6 +1,7 @@
 const DRIVE_API = 'https://www.googleapis.com/drive/v3';
 const DRIVE_UPLOAD_API = 'https://www.googleapis.com/upload/drive/v3';
 const FOLDER_NAME = '30GunFit Yemek Fotograflari';
+const PROGRESS_FOLDER_NAME = '30GunFit Ilerleme Fotograflari';
 
 const driveFetch = async (url, accessToken, options = {}) => {
   const response = await fetch(url, {
@@ -16,8 +17,8 @@ const driveFetch = async (url, accessToken, options = {}) => {
   return response;
 };
 
-const getOrCreateMealPhotosFolder = async (accessToken) => {
-  const query = `name='${FOLDER_NAME}' and mimeType='application/vnd.google-apps.folder' and trashed=false`;
+const getOrCreateFolder = async (accessToken, folderName) => {
+  const query = `name='${folderName}' and mimeType='application/vnd.google-apps.folder' and trashed=false`;
   const searchRes = await driveFetch(
     `${DRIVE_API}/files?q=${encodeURIComponent(query)}&fields=files(id,name)`,
     accessToken
@@ -29,18 +30,14 @@ const getOrCreateMealPhotosFolder = async (accessToken) => {
   const createRes = await driveFetch(`${DRIVE_API}/files`, accessToken, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: FOLDER_NAME, mimeType: 'application/vnd.google-apps.folder' })
+    body: JSON.stringify({ name: folderName, mimeType: 'application/vnd.google-apps.folder' })
   });
   const created = await createRes.json();
   return created.id;
 };
 
-/**
- * Fotoğrafı kullanıcının kendi Google Drive'ındaki uygulama klasörüne yükler
- * @returns {Promise<string>} Drive dosya ID'si
- */
-export const uploadMealPhotoToDrive = async (accessToken, file, fileName) => {
-  const folderId = await getOrCreateMealPhotosFolder(accessToken);
+const uploadFileToFolder = async (accessToken, file, fileName, folderName) => {
+  const folderId = await getOrCreateFolder(accessToken, folderName);
   const metadata = { name: fileName, parents: [folderId] };
   const boundary = '30gunfit_boundary_' + Date.now();
   const encoder = new TextEncoder();
@@ -65,6 +62,20 @@ export const uploadMealPhotoToDrive = async (accessToken, file, fileName) => {
   const data = await res.json();
   return data.id;
 };
+
+/**
+ * Yemek fotoğrafını kullanıcının kendi Google Drive'ındaki uygulama klasörüne yükler
+ * @returns {Promise<string>} Drive dosya ID'si
+ */
+export const uploadMealPhotoToDrive = (accessToken, file, fileName) =>
+  uploadFileToFolder(accessToken, file, fileName, FOLDER_NAME);
+
+/**
+ * İlerleme (vücut) fotoğrafını Drive'daki ayrı klasöre yükler
+ * @returns {Promise<string>} Drive dosya ID'si
+ */
+export const uploadProgressPhotoToDrive = (accessToken, file, fileName) =>
+  uploadFileToFolder(accessToken, file, fileName, PROGRESS_FOLDER_NAME);
 
 /**
  * Drive'daki fotoğrafı indirip görüntülenebilir bir blob URL'e çevirir

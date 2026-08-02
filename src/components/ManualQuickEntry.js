@@ -2,11 +2,11 @@ import React, { useState } from 'react';
 import './ManualQuickEntry.css';
 import { parseManualEntryBatch, AVAILABLE_KEYWORDS } from '../utils/manualEntryParser';
 import {
-  getDailyCalories, saveDailyCalories,
   getWaterTracker, saveWaterTracker,
   getWeightTracker, saveWeightTracker,
   getDailyLog, saveDailyLog
 } from '../firebase/dataService';
+import { addMeals, getMealsSummary } from '../firebase/mealsService';
 
 const ManualQuickEntry = ({ user, onSaved }) => {
   const [inputText, setInputText] = useState('');
@@ -40,11 +40,25 @@ const ManualQuickEntry = ({ user, onSaved }) => {
 
   const handleSaveAll = async () => {
     if (!user || parsedItems.length === 0) return;
+
+    const meals = parsedItems.filter((p) => p.category === 'meal').map((p) => p.data);
+
+    // Mükerrer kayıt uyarısı - bu tarihte zaten öğün varsa kullanıcıya sor
+    if (meals.length > 0) {
+      const summary = await getMealsSummary(user.uid, selectedDate);
+      if (summary.count > 0) {
+        const confirmed = window.confirm(
+          `${selectedDate} için zaten ${summary.count} öğün kayıtlı (toplam ${summary.totalCalories} kcal). ` +
+          `Bu ${meals.length} yeni öğünü yine de eklemek istiyor musunuz?`
+        );
+        if (!confirmed) return;
+      }
+    }
+
     setIsSaving(true);
     setError(null);
 
     try {
-      const meals = parsedItems.filter((p) => p.category === 'meal').map((p) => p.data);
       const waterEntries = parsedItems.filter((p) => p.category === 'water');
       const weightEntries = parsedItems.filter((p) => p.category === 'weight');
       const sleepEntries = parsedItems.filter((p) => p.category === 'sleep');
@@ -53,11 +67,7 @@ const ManualQuickEntry = ({ user, onSaved }) => {
       const vitalsEntries = parsedItems.filter((p) => p.category === 'vitals');
 
       if (meals.length > 0) {
-        const existing = await getDailyCalories(user.uid, selectedDate);
-        const currentMeals = existing.success ? (existing.data.meals || []) : [];
         const newMeals = meals.map((m) => ({
-          id: Date.now() + Math.random(),
-          timestamp: new Date().toISOString(),
           name: m.food_name,
           calories: m.calories,
           protein: m.protein,
@@ -67,7 +77,7 @@ const ManualQuickEntry = ({ user, onSaved }) => {
           mealType: 'snack',
           source: 'Manuel Toplu Giriş'
         }));
-        await saveDailyCalories(user.uid, selectedDate, [...currentMeals, ...newMeals]);
+        await addMeals(user.uid, selectedDate, newMeals);
       }
 
       if (waterEntries.length > 0) {

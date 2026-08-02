@@ -8,7 +8,7 @@ const AUTH_MODES = {
   RESET_PASSWORD: 'reset'
 };
 
-function AuthModal({ isOpen, onClose, onAuthSuccess }) {
+function AuthModal({ isOpen, onClose, onAuthSuccess, hideCloseButton = false }) {
   const [mode, setMode] = useState(AUTH_MODES.LOGIN);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -110,9 +110,11 @@ function AuthModal({ isOpen, onClose, onAuthSuccess }) {
   return (
     <div className="auth-modal-overlay">
       <div className="auth-modal">
-        <button className="auth-modal-close" onClick={onClose}>
-          ✕
-        </button>
+        {!hideCloseButton && (
+          <button className="auth-modal-close" onClick={onClose}>
+            ✕
+          </button>
+        )}
 
         <div className="auth-modal-header">
           <h2>{renderTitle()}</h2>

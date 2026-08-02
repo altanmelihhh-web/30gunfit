@@ -1,0 +1,180 @@
+.daily-log-form {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+.daily-log-form-header h3 {
+  margin: 0 0 4px;
+}
+
+.daily-log-form-header p {
+  opacity: 0.75;
+  font-size: 0.9rem;
+  margin: 0 0 16px;
+}
+
+.dlf-field-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.dlf-field-row label {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.dlf-section {
+  padding: 16px;
+  border-radius: 12px;
+  background: var(--color-surface, #fff);
+  border: 1px solid var(--color-border, rgba(0,0,0,0.1));
+  margin-bottom: 14px;
+}
+
+.dlf-section h4 {
+  margin: 0 0 12px;
+  font-size: 1rem;
+}
+
+.dlf-goals {
+  background: rgba(99, 102, 241, 0.06);
+  border-color: rgba(99, 102, 241, 0.15);
+}
+
+.dlf-totals {
+  background: rgba(34, 197, 94, 0.06);
+  border-color: rgba(34, 197, 94, 0.2);
+}
+
+.dlf-goals-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px;
+  font-size: 0.9rem;
+}
+
+.dlf-goals-grid > * {
+  min-width: 0;
+}
+
+.dlf-hint {
+  font-size: 0.85rem;
+  opacity: 0.7;
+  margin: 0;
+}
+
+.dlf-field {
+  margin-bottom: 10px;
+}
+
+.dlf-field:last-child {
+  margin-bottom: 0;
+}
+
+.dlf-field label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-bottom: 4px;
+  color: var(--color-text-secondary, #555);
+}
+
+.dlf-field input,
+.dlf-field textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--color-border, rgba(0,0,0,0.15));
+  font-size: 0.95rem;
+  box-sizing: border-box;
+  font-family: inherit;
+}
+
+.dlf-field-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 10px;
+}
+
+.dlf-field-grid > * {
+  min-width: 0;
+}
+
+.dlf-field-grid-4 {
+  grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
+}
+
+.dlf-supplement-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px;
+  background: rgba(0,0,0,0.03);
+  border-radius: 8px;
+  margin-bottom: 6px;
+  font-size: 0.9rem;
+}
+
+.dlf-supplement-row button {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.dlf-add-btn {
+  width: 100%;
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px dashed rgba(99, 102, 241, 0.4);
+  border-radius: 8px;
+  background: rgba(99, 102, 241, 0.05);
+  color: #4f46e5;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.dlf-error {
+  background: #fdecea;
+  color: #b3261e;
+  padding: 10px 14px;
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+
+.dlf-success {
+  background: #e6f4ea;
+  color: #1e7e34;
+  padding: 10px 14px;
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+
+.dlf-submit-btn {
+  width: 100%;
+  padding: 14px;
+  border: none;
+  border-radius: 10px;
+  background: var(--gradient-primary, linear-gradient(135deg, #6366f1, #4f46e5));
+  color: white;
+  font-weight: 700;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.dlf-submit-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+@media (max-width: 480px) {
+  .daily-log-form {
+    padding: 12px;
+  }
+
+  .dlf-section {
+    padding: 12px;
+  }
+}

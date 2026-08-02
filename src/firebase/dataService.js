@@ -382,6 +382,121 @@ export const saveWeightTracker = async (userId, entries, targetWeight) => {
   }
 };
 
+/**
+ * Vücut ölçüleri (tüm kayıtlar tek dokümanda, BodyMeasurements'ın localStorage yapısıyla aynı)
+ */
+export const saveBodyMeasurements = async (userId, entries) => {
+  try {
+    await setDoc(doc(db, 'bodyMeasurements', userId), {
+      entries,
+      updatedAt: new Date().toISOString()
+    });
+    return { success: true };
+  } catch (error) {
+    console.error('Body measurements save error:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+export const getBodyMeasurements = async (userId) => {
+  try {
+    const docSnap = await getDoc(doc(db, 'bodyMeasurements', userId));
+    if (docSnap.exists()) {
+      return { success: true, data: docSnap.data() };
+    }
+    return { success: false, error: 'Ölçüm bulunamadı' };
+  } catch (error) {
+    console.error('Body measurements fetch error:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Vücut kompozisyonu (yağ oranı, kas kütlesi vb. - tek dokümanda)
+ */
+export const saveBodyComposition = async (userId, entries) => {
+  try {
+    await setDoc(doc(db, 'bodyComposition', userId), {
+      entries,
+      updatedAt: new Date().toISOString()
+    });
+    return { success: true };
+  } catch (error) {
+    console.error('Body composition save error:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+export const getBodyComposition = async (userId) => {
+  try {
+    const docSnap = await getDoc(doc(db, 'bodyComposition', userId));
+    if (docSnap.exists()) {
+      return { success: true, data: docSnap.data() };
+    }
+    return { success: false, error: 'Kompozisyon bulunamadı' };
+  } catch (error) {
+    console.error('Body composition fetch error:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * İlerleme fotoğrafı meta verileri (görselin kendisi Drive'da, burada sadece
+ * {id, date, note, tag, driveFileId} listesi tutulur)
+ */
+export const saveProgressPhotos = async (userId, entries) => {
+  try {
+    await setDoc(doc(db, 'progressPhotos', userId), {
+      entries,
+      updatedAt: new Date().toISOString()
+    });
+    return { success: true };
+  } catch (error) {
+    console.error('Progress photos save error:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+export const getProgressPhotos = async (userId) => {
+  try {
+    const docSnap = await getDoc(doc(db, 'progressPhotos', userId));
+    if (docSnap.exists()) {
+      return { success: true, data: docSnap.data() };
+    }
+    return { success: false, error: 'Fotoğraf kaydı bulunamadı' };
+  } catch (error) {
+    console.error('Progress photos fetch error:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Kullanıcının SABİT beslenme hedefleri (elle belirlenir, otomatik değişmez).
+ * {calories, protein, carbs, fats, water}
+ */
+export const saveNutritionGoals = async (userId, goals) => {
+  try {
+    await setDoc(doc(db, 'nutritionGoals', userId), { ...goals, updatedAt: new Date().toISOString() });
+    return { success: true };
+  } catch (error) {
+    console.error('Nutrition goals save error:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+export const getNutritionGoals = async (userId) => {
+  try {
+    const docSnap = await getDoc(doc(db, 'nutritionGoals', userId));
+    if (docSnap.exists()) {
+      return { success: true, data: docSnap.data() };
+    }
+    return { success: false, error: 'Hedef bulunamadı' };
+  } catch (error) {
+    console.error('Nutrition goals fetch error:', error);
+    return { success: false, error: error.message };
+  }
+};
+
 export const getWeightTracker = async (userId) => {
   try {
     const docRef = doc(db, 'weightTracking', userId);

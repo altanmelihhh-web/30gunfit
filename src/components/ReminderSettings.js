@@ -41,11 +41,6 @@ const getTodayKey = () => {
 function ReminderSettings({
   settings,
   onChange,
-  startDate,
-  onStartDateChange,
-  todaysProgress,
-  todaysWorkout,
-  currentDay,
   notificationsSupported
 }) {
   // Local state ile değişiklikleri tut
@@ -145,14 +140,6 @@ function ReminderSettings({
     const times = localSettings.times.filter((_, idx) => idx !== index);
     setLocalSettings({ ...localSettings, times });
     setHasChanges(true);
-  };
-
-  const handleStartDateChange = (event) => {
-    const { value } = event.target;
-    const parsed = new Date(value);
-    if (!Number.isNaN(parsed.getTime())) {
-      onStartDateChange(parsed);
-    }
   };
 
   const handleTestNotification = () => {
@@ -275,13 +262,7 @@ function ReminderSettings({
     }
   };
 
-  const reminderMessage = useMemo(() => {
-    const percent = todaysProgress?.percent ?? 0;
-    const completed = todaysProgress?.completedCount ?? 0;
-    const total = todaysProgress?.totalCount ?? 0;
-    const workoutTitle = todaysWorkout ? todaysWorkout.title : 'Program';
-    return `30 Gün Fit hatırlatma (${getTodayKey()}): Gün ${currentDay} - ${workoutTitle}. İlerleme: %${percent} (${completed}/${total}). Hadi egzersizi tamamla!`;
-  }, [todaysProgress, todaysWorkout, currentDay]);
+  const reminderMessage = `30 Gün Fit hatırlatma (${getTodayKey()}): Günlüğünü güncellemeyi unutma — öğün, su, antrenman, uyku 💪`;
 
   const whatsappLink = `https://wa.me/?text=${encodeURIComponent(reminderMessage)}`;
   const smsLink = `sms:?body=${encodeURIComponent(reminderMessage)}`;
@@ -632,19 +613,6 @@ function ReminderSettings({
             </small>
           </div>
         )}
-
-        <div className="reminder-block">
-          <span className="block-label">Program Başlangıcı</span>
-          <input
-            type="date"
-            value={formatDateForInput(startDate)}
-            onChange={handleStartDateChange}
-          />
-          <small>Bugün: {getTodayKey()} · Gün {currentDay}</small>
-          <small style={{ display: 'block', marginTop: '4px', color: 'var(--color-text-muted)' }}>
-            İstediğiniz zaman değiştirebilirsiniz
-          </small>
-        </div>
       </div>
 
       <div className="share-block">

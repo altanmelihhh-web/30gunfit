@@ -685,3 +685,36 @@
     width: 100%;
   }
 }
+
+.photo-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 140px;
+  background: var(--color-surface-muted);
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+  border-radius: var(--radius-sm);
+  text-align: center;
+  padding: 12px;
+}
+
+.drive-hint {
+  padding: 12px 14px;
+  background: rgba(99, 102, 241, 0.08);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  border-radius: var(--radius-md);
+  font-size: 0.88rem;
+  margin-bottom: 16px;
+  color: var(--color-text-secondary);
+}
+
+.drive-connect-btn {
+  border: none;
+  background: rgba(99, 102, 241, 0.15);
+  color: #4f46e5;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+}

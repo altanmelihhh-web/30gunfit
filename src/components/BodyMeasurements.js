@@ -1,16 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import './BodyMeasurements.css';
+import { getBodyMeasurements, saveBodyMeasurements } from '../firebase/dataService';
 
 /**
  * BodyMeasurements - Vücut ölçüleri takibi
  * - Kol, bacak, göğüs, bel, kalça, boyun, omuz ölçüleri
  * - Grafik ile trend gösterimi
  * - Ölçü karşılaştırma
- * - localStorage ile kalıcı veri
+ * - Firestore (giriş yapılınca) + localStorage (offline yedek) ile kalıcı veri
  */
 
-const BodyMeasurements = () => {
+const BodyMeasurements = ({ user }) => {
   const [measurements, setMeasurements] = useState([]);
+  const isLoadedRef = useRef(false);
   const [showAddForm, setShowAddForm] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [notes, setNotes] = useState('');
@@ -35,24 +37,57 @@ const BodyMeasurements = () => {
     measurementFields.reduce((acc, field) => ({ ...acc, [field.key]: '' }), {})
   );
 
-  // localStorage'dan yükle
+  // Yükle - giriş yapılmışsa Firestore (bulut esas kaynak), yoksa localStorage
   useEffect(() => {
-    const saved = localStorage.getItem('body_measurements');
-    if (saved) {
-      try {
-        setMeasurements(JSON.parse(saved));
-      } catch (error) {
-        console.error('Ölçüler yüklenirken hata:', error);
+    const load = async () => {
+      if (user) {
+        const result = await getBodyMeasurements(user.uid);
+        if (result.success) {
+          setMeasurements(result.data.entries || []);
+          localStorage.setItem('body_measurements', JSON.stringify(result.data.entries || []));
+          isLoadedRef.current = true;
+          return;
+        }
+        // Bulutta hiç kayıt yok - localStorage'daki eski veriyi (varsa) buluta taşı
+        const saved = localStorage.getItem('body_measurements');
+        if (saved) {
+          try {
+            const local = JSON.parse(saved);
+            setMeasurements(local);
+            if (local.length > 0) {
+              await saveBodyMeasurements(user.uid, local);
+            }
+          } catch (error) {
+            console.error('Ölçüler yüklenirken hata:', error);
+          }
+        }
+        isLoadedRef.current = true;
+        return;
       }
-    }
-  }, []);
 
-  // localStorage'a kaydet
+      const saved = localStorage.getItem('body_measurements');
+      if (saved) {
+        try {
+          setMeasurements(JSON.parse(saved));
+        } catch (error) {
+          console.error('Ölçüler yüklenirken hata:', error);
+        }
+      }
+      isLoadedRef.current = true;
+    };
+    load();
+  }, [user]);
+
+  // Kaydet - ilk yükleme tamamlanmadan yazma (boş state'in kayıtlı veriyi ezmesini önler)
   useEffect(() => {
-    if (measurements.length > 0) {
-      localStorage.setItem('body_measurements', JSON.stringify(measurements));
+    if (!isLoadedRef.current) return;
+    localStorage.setItem('body_measurements', JSON.stringify(measurements));
+    if (user) {
+      saveBodyMeasurements(user.uid, measurements).catch((error) =>
+        console.error('Ölçüm Firestore kayıt hatası:', error)
+      );
     }
-  }, [measurements]);
+  }, [measurements, user]);
 
   // Form input değişimi
   const handleInputChange = (key, value) => {

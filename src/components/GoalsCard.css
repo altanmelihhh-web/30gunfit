@@ -1,0 +1,114 @@
+.goals-card {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(139, 92, 246, 0.06));
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.goals-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.goals-card-head h4 {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--color-text-primary);
+}
+
+.goals-edit-btn {
+  padding: 6px 12px;
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: #4f46e5;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.goals-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+}
+
+.goals-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 4px;
+  background: var(--color-surface);
+  border-radius: var(--radius-md);
+  min-width: 0;
+}
+
+.goals-item span { font-size: 1.1rem; }
+.goals-item strong { font-size: 0.95rem; color: var(--color-text-primary); }
+.goals-item small { font-size: 0.68rem; color: var(--color-text-muted); }
+
+.goals-edit-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.goals-edit-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  min-width: 0;
+}
+
+.goals-edit-grid input {
+  padding: 9px 10px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  font-size: 0.95rem;
+  box-sizing: border-box;
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+}
+
+.goals-edit-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.goals-save-btn {
+  flex: 1;
+  padding: 11px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--gradient-primary);
+  color: white;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.goals-save-btn:disabled { opacity: 0.6; }
+
+.goals-cancel-btn {
+  padding: 11px 18px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: rgba(0,0,0,0.06);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+@media (max-width: 480px) {
+  .goals-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}

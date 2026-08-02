@@ -3,7 +3,7 @@ import './ProfileSettings.css';
 import { FITNESS_GOALS, DIFFICULTY_LEVELS } from '../data/exerciseLibrary';
 import { getSoundSettings, saveSoundSettings } from '../utils/soundSettings';
 
-function ProfileSettings({ profile, onSave, onRegenerateProgram }) {
+function ProfileSettings({ profile, onSave }) {
   const [editedProfile, setEditedProfile] = useState({ ...profile });
   const [hasChanges, setHasChanges] = useState(false);
   const [soundSettings, setSoundSettings] = useState(getSoundSettings());
@@ -28,13 +28,6 @@ function ProfileSettings({ profile, onSave, onRegenerateProgram }) {
   const handleCancel = () => {
     setEditedProfile({ ...profile });
     setHasChanges(false);
-  };
-
-  const handleRegenerateProgram = () => {
-    handleSave();
-    setTimeout(() => {
-      onRegenerateProgram(editedProfile);
-    }, 100);
   };
 
   const handleSoundSettingChange = (key, value) => {
@@ -260,19 +253,6 @@ function ProfileSettings({ profile, onSave, onRegenerateProgram }) {
             </button>
           </>
         )}
-
-        <button
-          className="btn-regenerate"
-          onClick={handleRegenerateProgram}
-          title="Mevcut profil bilgilerinize göre yeni 30 günlük program oluşturur"
-        >
-          🔄 Yeni Program Oluştur
-        </button>
-      </div>
-
-      <div className="profile-warning">
-        <strong>⚠️ Uyarı:</strong> Yeni program oluşturduğunuzda mevcut ilerlemeniz sıfırlanacaktır.
-        Bu işlem geri alınamaz!
       </div>
     </div>
   );

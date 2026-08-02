@@ -591,3 +591,27 @@ body {
   font-size: 0.95rem;
   cursor: pointer;
 }
+
+.login-gate {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--gradient-primary);
+  padding: 24px;
+}
+
+.login-gate-card {
+  text-align: center;
+  color: white;
+}
+
+.login-gate-card h1 {
+  font-size: 2rem;
+  margin-bottom: 12px;
+}
+
+.login-gate-card p {
+  opacity: 0.9;
+  font-size: 1rem;
+}

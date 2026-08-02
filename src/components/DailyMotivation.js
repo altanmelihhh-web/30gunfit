@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import './DailyMotivation.css';
 
-function DailyMotivation({ completedDays, currentDay, streak }) {
+function DailyMotivation({ streak = 0, workoutCount = 0 }) {
   // Motivasyon mesajları koleksiyonu
   const motivationQuotes = useMemo(() => [
     {
@@ -188,33 +188,22 @@ function DailyMotivation({ completedDays, currentDay, streak }) {
     }
   };
 
-  // Günlük mesaj seç (gün sayısına göre)
+  // Günün alıntısı - yılın gününe göre (her gün değişir)
   const dailyQuote = useMemo(() => {
-    const index = currentDay % motivationQuotes.length;
-    return motivationQuotes[index];
-  }, [currentDay, motivationQuotes.length]);
+    const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0)) / 86400000);
+    return motivationQuotes[dayOfYear % motivationQuotes.length];
+  }, [motivationQuotes]);
 
   // Streak'e özel mesaj varsa göster
   const streakMessage = streakMessages[streak];
 
-  // Tamamlanma yüzdesine göre özel mesajlar
+  // Antrenman durumuna göre mesaj
   const progressMessage = useMemo(() => {
-    const percent = (completedDays.length / 30) * 100;
-
-    if (percent === 0) {
-      return { text: "Haydi başla! Kendine inanıyoruz!", color: "#6366f1" };
-    } else if (percent < 25) {
-      return { text: "Harika bir başlangıç yaptın! Devam et!", color: "#3b82f6" };
-    } else if (percent < 50) {
-      return { text: "Çeyreği geçtin! Momentum'u koru!", color: "#8b5cf6" };
-    } else if (percent < 75) {
-      return { text: "Yarıdan fazlasını tamamladın! İnanılmazsın!", color: "#ec4899" };
-    } else if (percent < 100) {
-      return { text: "Son düzlük! Şampiyonluğa çok yakınsın!", color: "#f59e0b" };
-    } else {
-      return { text: "30 günü tamamladın! SEN BİR LEJENDSİN! 🎉", color: "#22c55e" };
-    }
-  }, [completedDays.length]);
+    if (workoutCount === 0) return { text: "Haydi başla! İlk antrenmanını kaydet 💪", color: "#6366f1" };
+    if (streak >= 3) return { text: `${streak} gün üst üste! Momentumu koru 🔥`, color: "#f59e0b" };
+    if (workoutCount < 5) return { text: "Güzel başlangıç! Devam et 👏", color: "#3b82f6" };
+    return { text: "İstikrarlı gidiyorsun, harikasın! 💎", color: "#22c55e" };
+  }, [workoutCount, streak]);
 
   return (
     <div className="daily-motivation">
@@ -243,16 +232,12 @@ function DailyMotivation({ completedDays, currentDay, streak }) {
       {/* Mini İstatistikler */}
       <div className="motivation-stats">
         <div className="mini-stat">
-          <span className="stat-icon">📅</span>
-          <span className="stat-text">Gün {currentDay}/30</span>
-        </div>
-        <div className="mini-stat">
-          <span className="stat-icon">✅</span>
-          <span className="stat-text">{completedDays.length} tamamlandı</span>
-        </div>
-        <div className="mini-stat">
           <span className="stat-icon">🔥</span>
           <span className="stat-text">{streak} gün streak</span>
+        </div>
+        <div className="mini-stat">
+          <span className="stat-icon">🏋️</span>
+          <span className="stat-text">{workoutCount} antrenman (60g)</span>
         </div>
       </div>
     </div>

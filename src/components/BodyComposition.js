@@ -1,16 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import './BodyComposition.css';
+import { getBodyComposition, saveBodyComposition } from '../firebase/dataService';
 
 /**
  * BodyComposition - Vücut kompozisyonu analizi
  * - Vücut yağ oranı, iç yağ, kas kütlesi
  * - Metabolik yaş, BMR, vücut suyu
  * - Trend grafikleri
- * - localStorage ile kalıcı veri
+ * - Firestore (giriş yapılınca) + localStorage (offline yedek) ile kalıcı veri
  */
 
-const BodyComposition = () => {
+const BodyComposition = ({ user }) => {
   const [compositions, setCompositions] = useState([]);
+  const isLoadedRef = useRef(false);
   const [showAddForm, setShowAddForm] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [notes, setNotes] = useState('');
@@ -32,24 +34,57 @@ const BodyComposition = () => {
     compositionFields.reduce((acc, field) => ({ ...acc, [field.key]: '' }), {})
   );
 
-  // localStorage'dan yükle
+  // Yükle - giriş yapılmışsa Firestore (bulut esas kaynak), yoksa localStorage
   useEffect(() => {
-    const saved = localStorage.getItem('body_composition');
-    if (saved) {
-      try {
-        setCompositions(JSON.parse(saved));
-      } catch (error) {
-        console.error('Kompozisyon verileri yüklenirken hata:', error);
+    const load = async () => {
+      if (user) {
+        const result = await getBodyComposition(user.uid);
+        if (result.success) {
+          setCompositions(result.data.entries || []);
+          localStorage.setItem('body_composition', JSON.stringify(result.data.entries || []));
+          isLoadedRef.current = true;
+          return;
+        }
+        // Bulutta hiç kayıt yok - localStorage'daki eski veriyi (varsa) buluta taşı
+        const saved = localStorage.getItem('body_composition');
+        if (saved) {
+          try {
+            const local = JSON.parse(saved);
+            setCompositions(local);
+            if (local.length > 0) {
+              await saveBodyComposition(user.uid, local);
+            }
+          } catch (error) {
+            console.error('Kompozisyon verileri yüklenirken hata:', error);
+          }
+        }
+        isLoadedRef.current = true;
+        return;
       }
-    }
-  }, []);
 
-  // localStorage'a kaydet
+      const saved = localStorage.getItem('body_composition');
+      if (saved) {
+        try {
+          setCompositions(JSON.parse(saved));
+        } catch (error) {
+          console.error('Kompozisyon verileri yüklenirken hata:', error);
+        }
+      }
+      isLoadedRef.current = true;
+    };
+    load();
+  }, [user]);
+
+  // Kaydet - ilk yükleme tamamlanmadan yazma (boş state'in kayıtlı veriyi ezmesini önler)
   useEffect(() => {
-    if (compositions.length > 0) {
-      localStorage.setItem('body_composition', JSON.stringify(compositions));
+    if (!isLoadedRef.current) return;
+    localStorage.setItem('body_composition', JSON.stringify(compositions));
+    if (user) {
+      saveBodyComposition(user.uid, compositions).catch((error) =>
+        console.error('Kompozisyon Firestore kayıt hatası:', error)
+      );
     }
-  }, [compositions]);
+  }, [compositions, user]);
 
   // Form input değişimi
   const handleInputChange = (key, value) => {

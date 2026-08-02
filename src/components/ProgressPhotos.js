@@ -1,23 +1,29 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './ProgressPhotos.css';
+import { getProgressPhotos, saveProgressPhotos } from '../firebase/dataService';
+import { uploadProgressPhotoToDrive, fetchDriveImageUrl } from '../utils/driveService';
 
 /**
  * ProgressPhotos - İlerleme fotoğrafları takibi
  * - Fotoğraf yükleme/çekme
  * - Karşılaştırma (before/after)
  * - Tarih ve notlarla birlikte saklama
- * - localStorage ile kalıcı veri
+ * - Görsel Google Drive'da, meta veri Firestore'da (localStorage quota sorunu yok)
+ * - Eski base64/localStorage fotoğraflar Drive bağlantısı kurulunca otomatik buluta taşınır
  */
 
-const ProgressPhotos = () => {
+const ProgressPhotos = ({ user, driveAccessToken, onRequestDriveAccess }) => {
   const [photos, setPhotos] = useState([]);
+  const [imageUrls, setImageUrls] = useState({}); // driveFileId -> blob URL
   const [showUploadForm, setShowUploadForm] = useState(false);
   const [selectedPhoto, setSelectedPhoto] = useState(null);
   const [compareMode, setCompareMode] = useState(false);
   const [selectedComparePhotos, setSelectedComparePhotos] = useState([]);
   const [uploadNote, setUploadNote] = useState('');
   const [uploadTag, setUploadTag] = useState('front');
+  const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef(null);
+  const isLoadedRef = useRef(false);
 
   // Fotoğraf etiketleri
   const photoTags = [
@@ -27,48 +33,121 @@ const ProgressPhotos = () => {
     { value: 'other', label: '📷 Diğer', icon: '📷' }
   ];
 
-  // localStorage'dan yükle
+  // Yükle - giriş yapılmışsa Firestore meta verisi + localStorage'daki eski base64 kayıtlar
   useEffect(() => {
-    const saved = localStorage.getItem('progress_photos');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        setPhotos(parsed);
-      } catch (error) {
-        console.error('Fotoğraflar yüklenirken hata:', error);
+    const load = async () => {
+      let cloudEntries = [];
+      if (user) {
+        const result = await getProgressPhotos(user.uid);
+        if (result.success) {
+          cloudEntries = result.data.entries || [];
+        }
       }
-    }
-  }, []);
 
-  // localStorage'a kaydet
-  useEffect(() => {
-    if (photos.length > 0) {
-      try {
-        localStorage.setItem('progress_photos', JSON.stringify(photos));
-      } catch (error) {
-        console.error('Fotoğraflar kaydedilirken hata:', error);
-        alert('Fotoğraf kaydedilemedi. Muhtemelen çok büyük bir dosya seçtiniz.');
+      let localEntries = [];
+      const saved = localStorage.getItem('progress_photos');
+      if (saved) {
+        try {
+          // Eski format: base64 image alanı olan kayıtlar
+          localEntries = JSON.parse(saved).filter((p) => p.image);
+        } catch (error) {
+          console.error('Fotoğraflar yüklenirken hata:', error);
+        }
       }
-    }
-  }, [photos]);
+
+      // Bulut + eski yerel kayıtlar (id çakışması olursa bulut kazanır)
+      const cloudIds = new Set(cloudEntries.map((p) => p.id));
+      setPhotos([...cloudEntries, ...localEntries.filter((p) => !cloudIds.has(p.id))]
+        .sort((a, b) => new Date(b.date) - new Date(a.date)));
+      isLoadedRef.current = true;
+    };
+    load();
+  }, [user]);
+
+  // Eski base64 fotoğrafları Drive bağlantısı kurulunca otomatik buluta taşı
+  useEffect(() => {
+    if (!user || !driveAccessToken || !isLoadedRef.current) return;
+    const legacy = photos.filter((p) => p.image);
+    if (legacy.length === 0) return;
+
+    let cancelled = false;
+    (async () => {
+      const migrated = [];
+      for (const photo of legacy) {
+        try {
+          const blob = await (await fetch(photo.image)).blob();
+          const file = new File([blob], `legacy_${photo.id}.jpg`, { type: blob.type || 'image/jpeg' });
+          const driveFileId = await uploadProgressPhotoToDrive(driveAccessToken, file, `progress_${photo.id}.jpg`);
+          migrated.push({ id: photo.id, date: photo.date, note: photo.note || '', tag: photo.tag || 'other', driveFileId });
+        } catch (err) {
+          console.error('Eski fotoğraf taşıma hatası:', err);
+        }
+      }
+      if (cancelled || migrated.length === 0) return;
+
+      const migratedIds = new Set(migrated.map((m) => m.id));
+      const updated = [...photos.filter((p) => !migratedIds.has(p.id)), ...migrated]
+        .sort((a, b) => new Date(b.date) - new Date(a.date));
+      setPhotos(updated);
+      await saveProgressPhotos(user.uid, updated.filter((p) => p.driveFileId));
+      // Taşınanları localStorage'dan temizle (quota geri kazanılır)
+      localStorage.setItem('progress_photos', JSON.stringify(updated.filter((p) => p.image)));
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, driveAccessToken, photos.length]);
+
+  // Drive'daki görselleri blob URL'e çevir
+  useEffect(() => {
+    if (!driveAccessToken) return;
+    photos.forEach((photo) => {
+      if (!photo.driveFileId || imageUrls[photo.driveFileId]) return;
+      fetchDriveImageUrl(driveAccessToken, photo.driveFileId)
+        .then((url) => setImageUrls((prev) => ({ ...prev, [photo.driveFileId]: url })))
+        .catch(() => {});
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [photos, driveAccessToken]);
+
+  const getPhotoSrc = (photo) => photo.image || imageUrls[photo.driveFileId] || null;
 
   // Fotoğraf yükleme
-  const handleFileSelect = (event) => {
+  const handleFileSelect = async (event) => {
     const file = event.target.files[0];
     if (!file) return;
 
-    // Dosya boyutu kontrolü (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      alert('Fotoğraf boyutu 5MB\'dan küçük olmalıdır');
+    if (file.size > 10 * 1024 * 1024) {
+      alert('Fotoğraf boyutu 10MB\'dan küçük olmalıdır');
       return;
     }
-
-    // Dosya tipi kontrolü
     if (!file.type.startsWith('image/')) {
       alert('Lütfen geçerli bir resim dosyası seçin');
       return;
     }
 
+    // Buluta yükleme (esas yol): görsel Drive'a, meta veri Firestore'a
+    if (user && driveAccessToken) {
+      setIsUploading(true);
+      try {
+        const id = Date.now();
+        const driveFileId = await uploadProgressPhotoToDrive(driveAccessToken, file, `progress_${id}.jpg`);
+        const photo = { id, date: new Date().toISOString(), note: uploadNote, tag: uploadTag, driveFileId };
+        const updated = [photo, ...photos];
+        setPhotos(updated);
+        await saveProgressPhotos(user.uid, updated.filter((p) => p.driveFileId));
+        setUploadNote('');
+        setUploadTag('front');
+        setShowUploadForm(false);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+      } catch (err) {
+        alert('Drive yükleme hatası: ' + err.message + '. Drive bağlantını yenilemeyi dene.');
+      } finally {
+        setIsUploading(false);
+      }
+      return;
+    }
+
+    // Drive bağlantısı yoksa eski base64/localStorage yolu (geçici yedek)
     const reader = new FileReader();
     reader.onload = (e) => {
       const photo = {
@@ -78,32 +157,36 @@ const ProgressPhotos = () => {
         note: uploadNote,
         tag: uploadTag
       };
-
-      setPhotos([photo, ...photos]);
+      const updated = [photo, ...photos];
+      setPhotos(updated);
+      try {
+        localStorage.setItem('progress_photos', JSON.stringify(updated.filter((p) => p.image)));
+      } catch (error) {
+        alert('Fotoğraf yerel olarak kaydedilemedi (alan doldu). Drive\'a bağlanarak buluta kaydedebilirsin.');
+      }
       setUploadNote('');
       setUploadTag('front');
       setShowUploadForm(false);
-
-      // Input'u temizle
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
+      if (fileInputRef.current) fileInputRef.current.value = '';
     };
     reader.readAsDataURL(file);
   };
 
   // Fotoğraf silme
-  const deletePhoto = (id) => {
-    if (window.confirm('Bu fotoğrafı silmek istediğinize emin misiniz?')) {
-      setPhotos(photos.filter(p => p.id !== id));
-      if (selectedPhoto?.id === id) {
-        setSelectedPhoto(null);
-      }
-      // Karşılaştırma modundaysa seçimleri temizle
-      if (compareMode) {
-        setSelectedComparePhotos(selectedComparePhotos.filter(p => p.id !== id));
-      }
+  const deletePhoto = async (id) => {
+    if (!window.confirm('Bu fotoğrafı silmek istediğinize emin misiniz?')) return;
+    const updated = photos.filter(p => p.id !== id);
+    setPhotos(updated);
+    if (selectedPhoto?.id === id) {
+      setSelectedPhoto(null);
     }
+    if (compareMode) {
+      setSelectedComparePhotos(selectedComparePhotos.filter(p => p.id !== id));
+    }
+    if (user) {
+      await saveProgressPhotos(user.uid, updated.filter((p) => p.driveFileId));
+    }
+    localStorage.setItem('progress_photos', JSON.stringify(updated.filter((p) => p.image)));
   };
 
   // Karşılaştırma modu toggle
@@ -177,6 +260,16 @@ const ProgressPhotos = () => {
         </div>
       </div>
 
+      {/* Drive bağlantı ipucu */}
+      {user && !driveAccessToken && (
+        <div className="drive-hint">
+          ☁️ Fotoğrafların buluta (Google Drive) kaydedilmesi için bağlantı gerekli — bağlanmazsan fotoğraflar sadece bu cihazda kalır.{' '}
+          <button type="button" className="drive-connect-btn" onClick={onRequestDriveAccess}>
+            Drive'a Bağlan
+          </button>
+        </div>
+      )}
+
       {/* Yükleme formu */}
       {showUploadForm && (
         <div className="upload-form">
@@ -188,8 +281,11 @@ const ProgressPhotos = () => {
               accept="image/*"
               onChange={handleFileSelect}
               className="file-input"
+              disabled={isUploading}
             />
-            <p className="help-text">Maksimum 5MB, JPG, PNG veya WebP formatında</p>
+            <p className="help-text">
+              {isUploading ? '☁️ Drive\'a yükleniyor...' : 'Maksimum 10MB, JPG, PNG veya WebP formatında'}
+            </p>
           </div>
 
           <div className="form-section">
@@ -236,7 +332,9 @@ const ProgressPhotos = () => {
                   <div className="compare-label">
                     {index === 0 ? '📅 Önce' : '📅 Sonra'}
                   </div>
-                  <img src={photo.image} alt={`Karşılaştırma ${index + 1}`} />
+                  {getPhotoSrc(photo)
+                    ? <img src={getPhotoSrc(photo)} alt={`Karşılaştırma ${index + 1}`} />
+                    : <div className="photo-placeholder">📷 Drive bağlantısı gerekli</div>}
                   <div className="compare-info">
                     <span className="compare-date">{formatDate(photo.date)}</span>
                     {photo.note && <p className="compare-note">{photo.note}</p>}
@@ -316,7 +414,9 @@ const ProgressPhotos = () => {
                     <div className="selection-badge">{selectionOrder}</div>
                   )}
                   <div className="photo-image">
-                    <img src={photo.image} alt="Progress" />
+                    {getPhotoSrc(photo)
+                      ? <img src={getPhotoSrc(photo)} alt="Progress" />
+                      : <div className="photo-placeholder">📷 Drive bağlantısı gerekli</div>}
                   </div>
                   <div className="photo-details">
                     <div className="photo-meta">
@@ -353,7 +453,9 @@ const ProgressPhotos = () => {
             >
               ✖️
             </button>
-            <img src={selectedPhoto.image} alt="Progress Detail" />
+            {getPhotoSrc(selectedPhoto)
+              ? <img src={getPhotoSrc(selectedPhoto)} alt="Progress Detail" />
+              : <div className="photo-placeholder">📷 Drive bağlantısı gerekli</div>}
             <div className="modal-info">
               <div className="modal-meta">
                 <span className="modal-tag">{getTagLabel(selectedPhoto.tag)}</span>
