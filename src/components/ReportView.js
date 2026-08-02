@@ -3,7 +3,7 @@ import './ReportView.css';
 import { getDailyLogsRange, getCalorieTrackingRange, getWaterTracker, getWeightTracker, getNutritionGoals, getUserProfile } from '../firebase/dataService';
 import { analyzeRegions, REGION_LABELS } from '../utils/muscleMap';
 import { workoutStats } from '../utils/hevyParser';
-import { computeBMR, avgDeficit as avgDeficitFn } from '../utils/calorieMath';
+import { computeBMR, profileWithLatestWeight, avgDeficit as avgDeficitFn } from '../utils/calorieMath';
 
 /**
  * ReportView - Haftalık/Aylık sağlık raporu.
@@ -117,14 +117,17 @@ const ReportView = ({ user }) => {
       }
 
       const goals = goalsRes.success ? goalsRes.data : null;
-      const bmr = profileRes.success ? computeBMR(profileRes.data) : null;
+      const bmrProfile = profileRes.success
+        ? profileWithLatestWeight(profileRes.data, weight.success ? weight.data.entries || [] : [])
+        : null;
+      const bmr = computeBMR(bmrProfile);
 
       // Bilimsel kalori açığı: toplam harcama (BMR + aktif kalori) - alınan kalori.
       const calorieDays = dates.map((d) => {
         const meals = calories[d]?.meals || [];
         const consumed = meals.reduce((s, m) => s + (parseFloat(m.calories) || 0), 0);
         const workoutCalories = (logs[d]?.workouts || []).reduce((s, w) => s + (parseFloat(w.calories) || 0), 0);
-        return { consumed, activeCalories: logs[d]?.vitals?.active_calories || workoutCalories };
+        return { consumed, activeCalories: logs[d]?.vitals?.active_calories || workoutCalories, vitals: logs[d]?.vitals || {} };
       }).filter((d) => d.consumed > 0);
       const avgDeficit = avgDeficitFn(bmr, calorieDays);
       const totalDeficit = avgDeficit != null ? Math.round(avgDeficit * calorieDays.length) : null;

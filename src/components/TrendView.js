@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import './TrendView.css';
-import { getCalorieTrackingRange, getDailyLogsRange, getWaterTracker, saveWaterTracker, saveDailyLog, getDailyLog, getNutritionGoals, saveNutritionGoals, getUserProfile } from '../firebase/dataService';
-import { computeBMR, dayBurned, dayDeficit, getBMRProfileIssue, avgDeficit as avgDeficitFn } from '../utils/calorieMath';
+import { getCalorieTrackingRange, getDailyLogsRange, getWaterTracker, saveWaterTracker, saveDailyLog, getDailyLog, getNutritionGoals, saveNutritionGoals, getUserProfile, getWeightTracker } from '../firebase/dataService';
+import { computeBMR, energyBalance, getActiveEnergy, getBMRProfileIssue, profileWithLatestWeight, avgDeficit as avgDeficitFn } from '../utils/calorieMath';
 import {
   saveSleep, deleteSleep, saveVitals, deleteVitals,
   addSupplement, updateSupplement, deleteSupplement,
@@ -81,7 +81,7 @@ const activityTotals = (day) => {
   const workoutDistance = day.workouts.reduce((s, w) => s + (parseFloat(w.distance_km) || 0), 0);
   return {
     steps: parseFloat(vitals.steps) || null,
-    activeCalories: parseFloat(vitals.active_calories) || workoutCalories || null,
+    activeCalories: getActiveEnergy(vitals, workoutCalories) || null,
     durationMin: parseFloat(vitals.exercise_minutes) || workoutDuration || null,
     distanceKm: parseFloat(vitals.distance_km) || workoutDistance || null
   };
@@ -121,10 +121,14 @@ const TrendView = ({ user }) => {
   // Profil → BMR (kalori açığı hesabı için)
   useEffect(() => {
     if (!user) return;
-    getUserProfile(user.uid).then((res) => {
+    Promise.all([
+      getUserProfile(user.uid),
+      getWeightTracker(user.uid, user.email)
+    ]).then(([res, weight]) => {
       if (res?.success && res.data) {
-        setBmr(computeBMR(res.data));
-        setBmrIssue(getBMRProfileIssue(res.data));
+        const profile = profileWithLatestWeight(res.data, weight?.success ? weight.data.entries || [] : []);
+        setBmr(computeBMR(profile));
+        setBmrIssue(getBMRProfileIssue(profile));
         return;
       }
       try {
@@ -273,10 +277,21 @@ const TrendView = ({ user }) => {
   const calorieDays = dailyTotals.filter((d) => d.calories > 0);
   const avgRealDeficit = avgDeficitFn(
     bmr,
-    calorieDays.map((d) => ({ consumed: d.calories, activeCalories: activityTotals(d).activeCalories }))
+    calorieDays.map((d) => ({ consumed: d.calories, activeCalories: activityTotals(d).activeCalories, vitals: d.vitals || {}, date: d.date }))
   );
-  // Ort. harcama (toplam): BMR + ort. aktif kalori
-  const avgBurned = bmr != null ? Math.round(bmr + (avgActiveCal || 0)) : null;
+  const expenditureDays = dailyTotals
+    .map((d) => energyBalance({
+      bmr,
+      vitals: d.vitals || {},
+      consumed: d.calories || 1,
+      date: d.date,
+      mode: 'full-day',
+      workoutActiveCalories: activityTotals(d).activeCalories || 0
+    }).totalExpenditure)
+    .filter((v) => v != null);
+  const avgBurned = expenditureDays.length
+    ? Math.round(expenditureDays.reduce((s, v) => s + v, 0) / expenditureDays.length)
+    : null;
   const maxCalories = Math.max(...dailyTotals.map((d) => d.calories), 1);
   const maxWater = Math.max(...dailyTotals.map((d) => d.water), 1);
   const maxSleep = Math.max(...dailyTotals.map((d) => d.sleepHours || 0), 1);
@@ -1082,13 +1097,20 @@ const TrendView = ({ user }) => {
                   <span>Yağ: <strong>{Math.round(dailyTotals[0].fats)}g</strong>{goals ? ` / ${goals.fats}g` : ''}</span>
                 </div>
                 {bmr != null && dailyTotals[0].calories > 0 && (() => {
-                  const active = activityTotals(dailyTotals[0]).activeCalories || 0;
-                  const burned = dayBurned(bmr, active);
-                  const def = dayDeficit(bmr, active, dailyTotals[0].calories);
+                  const activity = activityTotals(dailyTotals[0]);
+                  const balance = energyBalance({
+                    bmr,
+                    vitals: dailyTotals[0].vitals || {},
+                    consumed: dailyTotals[0].calories,
+                    date: dailyTotals[0].date,
+                    mode: 'full-day',
+                    workoutActiveCalories: activity.activeCalories || 0
+                  });
+                  const def = balance.deficit;
                   return (
                     <div className={`trend-day-deficit ${def >= 0 ? 'good' : 'over'}`}>
                       {def >= 0 ? '📉' : '📈'} Bu gün <strong>{Math.abs(def)} kcal {def >= 0 ? 'açık' : 'fazla'}</strong>
-                      <span> (harcama {burned} = BMR {bmr}{active ? ` + aktif ${Math.round(active)}` : ''} · alınan {Math.round(dailyTotals[0].calories)})</span>
+                      <span> (harcama {balance.totalExpenditure} = dinlenme {balance.restingEnergy}{balance.activeEnergy ? ` + aktif ${Math.round(balance.activeEnergy)}` : ''} · alınan {Math.round(dailyTotals[0].calories)})</span>
                     </div>
                   );
                 })()}

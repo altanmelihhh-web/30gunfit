@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import './TodaySummary.css';
-import { getDailyCalories, getDailyLog, getWaterTracker, getNutritionGoals, getUserProfile } from '../firebase/dataService';
-import { computeBMR, dayDeficit, getBMRProfileIssue } from '../utils/calorieMath';
+import { getDailyCalories, getDailyLog, getWaterTracker, getNutritionGoals, getUserProfile, getWeightTracker } from '../firebase/dataService';
+import { computeBMR, energyBalance, getActiveEnergy, getBMRProfileIssue, profileWithLatestWeight } from '../utils/calorieMath';
 
 /**
  * TodaySummary - Ana "Bugün" sekmesinin üstündeki günlük özet panosu.
@@ -41,12 +41,13 @@ const TodaySummary = ({ user, refreshKey }) => {
 
   const load = useCallback(async () => {
     if (!user) return;
-    const [cal, log, water, goals, profile] = await Promise.all([
+    const [cal, log, water, goals, profile, weight] = await Promise.all([
       getDailyCalories(user.uid, today),
       getDailyLog(user.uid, today),
       getWaterTracker(user.uid),
       getNutritionGoals(user.uid),
-      getUserProfile(user.uid)
+      getUserProfile(user.uid),
+      getWeightTracker(user.uid, user.email)
     ]);
 
     const meals = cal.success ? (cal.data.meals || []) : [];
@@ -75,20 +76,21 @@ const TodaySummary = ({ user, refreshKey }) => {
         }
       } catch { /* yoksay */ }
     }
-    let profileData = profile.success ? profile.data : null;
+    let profileData = profile.success ? profileWithLatestWeight(profile.data, weight.success ? weight.data.entries || [] : []) : null;
     let bmr = computeBMR(profileData);
     if (bmr == null) {
       try {
         const savedProfile = JSON.parse(localStorage.getItem('userProfile') || 'null');
-        profileData = profileData || savedProfile;
+        profileData = savedProfile;
         bmr = computeBMR(savedProfile);
       } catch { /* yoksay */ }
     }
     const bmrIssue = getBMRProfileIssue(profileData);
     const workoutCalories = (logData.workouts || []).reduce((s, w) => s + (parseFloat(w.calories) || 0), 0);
-    const activeCalories = logData.vitals?.active_calories || workoutCalories || 0;
-    const realDeficit = dayDeficit(bmr, activeCalories, calories);
-    const totalBurned = bmr != null ? Math.round(bmr + activeCalories) : null;
+    const vitals = logData.vitals || {};
+    const activeCalories = getActiveEnergy(vitals, workoutCalories);
+    const currentBalance = energyBalance({ bmr, vitals, consumed: calories, workoutActiveCalories: workoutCalories, mode: 'full-day' });
+    const totalBurned = currentBalance.totalExpenditure;
     const caloriePct = targetCalories > 0 ? Math.round((calories / targetCalories) * 100) : null;
 
     setData({
@@ -102,7 +104,8 @@ const TodaySummary = ({ user, refreshKey }) => {
       bmr,
       bmrIssue,
       activeCalories,
-      realDeficit,
+      currentBalance,
+      realDeficit: currentBalance.deficit,
       totalBurned,
       caloriePct
     });
@@ -128,11 +131,10 @@ const TodaySummary = ({ user, refreshKey }) => {
           <span className="today-panel-label">Enerji Dengesi</span>
           {data.realDeficit != null ? (
             <>
-              <strong>{Math.abs(data.realDeficit).toLocaleString('tr-TR')} kcal</strong>
-              <span>{data.realDeficit >= 0 ? 'gerçek kalori açığı' : 'kalori fazlası'}</span>
+              <strong>{Math.abs(data.currentBalance.deficit).toLocaleString('tr-TR')} kcal</strong>
+              <span>{data.currentBalance.deficit >= 0 ? 'kalori açığı' : 'kalori fazlası'}</span>
               <div className="today-equation">
-                Harcama {data.totalBurned?.toLocaleString('tr-TR')} = BMR {data.bmr?.toLocaleString('tr-TR')}
-                {data.activeCalories ? ` + aktif ${Math.round(data.activeCalories).toLocaleString('tr-TR')}` : ''} - alınan {Math.round(data.calories).toLocaleString('tr-TR')}
+                Harcama {data.currentBalance.totalExpenditure.toLocaleString('tr-TR')} = BMR {data.bmr.toLocaleString('tr-TR')} + aktif {Math.round(data.activeCalories || 0).toLocaleString('tr-TR')} - alınan {Math.round(data.calories).toLocaleString('tr-TR')}
               </div>
             </>
           ) : (
@@ -146,9 +148,10 @@ const TodaySummary = ({ user, refreshKey }) => {
 
         <div className="today-metric-grid">
           <MetricCard icon="🔥" value={`${Math.round(data.calories).toLocaleString('tr-TR')} kcal`} label="Alınan Kalori" note={data.caloriePct != null ? `hedefin %${data.caloriePct}` : null} />
-          <MetricCard icon="⚡" value={`${Math.round(data.activeCalories || 0).toLocaleString('tr-TR')} kcal`} label="Aktif Kalori" note={data.totalBurned ? `harcama ${data.totalBurned.toLocaleString('tr-TR')}` : null} />
-          <MetricCard icon="💧" value={`${data.waterTotal.toLocaleString('tr-TR')} ml`} label="Su" note={data.waterGoal ? `hedef ${data.waterGoal.toLocaleString('tr-TR')}` : null} />
-          <MetricCard icon="😴" value={data.sleep?.duration_hours ? `${data.sleep.duration_hours} sa` : '—'} label="Uyku" note={data.sleep?.score ? `skor ${data.sleep.score}` : null} />
+          <MetricCard icon="🛌" value={data.currentBalance.restingEnergy != null ? `${data.currentBalance.restingEnergy.toLocaleString('tr-TR')} kcal` : '—'} label="Dinlenme Enerjisi" note={`BMR ${data.bmr?.toLocaleString('tr-TR')}`} />
+          <MetricCard icon="⚡" value={`${Math.round(data.activeCalories || 0).toLocaleString('tr-TR')} kcal`} label="Aktif Enerji" />
+          <MetricCard icon="Σ" value={data.currentBalance.totalExpenditure ? `${data.currentBalance.totalExpenditure.toLocaleString('tr-TR')} kcal` : '—'} label="Toplam Harcama" note="dinlenme + aktif" />
+          <MetricCard icon="📉" value={data.currentBalance.deficit != null ? `${Math.abs(data.currentBalance.deficit).toLocaleString('tr-TR')} kcal` : '—'} label="Kalori Açığı" note={data.currentBalance.deficit != null && data.currentBalance.deficit < 0 ? 'fazla' : 'açık'} />
         </div>
       </div>
 

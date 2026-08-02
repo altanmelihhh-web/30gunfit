@@ -255,16 +255,6 @@ const NutritionDashboard = ({ userProfile, user, driveAccessToken, onRequestDriv
         )}
       </div>
 
-      {/* Bilgilendirme kartı */}
-      <div className="info-card nutrition-operating-model">
-        <h4>💡 İpuçları</h4>
-        <ul>
-          <li><strong>Bugün:</strong> Günlük hedefler, öğünler ve makrolar için ana ekran.</li>
-          <li><strong>Hızlı Giriş:</strong> Su, kilo, uyku, yemek, aktivite ve takviyeyi satır satır kaydet.</li>
-          <li><strong>AI Foto:</strong> Fotoğraftan öğün tahmini alıp Bugün'e ekle.</li>
-          <li><strong>Araçlar:</strong> Hesaplayıcı, galeri, alışveriş ve gelişmiş form burada.</li>
-        </ul>
-      </div>
     </div>
   );
 };

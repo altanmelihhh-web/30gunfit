@@ -65,6 +65,14 @@ const computeBMR = (profile) => {
   return Math.round(profile.gender === 'female' ? base - 161 : base + 5);
 };
 
+const profileWithLatestWeight = (profile, entries = []) => {
+  if (!profile || !Array.isArray(entries) || entries.length === 0) return profile;
+  const latest = [...entries]
+    .filter((entry) => validRange(num(entry.weight), 30, 300))
+    .sort((a, b) => new Date(b.date || b.timestamp || 0) - new Date(a.date || a.timestamp || 0))[0];
+  return latest ? { ...profile, weight: num(latest.weight) } : profile;
+};
+
 const REGION_KEYWORDS = [
   ['Göğüs', ['göğüs', 'gogus', 'chest', 'bench', 'fly', 'şınav', 'dips', 'pec']],
   ['Sırt', ['sırt', 'sirt', 'row', 'lat', 'pulldown', 'pull up', 'barfiks', 'deadlift', 'back']],
@@ -181,7 +189,7 @@ const buildReport = async (uid, email) => {
   const waterVals = Object.values(waterByDate);
 
   // Bilimsel kalori açığı: toplam harcama (BMR + aktif kalori) - alınan kalori.
-  const bmr = computeBMR(profileDoc);
+  const bmr = computeBMR(profileWithLatestWeight(profileDoc, weightDoc?.entries || []));
   let totalDeficit = null, avgDeficit = null;
   const calorieDays = dates.map((d, i) => {
     const meals = calDocs[i]?.meals || [];
@@ -192,7 +200,7 @@ const buildReport = async (uid, email) => {
   if (bmr != null && calorieDays.length) {
     const defs = calorieDays.map((d) => (bmr + d.activeCalories) - d.consumed);
     totalDeficit = Math.round(defs.reduce((s, x) => s + x, 0));
-    avgDeficit = Math.round(totalDeficit / cals.length);
+    avgDeficit = Math.round(totalDeficit / calorieDays.length);
   }
   const avgActive = avg(activeVals);
   const avgBurned = bmr != null ? Math.round(bmr + avgActive) : null;
