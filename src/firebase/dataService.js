@@ -1,6 +1,20 @@
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { db } from './config';
 
+const normalizeEmailKey = (email) => (email || '').trim().toLowerCase();
+
+const mergeEntriesByDate = (...entryLists) => {
+  const byDate = new Map();
+  entryLists.flat().filter(Boolean).forEach((entry) => {
+    if (!entry?.date) return;
+    const previous = byDate.get(entry.date);
+    if (!previous || new Date(entry.timestamp || 0) >= new Date(previous.timestamp || 0)) {
+      byDate.set(entry.date, entry);
+    }
+  });
+  return Array.from(byDate.values()).sort((a, b) => new Date(a.date) - new Date(b.date));
+};
+
 /**
  * Kullanıcı profilini kaydet
  */
@@ -368,13 +382,22 @@ export const getCalorieTrackingRange = async (userId, dates) => {
 /**
  * Kilo takibini kaydet (tüm kayıtlar tek dokümanda, WeightTracker'ın localStorage yapısıyla birebir aynı)
  */
-export const saveWeightTracker = async (userId, entries, targetWeight) => {
+export const saveWeightTracker = async (userId, entries, targetWeight, email) => {
   try {
-    await setDoc(doc(db, 'weightTracking', userId), {
+    const payload = {
       entries,
       targetWeight: targetWeight || null,
       updatedAt: new Date().toISOString()
-    });
+    };
+    await setDoc(doc(db, 'weightTracking', userId), payload);
+    const emailKey = normalizeEmailKey(email);
+    if (emailKey) {
+      await setDoc(doc(db, 'weightTrackingByEmail', emailKey), {
+        ...payload,
+        ownerEmail: emailKey,
+        ownerUid: userId
+      });
+    }
     return { success: true };
   } catch (error) {
     console.error('Weight tracker save error:', error);
@@ -497,12 +520,25 @@ export const getNutritionGoals = async (userId) => {
   }
 };
 
-export const getWeightTracker = async (userId) => {
+export const getWeightTracker = async (userId, email) => {
   try {
-    const docRef = doc(db, 'weightTracking', userId);
-    const docSnap = await getDoc(docRef);
-    if (docSnap.exists()) {
-      return { success: true, data: docSnap.data() };
+    const uidSnap = await getDoc(doc(db, 'weightTracking', userId));
+    const emailKey = normalizeEmailKey(email);
+    const emailSnap = emailKey ? await getDoc(doc(db, 'weightTrackingByEmail', emailKey)) : null;
+    const uidData = uidSnap.exists() ? uidSnap.data() : null;
+    const emailData = emailSnap?.exists() ? emailSnap.data() : null;
+
+    if (uidData || emailData) {
+      const entries = mergeEntriesByDate(uidData?.entries || [], emailData?.entries || []);
+      return {
+        success: true,
+        data: {
+          ...(uidData || {}),
+          ...(emailData || {}),
+          entries,
+          targetWeight: emailData?.targetWeight || uidData?.targetWeight || null
+        }
+      };
     }
     return { success: false, error: 'Kilo takibi bulunamadı' };
   } catch (error) {

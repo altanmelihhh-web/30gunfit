@@ -388,7 +388,7 @@ function App() {
         {activeTab === 'stats' && (
           <div className="tab-content">
             <div className="dashboard-sections">
-              <WeightTracker user={user} />
+              <WeightTracker user={user} initialWeight={userProfile?.weight} />
               <SleepTracker user={user} />
             </div>
             <div style={{ marginTop: '28px' }}>

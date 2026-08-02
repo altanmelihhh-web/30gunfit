@@ -255,29 +255,46 @@
 /* Responsive */
 @media (max-width: 768px) {
   .nutrition-dashboard {
-    padding: 0 16px;
+    max-width: none;
+    width: 100%;
+    padding: 0;
+  }
+
+  .dashboard-header {
+    text-align: left;
+    margin-bottom: 14px;
+    padding: 13px;
+    border: 1px solid var(--color-border-strong);
+    border-radius: 12px;
+    background: var(--color-surface);
+    box-shadow: var(--shadow-sm);
   }
 
   .dashboard-header h1 {
-    font-size: 2rem;
+    font-size: 1.28rem;
+    margin-bottom: 4px;
   }
 
   .dashboard-header p {
-    font-size: 0.95rem;
+    font-size: 0.82rem;
+    line-height: 1.35;
   }
 
   .nutrition-nav {
-    justify-content: space-around;
-    gap: 0;
-    padding: 4px;
+    justify-content: flex-start;
+    gap: 6px;
+    padding: 6px;
+    margin-bottom: 14px;
+    border-radius: 12px;
   }
 
   .nav-btn {
-    flex: 1;
-    min-width: 0;
+    flex: 0 0 auto;
+    min-width: 78px;
     flex-direction: column;
     gap: 2px;
-    padding: 6px 2px;
+    padding: 8px 8px;
+    border-radius: 10px;
   }
 
   .nav-btn-icon {
@@ -286,20 +303,47 @@
   }
 
   .nav-btn-label {
-    font-size: 10px;
+    font-size: 10.5px;
     font-weight: 600;
     white-space: nowrap;
   }
 
   .action-buttons {
     flex-direction: column;
+    gap: 8px;
   }
 
   .action-btn {
     width: 100%;
+    min-height: 42px;
+    padding: 11px 14px;
   }
 
   .no-plan-warning {
-    padding: 32px 20px;
+    padding: 22px 16px;
+    border-radius: 12px;
+  }
+
+  .quick-actions,
+  .info-card {
+    margin-top: 16px;
+    padding: 14px;
+    border-radius: 12px;
+    text-align: left;
+  }
+
+  .quick-actions p {
+    margin-bottom: 12px;
+    font-size: 0.94rem;
+  }
+
+  .info-card h4 {
+    font-size: 1rem;
+    margin-bottom: 10px;
+  }
+
+  .info-card ul {
+    font-size: 0.82rem;
+    line-height: 1.45;
   }
 }

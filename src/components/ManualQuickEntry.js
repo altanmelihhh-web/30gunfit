@@ -95,7 +95,7 @@ const ManualQuickEntry = ({ user, onSaved }) => {
 
       if (weightEntries.length > 0) {
         const last = weightEntries[weightEntries.length - 1];
-        const existing = await getWeightTracker(user.uid);
+        const existing = await getWeightTracker(user.uid, user.email);
         const currentEntries = existing.success ? (existing.data.entries || []) : [];
         const target = existing.success ? existing.data.targetWeight : null;
         const newEntry = { id: Date.now(), weight: last.data.weight_kg, date: selectedDate, timestamp: new Date().toISOString() };
@@ -103,7 +103,7 @@ const ManualQuickEntry = ({ user, onSaved }) => {
         const updated = existingIndex >= 0
           ? currentEntries.map((e, i) => (i === existingIndex ? newEntry : e))
           : [...currentEntries, newEntry].sort((a, b) => new Date(a.date) - new Date(b.date));
-        await saveWeightTracker(user.uid, updated, target);
+        await saveWeightTracker(user.uid, updated, target, user.email);
       }
 
       // Uyku / takviye / antrenman / vitals - günlük log dokümanında ayrı alanlar,

@@ -9,33 +9,29 @@ import { computeBMR, dayDeficit, getBMRProfileIssue } from '../utils/calorieMath
  * Veriyi Firestore'dan (bugünün tarihi) okur; kullanıcı yoksa gizlenir.
  */
 
-const Ring = ({ value, target, unit, label, icon, color }) => {
+const ProgressMetric = ({ value, target, unit, label, color }) => {
   const pct = target > 0 ? Math.min((value / target) * 100, 100) : 0;
-  const size = 68, stroke = 6, r = (size - stroke) / 2, circ = 2 * Math.PI * r;
   return (
-    <div className="today-ring-card">
-      <svg width={size} height={size} className="today-ring">
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(0,0,0,0.08)" strokeWidth={stroke} />
-        <circle
-          cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth={stroke}
-          strokeDasharray={circ} strokeDashoffset={circ - (pct / 100) * circ}
-          strokeLinecap="round" transform={`rotate(-90 ${size / 2} ${size / 2})`}
-        />
-        <text x="50%" y="52%" textAnchor="middle" dominantBaseline="middle" className="today-ring-icon">{icon}</text>
-      </svg>
-      <div className="today-ring-info">
-        <span className="today-ring-value">{Math.round(value)}{target ? <span className="today-ring-target">/{target}</span> : ''}</span>
-        <span className="today-ring-label">{label}{unit ? ` (${unit})` : ''}</span>
+    <div className="today-progress-metric">
+      <div className="today-progress-head">
+        <span>{label}</span>
+        <strong>{Math.round(value)}{unit}{target ? <small> / {target}{unit}</small> : ''}</strong>
+      </div>
+      <div className="today-progress-track">
+        <span style={{ width: `${pct}%`, background: color }} />
       </div>
     </div>
   );
 };
 
-const StatCard = ({ icon, value, label }) => (
-  <div className="today-stat-card">
+const MetricCard = ({ icon, value, label, note }) => (
+  <div className="today-metric-card">
     <span className="today-stat-icon">{icon}</span>
-    <span className="today-stat-value">{value}</span>
-    <span className="today-stat-label">{label}</span>
+    <div>
+      <span className="today-stat-value">{value}</span>
+      <span className="today-stat-label">{label}</span>
+      {note && <span className="today-stat-note">{note}</span>}
+    </div>
   </div>
 );
 
@@ -92,6 +88,8 @@ const TodaySummary = ({ user, refreshKey }) => {
     const workoutCalories = (logData.workouts || []).reduce((s, w) => s + (parseFloat(w.calories) || 0), 0);
     const activeCalories = logData.vitals?.active_calories || workoutCalories || 0;
     const realDeficit = dayDeficit(bmr, activeCalories, calories);
+    const totalBurned = bmr != null ? Math.round(bmr + activeCalories) : null;
+    const caloriePct = targetCalories > 0 ? Math.round((calories / targetCalories) * 100) : null;
 
     setData({
       calories, protein, meals: meals.length,
@@ -104,7 +102,9 @@ const TodaySummary = ({ user, refreshKey }) => {
       bmr,
       bmrIssue,
       activeCalories,
-      realDeficit
+      realDeficit,
+      totalBurned,
+      caloriePct
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, refreshKey]);
@@ -115,28 +115,56 @@ const TodaySummary = ({ user, refreshKey }) => {
 
   return (
     <div className="today-summary">
-      <h2 className="today-summary-title">🗓️ Bugün · {new Date().toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', weekday: 'long' })}</h2>
-      <div className="today-rings">
-        <Ring value={data.calories} target={data.targetCalories} unit="" label="Kalori" icon="🔥" color="#f97316" />
-        <Ring value={data.waterTotal} target={data.waterGoal} unit="ml" label="Su" icon="💧" color="#0ea5e9" />
-        {data.targetProtein > 0 && (
-          <Ring value={data.protein} target={data.targetProtein} unit="g" label="Protein" icon="🥩" color="#22c55e" />
-        )}
+      <div className="today-summary-head">
+        <div>
+          <span className="today-eyebrow">Günlük Operasyon Paneli</span>
+          <h2 className="today-summary-title">Bugün · {new Date().toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', weekday: 'long' })}</h2>
+        </div>
+        <span className="today-data-badge">{data.meals} öğün kaydı</span>
       </div>
 
-      {data.meals > 0 && data.realDeficit != null && (() => {
-        const isDeficit = data.realDeficit >= 0;
-        return (
-          <div className={`today-deficit ${isDeficit ? 'good' : 'over'}`}>
-            <span className="today-deficit-icon">{isDeficit ? '📉' : '📈'}</span>
-            <span className="today-deficit-text">
-              {isDeficit
-                ? <>Bugün <strong>{Math.abs(data.realDeficit)} kcal açık</strong> (BMR {data.bmr}{data.activeCalories ? ` + aktif ${Math.round(data.activeCalories)}` : ''} · alınan {Math.round(data.calories)})</>
-                : <>Bugün <strong>{Math.abs(data.realDeficit)} kcal fazla</strong> (BMR {data.bmr}{data.activeCalories ? ` + aktif ${Math.round(data.activeCalories)}` : ''} · alınan {Math.round(data.calories)})</>}
-            </span>
-          </div>
-        );
-      })()}
+      <div className="today-command-grid">
+        <div className={`today-energy-panel ${data.realDeficit != null && data.realDeficit < 0 ? 'over' : ''}`}>
+          <span className="today-panel-label">Enerji Dengesi</span>
+          {data.realDeficit != null ? (
+            <>
+              <strong>{Math.abs(data.realDeficit).toLocaleString('tr-TR')} kcal</strong>
+              <span>{data.realDeficit >= 0 ? 'gerçek kalori açığı' : 'kalori fazlası'}</span>
+              <div className="today-equation">
+                Harcama {data.totalBurned?.toLocaleString('tr-TR')} = BMR {data.bmr?.toLocaleString('tr-TR')}
+                {data.activeCalories ? ` + aktif ${Math.round(data.activeCalories).toLocaleString('tr-TR')}` : ''} - alınan {Math.round(data.calories).toLocaleString('tr-TR')}
+              </div>
+            </>
+          ) : (
+            <>
+              <strong>Eksik</strong>
+              <span>Kalori açığı hesaplanamadı</span>
+              <div className="today-equation">{data.bmrIssue || 'Profil değerleri geçersiz.'}</div>
+            </>
+          )}
+        </div>
+
+        <div className="today-metric-grid">
+          <MetricCard icon="🔥" value={`${Math.round(data.calories).toLocaleString('tr-TR')} kcal`} label="Alınan Kalori" note={data.caloriePct != null ? `hedefin %${data.caloriePct}` : null} />
+          <MetricCard icon="⚡" value={`${Math.round(data.activeCalories || 0).toLocaleString('tr-TR')} kcal`} label="Aktif Kalori" note={data.totalBurned ? `harcama ${data.totalBurned.toLocaleString('tr-TR')}` : null} />
+          <MetricCard icon="💧" value={`${data.waterTotal.toLocaleString('tr-TR')} ml`} label="Su" note={data.waterGoal ? `hedef ${data.waterGoal.toLocaleString('tr-TR')}` : null} />
+          <MetricCard icon="😴" value={data.sleep?.duration_hours ? `${data.sleep.duration_hours} sa` : '—'} label="Uyku" note={data.sleep?.score ? `skor ${data.sleep.score}` : null} />
+        </div>
+      </div>
+
+      <div className="today-progress-grid">
+        <ProgressMetric value={data.calories} target={data.targetCalories} unit=" kcal" label="Kalori Hedefi" color="#f97316" />
+        <ProgressMetric value={data.waterTotal} target={data.waterGoal} unit=" ml" label="Su Hedefi" color="#0ea5e9" />
+        {data.targetProtein > 0 && <ProgressMetric value={data.protein} target={data.targetProtein} unit="g" label="Protein Hedefi" color="#16a34a" />}
+      </div>
+
+      <div className="today-ops-row">
+        <MetricCard icon="👟" value={data.steps ? data.steps.toLocaleString('tr-TR') : '—'} label="Adım" />
+        <MetricCard icon="⌚" value={data.activeCalories ? `${Math.round(data.activeCalories)} kcal` : data.workouts.length > 0 ? '✓' : '—'} label="Aktivite" />
+        <MetricCard icon="🍽️" value={data.meals} label="Öğün" />
+        <MetricCard icon="🥩" value={`${Math.round(data.protein).toLocaleString('tr-TR')}g`} label="Protein" />
+      </div>
+
       {data.meals > 0 && data.realDeficit == null && (
         <div className="today-deficit over">
           <span className="today-deficit-icon">⚠️</span>
@@ -145,12 +173,6 @@ const TodaySummary = ({ user, refreshKey }) => {
           </span>
         </div>
       )}
-      <div className="today-stats">
-        <StatCard icon="😴" value={data.sleep?.duration_hours ? `${data.sleep.duration_hours} sa` : '—'} label="Uyku" />
-        <StatCard icon="👟" value={data.steps ? data.steps.toLocaleString('tr-TR') : '—'} label="Adım" />
-        <StatCard icon="⌚" value={data.activeCalories ? `${Math.round(data.activeCalories)} kcal` : data.workouts.length > 0 ? '✓' : '—'} label="Aktivite" />
-        <StatCard icon="🍽️" value={data.meals} label="Öğün" />
-      </div>
     </div>
   );
 };

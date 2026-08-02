@@ -40,7 +40,7 @@ const ReportView = ({ user }) => {
         getDailyLogsRange(user.uid, dates),
         getCalorieTrackingRange(user.uid, dates),
         getWaterTracker(user.uid),
-        getWeightTracker(user.uid),
+        getWeightTracker(user.uid, user.email),
         getNutritionGoals(user.uid),
         getUserProfile(user.uid)
       ]);
@@ -97,15 +97,22 @@ const ReportView = ({ user }) => {
         .sort((a, b) => b.sets - a.sets);
 
       // Kilo değişimi
-      let weightChange = null, weightStart = null, weightEnd = null;
+      let weightChange = null, weightStart = null, weightEnd = null, weightInRange = false;
       if (weight.success) {
-        const entries = (weight.data.entries || [])
-          .filter((e) => dates.includes(e.date))
+        const allEntries = (weight.data.entries || [])
           .sort((a, b) => new Date(a.date) - new Date(b.date));
+        const entries = allEntries.filter((e) => dates.includes(e.date));
         if (entries.length >= 1) {
           weightStart = entries[0].weight;
           weightEnd = entries[entries.length - 1].weight;
           weightChange = Math.round((weightEnd - weightStart) * 10) / 10;
+          weightInRange = true;
+        } else if (allEntries.length > 0) {
+          const rangeEnd = dates[dates.length - 1];
+          const latestKnown = [...allEntries]
+            .reverse()
+            .find((e) => !e.date || e.date <= rangeEnd) || allEntries[allEntries.length - 1];
+          weightEnd = latestKnown.weight;
         }
       }
 
@@ -133,7 +140,7 @@ const ReportView = ({ user }) => {
         sleep: { avg: sleepVals.length ? (sleepVals.reduce((s, x) => s + x, 0) / sleepVals.length).toFixed(1) : null, avgScore: avg(sleepScores) },
         steps: { avg: avg(stepVals), days: stepVals.length },
         workout: { dayCount: workoutDayCount, totalSets, totalVolume: Math.round(totalVolume), totalDurationMin: Math.round(totalDurationMin), regions: regionList },
-        body: { weightChange, weightStart, weightEnd }
+        body: { weightChange, weightStart, weightEnd, weightInRange }
       });
     } finally {
       setLoading(false);
@@ -238,6 +245,9 @@ const ReportView = ({ user }) => {
                   <span className={`report-weight-change ${data.body.weightChange < 0 ? 'down' : 'up'}`}>
                     {data.body.weightChange < 0 ? '↓' : '↑'} {Math.abs(data.body.weightChange)} kg (bu dönem)
                   </span>
+                )}
+                {!data.body.weightInRange && (
+                  <span className="report-weight-change">Son bilinen kilo</span>
                 )}
               </div>
             ) : (

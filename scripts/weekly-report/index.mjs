@@ -85,14 +85,41 @@ const getDoc = async (path) => {
   return snap.exists ? snap.data() : null;
 };
 
-const buildReport = async (uid) => {
+const mergeEntriesByDate = (...entryLists) => {
+  const byDate = new Map();
+  entryLists.flat().filter(Boolean).forEach((entry) => {
+    if (!entry?.date) return;
+    const previous = byDate.get(entry.date);
+    if (!previous || new Date(entry.timestamp || 0) >= new Date(previous.timestamp || 0)) {
+      byDate.set(entry.date, entry);
+    }
+  });
+  return Array.from(byDate.values()).sort((a, b) => new Date(a.date) - new Date(b.date));
+};
+
+const getWeightDoc = async (uid, email) => {
+  const emailKey = (email || '').trim().toLowerCase();
+  const [uidDoc, emailDoc] = await Promise.all([
+    getDoc(`weightTracking/${uid}`),
+    emailKey ? getDoc(`weightTrackingByEmail/${emailKey}`) : null
+  ]);
+  if (!uidDoc && !emailDoc) return null;
+  return {
+    ...(uidDoc || {}),
+    ...(emailDoc || {}),
+    entries: mergeEntriesByDate(uidDoc?.entries || [], emailDoc?.entries || []),
+    targetWeight: emailDoc?.targetWeight || uidDoc?.targetWeight || null
+  };
+};
+
+const buildReport = async (uid, email) => {
   const dates = lastNDates(7);
 
   const [calDocs, logDocs, waterDoc, weightDoc, goalsDoc, profileDoc] = await Promise.all([
     Promise.all(dates.map((d) => getDoc(`calorieTracking/${uid}_${d}`))),
     Promise.all(dates.map((d) => getDoc(`dailyLogs/${uid}_${d}`))),
     getDoc(`waterTracking/${uid}`),
-    getDoc(`weightTracking/${uid}`),
+    getWeightDoc(uid, email),
     getDoc(`nutritionGoals/${uid}`),
     getDoc(`userProfiles/${uid}`)
   ]);
@@ -473,7 +500,7 @@ const sendEmail = async (to, subject, html) => {
     try {
       const userRecord = await auth.getUserByEmail(email);
       const name = userRecord.displayName || email.split('@')[0];
-      const report = await buildReport(userRecord.uid);
+      const report = await buildReport(userRecord.uid, email);
       const html = renderHtml(name, report);
       const subject = `💪 Haftalık Sağlık Raporun (${report.period})`;
       await sendEmail(email, subject, html);

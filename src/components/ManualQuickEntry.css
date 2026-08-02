@@ -200,7 +200,56 @@
 /* Tablet / mobil */
 @media (max-width: 768px) {
   .manual-quick-entry {
-    padding: 12px;
+    max-width: none;
+    width: 100%;
+    padding: 0;
+  }
+
+  .manual-header,
+  .manual-date,
+  .manual-examples,
+  .manual-preview {
+    padding: 13px;
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    background: var(--color-surface);
+  }
+
+  .manual-header {
+    margin-bottom: 10px;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .manual-header h3 {
+    font-size: 1.05rem;
+  }
+
+  .manual-header p {
+    font-size: 0.8rem;
+    line-height: 1.35;
+    margin-bottom: 0;
+  }
+
+  .manual-keywords {
+    margin-bottom: 10px;
+  }
+
+  .keyword-chip {
+    font-size: 0.72rem;
+    padding: 4px 8px;
+  }
+
+  .manual-date {
+    margin-bottom: 10px;
+  }
+
+  .manual-input {
+    border-radius: 12px;
+  }
+
+  .manual-parse-btn {
+    min-height: 44px;
+    border-radius: 12px;
   }
 }
 

@@ -15,6 +15,7 @@ const WeightTracker = ({ initialWeight, user }) => {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [targetWeight, setTargetWeight] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
+  const [cloudLoaded, setCloudLoaded] = useState(false);
 
   // localStorage'dan yükle (hızlı ilk gösterim / offline yedek)
   useEffect(() => {
@@ -31,23 +32,45 @@ const WeightTracker = ({ initialWeight, user }) => {
 
   // Giriş yapmışsa Firestore'dan yükle (cihaz bağımsız kalıcı kayıt)
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      setCloudLoaded(true);
+      return;
+    }
 
     const loadFromCloud = async () => {
+      setCloudLoaded(false);
       const result = await getWeightTracker(user.uid);
+      const localEntries = JSON.parse(localStorage.getItem('weight_tracker') || '[]');
+      const localTarget = localStorage.getItem('target_weight') || '';
       if (result.success) {
-        setWeightEntries(result.data.entries || []);
-        if (result.data.targetWeight) {
-          setTargetWeight(result.data.targetWeight);
-        }
-      } else {
-        const localEntries = JSON.parse(localStorage.getItem('weight_tracker') || '[]');
-        if (localEntries.length > 0) {
-          saveWeightTracker(user.uid, localEntries, targetWeight).catch(error =>
-            console.error('Kilo Firestore ilk yükleme hatası:', error)
+        const cloudEntries = result.data.entries || [];
+        if (cloudEntries.length > 0) {
+          setWeightEntries(cloudEntries);
+          localStorage.setItem('weight_tracker', JSON.stringify(cloudEntries));
+        } else if (localEntries.length > 0) {
+          setWeightEntries(localEntries);
+          saveWeightTracker(user.uid, localEntries, result.data.targetWeight || localTarget, user.email).catch(error =>
+            console.error('Kilo Firestore local yedek yükleme hatası:', error)
           );
         }
+        if (result.data.targetWeight) {
+          setTargetWeight(result.data.targetWeight);
+          localStorage.setItem('target_weight', result.data.targetWeight);
+        } else if (localTarget) {
+          setTargetWeight(localTarget);
+        }
+      } else {
+        if (localEntries.length > 0) {
+          saveWeightTracker(user.uid, localEntries, targetWeight, user.email).catch(error =>
+            console.error('Kilo Firestore ilk yükleme hatası:', error)
+          );
+          setWeightEntries(localEntries);
+        }
+        if (localTarget) {
+          setTargetWeight(localTarget);
+        }
       }
+      setCloudLoaded(true);
     };
     loadFromCloud();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -58,12 +81,12 @@ const WeightTracker = ({ initialWeight, user }) => {
     if (weightEntries.length > 0) {
       localStorage.setItem('weight_tracker', JSON.stringify(weightEntries));
     }
-    if (user) {
-      saveWeightTracker(user.uid, weightEntries, targetWeight).catch(error =>
+    if (user && cloudLoaded && (weightEntries.length > 0 || targetWeight)) {
+      saveWeightTracker(user.uid, weightEntries, targetWeight, user.email).catch(error =>
         console.error('Kilo Firestore kayıt hatası:', error)
       );
     }
-  }, [weightEntries, user, targetWeight]);
+  }, [weightEntries, user, targetWeight, cloudLoaded]);
 
   // Hedef kiloya kaydet
   useEffect(() => {
@@ -92,10 +115,13 @@ const WeightTracker = ({ initialWeight, user }) => {
       const updated = [...weightEntries];
       updated[existingIndex] = entry;
       setWeightEntries(updated);
+      if (user && cloudLoaded) saveWeightTracker(user.uid, updated, targetWeight, user.email);
     } else {
-      setWeightEntries([...weightEntries, entry].sort((a, b) =>
+      const updated = [...weightEntries, entry].sort((a, b) =>
         new Date(a.date) - new Date(b.date)
-      ));
+      );
+      setWeightEntries(updated);
+      if (user && cloudLoaded) saveWeightTracker(user.uid, updated, targetWeight, user.email);
     }
 
     setNewWeight('');
@@ -105,7 +131,9 @@ const WeightTracker = ({ initialWeight, user }) => {
   // Kilo silme
   const handleDeleteWeight = (id) => {
     if (window.confirm('Bu kaydı silmek istediğinize emin misiniz?')) {
-      setWeightEntries(weightEntries.filter(e => e.id !== id));
+      const updated = weightEntries.filter(e => e.id !== id);
+      setWeightEntries(updated);
+      if (user && cloudLoaded) saveWeightTracker(user.uid, updated, targetWeight, user.email);
     }
   };
 
