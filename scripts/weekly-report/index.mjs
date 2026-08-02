@@ -13,17 +13,27 @@
  */
 
 import admin from 'firebase-admin';
+import nodemailer from 'nodemailer';
 
 const USERS = ['altanmelihhh@gmail.com', 'emineay12@gmail.com'];
-const RESEND_API_KEY = process.env.RESEND_API_KEY;
-const REPORT_FROM = process.env.REPORT_FROM || '30 Gün Fit <onboarding@resend.dev>';
+const GMAIL_USER = process.env.GMAIL_USER;
+const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD;
+const REPORT_FROM = `30 Gün Fit <${GMAIL_USER}>`;
 
 if (!process.env.FIREBASE_SERVICE_ACCOUNT) {
   console.error('FIREBASE_SERVICE_ACCOUNT eksik'); process.exit(1);
 }
-if (!RESEND_API_KEY) {
-  console.error('RESEND_API_KEY eksik'); process.exit(1);
+if (!GMAIL_USER || !GMAIL_APP_PASSWORD) {
+  console.error('GMAIL_USER / GMAIL_APP_PASSWORD eksik'); process.exit(1);
 }
+
+// Gmail SMTP - domain gerektirmez, her alıcıya gönderir (uygulama şifresi ile)
+const transporter = nodemailer.createTransport({
+  host: 'smtp.gmail.com',
+  port: 465,
+  secure: true,
+  auth: { user: GMAIL_USER, pass: GMAIL_APP_PASSWORD }
+});
 
 admin.initializeApp({
   credential: admin.credential.cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT))
@@ -220,14 +230,8 @@ const renderHtml = (name, r) => {
 };
 
 const sendEmail = async (to, subject, html) => {
-  const res = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ from: REPORT_FROM, to: [to], subject, html })
-  });
-  const body = await res.text();
-  if (!res.ok) throw new Error(`Resend ${res.status}: ${body}`);
-  return body;
+  const info = await transporter.sendMail({ from: REPORT_FROM, to, subject, html });
+  return info.messageId;
 };
 
 (async () => {

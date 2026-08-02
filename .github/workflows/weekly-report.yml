@@ -24,6 +24,6 @@ jobs:
         working-directory: scripts/weekly-report
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
-          REPORT_FROM: ${{ secrets.REPORT_FROM }}
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
         run: node index.mjs
