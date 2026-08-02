@@ -7,7 +7,7 @@ import {
   addSupplement, updateSupplement, deleteSupplement,
   addWorkout, updateWorkout, deleteWorkout
 } from '../firebase/dailyLogService';
-import { getMeals, addMeal, updateMeal, deleteMeal, getRecentMeals } from '../firebase/mealsService';
+import { getMeals, addMeal, updateMeal, deleteMeal } from '../firebase/mealsService';
 import { callGeminiForText } from '../utils/geminiClient';
 import GeminiQuotaBadge from './GeminiQuotaBadge';
 
@@ -114,7 +114,6 @@ const TrendView = ({ user }) => {
   const [editingSection, setEditingSection] = useState(null);
   const [editForm, setEditForm] = useState({});
   const [isSavingEdit, setIsSavingEdit] = useState(false);
-  const [recentMeals, setRecentMeals] = useState([]);
   const [goals, setGoals] = useState(null); // {calories, protein, carbs, fats, water}
   const [bmr, setBmr] = useState(null); // profil BMR'si (gerçek kalori açığı için)
   const [bmrIssue, setBmrIssue] = useState(null);
@@ -177,12 +176,6 @@ const TrendView = ({ user }) => {
   }, [user]);
 
   const waterGoal = goals?.water || 4000;
-
-  // Sık yenenler - gün görünümünde öğün eklerken hızlı-tekrar için
-  useEffect(() => {
-    if (!user || rangeKey !== 'day') return;
-    getRecentMeals(user.uid).then(setRecentMeals).catch(() => {});
-  }, [user, rangeKey]);
 
   const dates = getDateList(anchorDate, rangeKey);
 
@@ -698,39 +691,9 @@ const TrendView = ({ user }) => {
     alert(`Temizlendi: ${mealsToRemove.length} tekrar öğün, ${suppsToRemove.length} tekrar takviye silindi.`);
   };
 
-  // Bir çipe/sık-yenene tıklayınca formu o öğünün değerleriyle doldur (kategori aynı kalır)
-  const fillFromRecent = (meal) => {
-    setEditForm((prev) => ({
-      ...prev,
-      name: meal.name,
-      calories: meal.calories || '',
-      protein: meal.protein || '',
-      carbs: meal.carbs || '',
-      fats: meal.fats || ''
-    }));
-  };
-
   // Öğün ekleme/düzenleme formu (kategoriler arasında ortak, kategori de değiştirilebilir)
   const renderMealForm = (mealId) => (
     <div className="trend-edit-form">
-      {mealId === null && recentMeals.length > 0 && (
-        <div className="trend-recent-meals">
-          <span className="trend-recent-label">🔁 Sık yenenler (dokun, doldur):</span>
-          <div className="trend-recent-chips">
-            {recentMeals.slice(0, 12).map((meal, i) => (
-              <button
-                key={i}
-                type="button"
-                className="trend-recent-chip"
-                onClick={() => fillFromRecent(meal)}
-                title={`${Math.round(meal.calories)} kcal · P:${Math.round(meal.protein)} K:${Math.round(meal.carbs)} Y:${Math.round(meal.fats)}`}
-              >
-                {stripCategoryPrefix(meal.name).slice(0, 28)}{meal.count > 1 ? ` ×${meal.count}` : ''}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
       <select
         value={editForm.catKey}
         onChange={(e) => setEditForm({ ...editForm, catKey: e.target.value })}

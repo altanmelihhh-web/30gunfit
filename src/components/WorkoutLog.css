@@ -32,6 +32,70 @@
   margin-bottom: 24px;
 }
 
+.wl-mode-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  padding: 4px;
+  margin-bottom: 12px;
+  border-radius: 10px;
+  background: var(--color-surface-muted);
+}
+
+.wl-mode-tabs button {
+  min-height: 38px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.wl-mode-tabs button.active {
+  background: var(--color-brand);
+  color: #fff;
+}
+
+.wl-manual {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.wl-field-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.wl-field {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.wl-field-wide {
+  grid-column: span 1;
+}
+
+.wl-field label {
+  color: var(--color-text-secondary);
+  font-size: 0.78rem;
+  font-weight: 750;
+}
+
+.wl-field input,
+.wl-field select {
+  width: 100%;
+  padding: 10px 11px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 8px;
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+}
+
 .wl-row {
   display: flex;
   align-items: center;
@@ -182,6 +246,24 @@
 .wl-empty { color: var(--color-text-muted); text-align: center; padding: 20px 0; }
 
 @media (max-width: 480px) {
+  .workout-log {
+    max-width: none;
+  }
+
   .wl-row { flex-wrap: wrap; }
   .wl-set input { width: 52px; }
+
+  .wl-entry {
+    padding: 12px;
+    border-radius: 12px;
+  }
+
+  .wl-field-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .wl-field-wide {
+    grid-column: 1 / -1;
+  }
 }

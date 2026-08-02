@@ -6,22 +6,21 @@ import WaterTracker from './WaterTracker';
 import ShoppingList from './ShoppingList';
 import TrendView from './TrendView';
 import DailyLogForm from './DailyLogForm';
+import ManualQuickEntry from './ManualQuickEntry';
 import MealPhotoGallery from './MealPhotoGallery';
 import GoalsCard, { DEFAULT_GOALS } from './GoalsCard';
 import { addMeal } from '../firebase/mealsService';
-import { getNutritionGoals } from '../firebase/dataService';
+import { getNutritionGoals, saveNutritionGoals } from '../firebase/dataService';
 import './NutritionDashboard.css';
 
 // Beslenme merkezindeki tüm sekmeler (kaydırmalı olarak hepsi görünür)
 const NUTRITION_TABS = [
   { key: 'tracker', icon: '📝', label: 'Bugün' },
-  { key: 'daily-log-form', icon: '📋', label: 'Günlük Form' },
+  { key: 'quick-entry', icon: '⌨️', label: 'Hızlı Giriş' },
   { key: 'ai-analyzer', icon: '🤖', label: 'AI Foto' },
   { key: 'water', icon: '💧', label: 'Su' },
-  { key: 'calculator', icon: '📊', label: 'Hesaplayıcı' },
-  { key: 'trends', icon: '📈', label: 'Trend' },
-  { key: 'photo-gallery', icon: '📷', label: 'Galeri' },
-  { key: 'shopping-list', icon: '🛒', label: 'Alışveriş' }
+  { key: 'trends', icon: '📈', label: 'Analiz' },
+  { key: 'tools', icon: '🧰', label: 'Araçlar' }
 ];
 
 /**
@@ -38,12 +37,33 @@ const NutritionDashboard = ({ userProfile, user, driveAccessToken, onRequestDriv
   const [nutritionResults, setNutritionResults] = useState(null);
   const [goals, setGoals] = useState(null);
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
   const [trackerRefreshKey, setTrackerRefreshKey] = useState(0);
 
   // Hesaplayıcıdan gelen sonuçları kaydet
   const handleNutritionResults = (results) => {
     setNutritionResults(results);
     localStorage.setItem('nutrition_plan', JSON.stringify(results));
+  };
+
+  const applyCalculatorResultsToGoals = async () => {
+    if (!nutritionResults) return;
+    const newGoals = {
+      calories: Math.round(nutritionResults.targetCalories || DEFAULT_GOALS.calories),
+      protein: Math.round(nutritionResults.macros?.protein?.grams || DEFAULT_GOALS.protein),
+      carbs: Math.round(nutritionResults.macros?.carbs?.grams || DEFAULT_GOALS.carbs),
+      fats: Math.round(nutritionResults.macros?.fats?.grams || DEFAULT_GOALS.fats),
+      water: Math.round((nutritionResults.waterIntake || 4) * 1000)
+    };
+    if (user) await saveNutritionGoals(user.uid, newGoals);
+    localStorage.setItem('nutrition_goals', JSON.stringify(newGoals));
+    setGoals(newGoals);
+    setSuccessMessage('Hesaplayıcı sonucu günlük hedeflerine uygulandı.');
+    setShowSuccessMessage(true);
+    setTimeout(() => {
+      setShowSuccessMessage(false);
+      setActiveSection('tracker');
+    }, 1200);
   };
 
   // localStorage'dan hesaplayıcı planını yükle (opsiyonel)
@@ -91,6 +111,7 @@ const NutritionDashboard = ({ userProfile, user, driveAccessToken, onRequestDriv
     });
 
     setShowSuccessMessage(true);
+    setSuccessMessage('Yemek başarıyla günlük takibinize eklendi. Bugün sekmesine yönlendiriliyorsunuz.');
 
     // 2 saniye sonra mesajı gizle ve tracker'a geç
     setTimeout(() => {
@@ -103,8 +124,11 @@ const NutritionDashboard = ({ userProfile, user, driveAccessToken, onRequestDriv
   return (
     <div className="nutrition-dashboard">
       <div className="dashboard-header">
-        <h1>🍎 Beslenme Merkezi</h1>
-        <p>Kişiselleştirilmiş beslenme planınızı oluşturun, günlük kalorinizi takip edin</p>
+        <div>
+          <span className="dashboard-eyebrow">Nutrition Command Center</span>
+          <h1>Beslenme Operasyonları</h1>
+        </div>
+        <p>Günlük kalori, makro, su ve aktivite kayıtlarını tek veri akışında takip et.</p>
       </div>
 
       {/* Navigasyon - tüm sekmeler görünür (yatay kaydırmalı) */}
@@ -124,7 +148,7 @@ const NutritionDashboard = ({ userProfile, user, driveAccessToken, onRequestDriv
       {/* Başarı mesajı */}
       {showSuccessMessage && (
         <div className="success-message">
-          ✅ Yemek başarıyla günlük takibinize eklendi! Bugün sekmesine yönlendiriliyorsunuz...
+          ✅ {successMessage}
         </div>
       )}
 
@@ -154,29 +178,41 @@ const NutritionDashboard = ({ userProfile, user, driveAccessToken, onRequestDriv
           </div>
         )}
 
-        {activeSection === 'daily-log-form' && (
+        {activeSection === 'quick-entry' && (
           <div className="section-content">
-            <DailyLogForm
-              user={user}
-              nutritionResults={{ targetCalories, macros: targetMacros }}
-              onSaved={() => setTrackerRefreshKey((prev) => prev + 1)}
-            />
+            <ManualQuickEntry user={user} onSaved={() => setTrackerRefreshKey((prev) => prev + 1)} />
+          </div>
+        )}
+
+        {activeSection === 'tools' && (
+          <div className="section-content">
+            <div className="tools-grid">
+              <button className="tool-card" onClick={() => setActiveSection('calculator')}>
+                <span>📊</span><strong>Hesaplayıcı</strong><small>BMR, TDEE ve hedef önerisi</small>
+              </button>
+              <button className="tool-card" onClick={() => setActiveSection('photo-gallery')}>
+                <span>📷</span><strong>Galeri</strong><small>Öğün fotoğrafları</small>
+              </button>
+              <button className="tool-card" onClick={() => setActiveSection('shopping-list')}>
+                <span>🛒</span><strong>Alışveriş</strong><small>Liste ve alternatifler</small>
+              </button>
+              <button className="tool-card" onClick={() => setActiveSection('daily-log-form')}>
+                <span>📋</span><strong>Gelişmiş Form</strong><small>Tüm günü tek formda gir</small>
+              </button>
+            </div>
           </div>
         )}
 
         {activeSection === 'calculator' && (
           <div className="section-content">
-            <NutritionCalculator
-              userProfile={userProfile}
-              onSaveResults={handleNutritionResults}
-            />
+            <button className="tool-back-btn" onClick={() => setActiveSection('tools')}>← Araçlar</button>
+            <NutritionCalculator userProfile={userProfile} onSaveResults={handleNutritionResults} />
             {nutritionResults && (
               <div className="quick-actions">
-                <p>💡 Bu hesaplama önerisini <strong>Bugün → 🎯 Hedeflerim</strong> bölümünden hedeflerine kopyalayabilirsin.</p>
+                <p>Bu hesaplama önerisini günlük hedeflerine tek tıkla uygulayabilirsin.</p>
                 <div className="action-buttons">
-                  <button className="action-btn tracker-btn" onClick={() => setActiveSection('tracker')}>
-                    📝 Bugün'e Git
-                  </button>
+                  <button className="action-btn tracker-btn" onClick={applyCalculatorResultsToGoals}>🎯 Hedeflere Uygula</button>
+                  <button className="action-btn" onClick={() => setActiveSection('tracker')}>Bugün'e Git</button>
                 </div>
               </div>
             )}
@@ -185,6 +221,7 @@ const NutritionDashboard = ({ userProfile, user, driveAccessToken, onRequestDriv
 
         {activeSection === 'shopping-list' && (
           <div className="section-content">
+            <button className="tool-back-btn" onClick={() => setActiveSection('tools')}>← Araçlar</button>
             <ShoppingList />
           </div>
         )}
@@ -197,6 +234,7 @@ const NutritionDashboard = ({ userProfile, user, driveAccessToken, onRequestDriv
 
         {activeSection === 'photo-gallery' && (
           <div className="section-content">
+            <button className="tool-back-btn" onClick={() => setActiveSection('tools')}>← Araçlar</button>
             <MealPhotoGallery
               user={user}
               driveAccessToken={driveAccessToken}
@@ -204,27 +242,27 @@ const NutritionDashboard = ({ userProfile, user, driveAccessToken, onRequestDriv
             />
           </div>
         )}
+
+        {activeSection === 'daily-log-form' && (
+          <div className="section-content">
+            <button className="tool-back-btn" onClick={() => setActiveSection('tools')}>← Araçlar</button>
+            <DailyLogForm
+              user={user}
+              nutritionResults={{ targetCalories, macros: targetMacros }}
+              onSaved={() => setTrackerRefreshKey((prev) => prev + 1)}
+            />
+          </div>
+        )}
       </div>
 
       {/* Bilgilendirme kartı */}
-      <div className="info-card">
+      <div className="info-card nutrition-operating-model">
         <h4>💡 İpuçları</h4>
         <ul>
-          <li>
-            <strong>Hesaplayıcı:</strong> Kişisel bilgilerinize göre günlük kalori ve makro hedeflerinizi hesaplayın
-          </li>
-          <li>
-            <strong>Kalori Takibi:</strong> Günlük yediklerinizi kaydedin, hedeflerinize ne kadar yakın olduğunuzu görün
-          </li>
-          <li>
-            <strong>Su Takibi:</strong> Günlük su tüketiminizi takip edin, yeterli hidrasyon için hedeflerinize ulaşın
-          </li>
-          <li>
-            <strong>AI Analiz:</strong> Yemek fotoğrafı yükleyin, yapay zeka kalori ve makroları otomatik hesaplasın
-          </li>
-          <li>
-            <strong>Alışveriş Listesi:</strong> Diyetisyenin haftalık listesini girin, evdekileri işaretleyin, AI ile alternatif malzemeler bulun
-          </li>
+          <li><strong>Bugün:</strong> Günlük hedefler, öğünler ve makrolar için ana ekran.</li>
+          <li><strong>Hızlı Giriş:</strong> Su, kilo, uyku, yemek, aktivite ve takviyeyi satır satır kaydet.</li>
+          <li><strong>AI Foto:</strong> Fotoğraftan öğün tahmini alıp Bugün'e ekle.</li>
+          <li><strong>Araçlar:</strong> Hesaplayıcı, galeri, alışveriş ve gelişmiş form burada.</li>
         </ul>
       </div>
     </div>

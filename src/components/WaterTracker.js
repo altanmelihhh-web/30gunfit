@@ -16,6 +16,7 @@ const WaterTracker = ({ user }) => {
   const [customAmount, setCustomAmount] = useState('');
   const [showCustomInput, setShowCustomInput] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [cloudLoaded, setCloudLoaded] = useState(false);
 
   // Bardak boyutları (ml)
   const glassSize = [
@@ -40,24 +41,45 @@ const WaterTracker = ({ user }) => {
 
   // Giriş yapmışsa Firestore'dan yükle (cihaz bağımsız kalıcı kayıt)
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      setCloudLoaded(true);
+      return;
+    }
 
     const loadFromCloud = async () => {
+      setCloudLoaded(false);
       const result = await getWaterTracker(user.uid);
+      const localEntries = JSON.parse(localStorage.getItem('water_tracker') || '[]');
+      const localGoal = parseInt(localStorage.getItem('daily_water_goal') || '', 10);
       if (result.success) {
-        setWaterEntries(result.data.entries || []);
+        const cloudEntries = result.data.entries || [];
+        if (cloudEntries.length > 0) {
+          setWaterEntries(cloudEntries);
+          localStorage.setItem('water_tracker', JSON.stringify(cloudEntries));
+        } else if (localEntries.length > 0) {
+          setWaterEntries(localEntries);
+          saveWaterTracker(user.uid, localEntries, result.data.dailyGoal || localGoal || dailyGoal).catch(error =>
+            console.error('Su Firestore local yedek yükleme hatası:', error)
+          );
+        }
         if (result.data.dailyGoal) {
           setDailyGoal(result.data.dailyGoal);
+          localStorage.setItem('daily_water_goal', result.data.dailyGoal.toString());
+        } else if (localGoal) {
+          setDailyGoal(localGoal);
         }
       } else {
-        // Firestore'da henüz kayıt yok - localStorage'daki mevcut veriyi bir kere yükle
-        const localEntries = JSON.parse(localStorage.getItem('water_tracker') || '[]');
         if (localEntries.length > 0) {
           saveWaterTracker(user.uid, localEntries, dailyGoal).catch(error =>
             console.error('Su Firestore ilk yükleme hatası:', error)
           );
+          setWaterEntries(localEntries);
+        }
+        if (localGoal) {
+          setDailyGoal(localGoal);
         }
       }
+      setCloudLoaded(true);
     };
     loadFromCloud();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -68,12 +90,12 @@ const WaterTracker = ({ user }) => {
     if (waterEntries.length > 0) {
       localStorage.setItem('water_tracker', JSON.stringify(waterEntries));
     }
-    if (user) {
+    if (user && cloudLoaded && waterEntries.length > 0) {
       saveWaterTracker(user.uid, waterEntries, dailyGoal).catch(error =>
         console.error('Su Firestore kayıt hatası:', error)
       );
     }
-  }, [waterEntries, user, dailyGoal]);
+  }, [waterEntries, user, dailyGoal, cloudLoaded]);
 
   // Hedefi kaydet
   useEffect(() => {
@@ -89,9 +111,15 @@ const WaterTracker = ({ user }) => {
       timestamp: new Date().toISOString()
     };
 
-    setWaterEntries([...waterEntries, entry].sort((a, b) =>
+    const updated = [...waterEntries, entry].sort((a, b) =>
       new Date(b.timestamp) - new Date(a.timestamp)
-    ));
+    );
+    setWaterEntries(updated);
+    if (user && cloudLoaded) {
+      saveWaterTracker(user.uid, updated, dailyGoal).catch(error =>
+        console.error('Su Firestore kayıt hatası:', error)
+      );
+    }
 
     setCustomAmount('');
     setShowCustomInput(false);
@@ -109,7 +137,13 @@ const WaterTracker = ({ user }) => {
   // Kayıt silme
   const deleteEntry = (id) => {
     if (window.confirm('Bu kaydı silmek istediğinize emin misiniz?')) {
-      setWaterEntries(waterEntries.filter(e => e.id !== id));
+      const updated = waterEntries.filter(e => e.id !== id);
+      setWaterEntries(updated);
+      if (user && cloudLoaded) {
+        saveWaterTracker(user.uid, updated, dailyGoal).catch(error =>
+          console.error('Su Firestore silme kayıt hatası:', error)
+        );
+      }
     }
   };
 

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import './WorkoutLog.css';
 import { parseHevyWorkout, workoutStats } from '../utils/hevyParser';
 import { getDailyLogsRange } from '../firebase/dataService';
-import { addWorkout, deleteWorkout } from '../firebase/dailyLogService';
+import { addWorkout, deleteWorkout, saveVitals } from '../firebase/dailyLogService';
 
 /**
  * WorkoutLog - Hevy/ChatGPT antrenman metnini yapıştır → ayrıştır → seçili güne kaydet.
@@ -20,6 +20,15 @@ const WorkoutLog = ({ user }) => {
   const [pasteText, setPasteText] = useState('');
   const [draft, setDraft] = useState(null); // ayrıştırılmış {title, exercises}
   const [durationMin, setDurationMin] = useState('');
+  const [entryMode, setEntryMode] = useState('manual');
+  const [manualWorkout, setManualWorkout] = useState({
+    type: 'strength',
+    name: '',
+    duration_min: '',
+    active_calories: '',
+    steps: '',
+    distance_km: ''
+  });
   const [isSaving, setIsSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState(false);
   const [history, setHistory] = useState([]); // [{date, index, workout}]
@@ -110,6 +119,46 @@ const WorkoutLog = ({ user }) => {
     }
   };
 
+  const handleSaveManual = async () => {
+    if (!user) return;
+    const hasWorkout = manualWorkout.name.trim();
+    const hasVitals = manualWorkout.duration_min || manualWorkout.active_calories || manualWorkout.steps || manualWorkout.distance_km;
+    if (!hasWorkout && !hasVitals) {
+      alert('En az antrenman adı veya aktivite değeri girin');
+      return;
+    }
+    setIsSaving(true);
+    try {
+      if (hasWorkout) {
+        await addWorkout(user.uid, date, {
+          type: manualWorkout.type,
+          source: 'manual',
+          title: manualWorkout.name.trim(),
+          duration_min: manualWorkout.duration_min ? parseFloat(manualWorkout.duration_min) : null,
+          calories: null,
+          distance_km: manualWorkout.distance_km ? parseFloat(manualWorkout.distance_km) : null,
+          exercises: [{ name: manualWorkout.name.trim(), sets: [] }]
+        });
+      }
+      if (hasVitals) {
+        await saveVitals(user.uid, date, {
+          active_calories: manualWorkout.active_calories ? parseFloat(manualWorkout.active_calories) : null,
+          exercise_minutes: manualWorkout.duration_min ? parseFloat(manualWorkout.duration_min) : null,
+          steps: manualWorkout.steps ? parseInt(manualWorkout.steps, 10) : null,
+          distance_km: manualWorkout.distance_km ? parseFloat(manualWorkout.distance_km) : null
+        });
+      }
+      setSavedMsg(true);
+      setManualWorkout({ type: 'strength', name: '', duration_min: '', active_calories: '', steps: '', distance_km: '' });
+      await loadHistory();
+      setTimeout(() => setSavedMsg(false), 3000);
+    } catch (err) {
+      alert('Kaydetme hatası: ' + err.message);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const handleDelete = async (item) => {
     if (!window.confirm(`${fmtDate(item.date)} - "${item.workout.title || 'Antrenman'}" silinsin mi?`)) return;
     await deleteWorkout(user.uid, item.date, item.index);
@@ -124,7 +173,7 @@ const WorkoutLog = ({ user }) => {
     <div className="workout-log">
       <div className="wl-header">
         <h2>🏋️ Antrenman Günlüğü</h2>
-        <p>Hevy veya ChatGPT antrenman metnini yapıştır, ayrıştır, o güne kaydet.</p>
+        <p>Antrenmanı ve Apple Watch aktivite değerlerini aynı güne kaydet.</p>
       </div>
 
       {savedMsg && <div className="wl-success">✅ Antrenman kaydedildi!</div>}
@@ -135,7 +184,56 @@ const WorkoutLog = ({ user }) => {
           <input type="date" value={date} max={new Date().toISOString().split('T')[0]} onChange={(e) => setDate(e.target.value)} />
         </div>
 
-        {!draft ? (
+        <div className="wl-mode-tabs">
+          <button className={entryMode === 'manual' ? 'active' : ''} onClick={() => setEntryMode('manual')}>Manuel</button>
+          <button className={entryMode === 'paste' ? 'active' : ''} onClick={() => setEntryMode('paste')}>Hevy Metni</button>
+        </div>
+
+        {entryMode === 'manual' ? (
+          <div className="wl-manual">
+            <div className="wl-field-grid">
+              <div className="wl-field">
+                <label>Tip</label>
+                <select value={manualWorkout.type} onChange={(e) => setManualWorkout({ ...manualWorkout, type: e.target.value })}>
+                  <option value="strength">Antrenman</option>
+                  <option value="cardio">Kardiyo</option>
+                  <option value="walk">Yürüyüş</option>
+                  <option value="other">Aktivite</option>
+                </select>
+              </div>
+              <div className="wl-field wl-field-wide">
+                <label>Antrenman / Aktivite</label>
+                <input
+                  type="text"
+                  placeholder="Full Body, yürüyüş, koşu..."
+                  value={manualWorkout.name}
+                  onChange={(e) => setManualWorkout({ ...manualWorkout, name: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="wl-field-grid">
+              <div className="wl-field">
+                <label>Süre (dk)</label>
+                <input type="number" value={manualWorkout.duration_min} onChange={(e) => setManualWorkout({ ...manualWorkout, duration_min: e.target.value })} />
+              </div>
+              <div className="wl-field">
+                <label>Aktif Kalori</label>
+                <input type="number" value={manualWorkout.active_calories} onChange={(e) => setManualWorkout({ ...manualWorkout, active_calories: e.target.value })} />
+              </div>
+              <div className="wl-field">
+                <label>Adım</label>
+                <input type="number" value={manualWorkout.steps} onChange={(e) => setManualWorkout({ ...manualWorkout, steps: e.target.value })} />
+              </div>
+              <div className="wl-field">
+                <label>Mesafe (km)</label>
+                <input type="number" step="0.01" value={manualWorkout.distance_km} onChange={(e) => setManualWorkout({ ...manualWorkout, distance_km: e.target.value })} />
+              </div>
+            </div>
+            <button className="wl-save-btn" onClick={handleSaveManual} disabled={isSaving}>
+              {isSaving ? 'Kaydediliyor...' : 'Kaydet'}
+            </button>
+          </div>
+        ) : !draft ? (
           <>
             <textarea
               className="wl-paste"
