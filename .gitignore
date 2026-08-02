@@ -27,4 +27,3 @@ yarn-error.log*
 
 # Firebase local cache
 /.firebase
-.github/workflows/weekly-report.yml
