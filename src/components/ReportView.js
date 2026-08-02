@@ -109,11 +109,19 @@ const ReportView = ({ user }) => {
 
       const goals = goalsRes.success ? goalsRes.data : null;
 
+      // Kalori açığı (hedef − alınan) - sadece öğün girilen günler üzerinden
+      let totalDeficit = null, avgDeficit = null;
+      if (goals?.calories && dayCals.length > 0) {
+        const deficits = dayCals.map((c) => goals.calories - c);
+        totalDeficit = Math.round(deficits.reduce((s, x) => s + x, 0));
+        avgDeficit = Math.round(totalDeficit / dayCals.length);
+      }
+
       setData({
         dates,
         nutrition: {
           avgCalories: avg(dayCals), avgProtein: avg(dayProt), avgCarbs: avg(dayCarb), avgFats: avg(dayFat),
-          loggedDays: dayCals.length
+          loggedDays: dayCals.length, totalDeficit, avgDeficit
         },
         goals,
         water: { avg: avg(waterVals), days: waterVals.length },
@@ -188,6 +196,18 @@ const ReportView = ({ user }) => {
               </div>
             ) : (
               <p className="report-empty">Bu dönemde öğün kaydı yok.</p>
+            )}
+            {data.nutrition.totalDeficit != null && (
+              <div className={`report-deficit ${data.nutrition.totalDeficit >= 0 ? 'good' : 'over'}`}>
+                <div>
+                  <strong>{data.nutrition.totalDeficit >= 0 ? '📉' : '📈'} {Math.abs(data.nutrition.totalDeficit)} kcal</strong>
+                  <span>{data.nutrition.totalDeficit >= 0 ? 'toplam açık' : 'toplam fazla'}</span>
+                </div>
+                <div>
+                  <strong>{Math.abs(data.nutrition.avgDeficit)} kcal</strong>
+                  <span>günlük ort. {data.nutrition.avgDeficit >= 0 ? 'açık' : 'fazla'}</span>
+                </div>
+              </div>
             )}
             <p className="report-note">{data.nutrition.loggedDays} gün kayıt girildi</p>
           </div>

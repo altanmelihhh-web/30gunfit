@@ -96,6 +96,21 @@ const TodaySummary = ({ user, refreshKey }) => {
           <Ring value={data.protein} target={data.targetProtein} unit="g" label="Protein" icon="🥩" color="#22c55e" />
         )}
       </div>
+
+      {data.targetCalories > 0 && data.meals > 0 && (() => {
+        const deficit = Math.round(data.targetCalories - data.calories);
+        const isDeficit = deficit >= 0;
+        return (
+          <div className={`today-deficit ${isDeficit ? 'good' : 'over'}`}>
+            <span className="today-deficit-icon">{isDeficit ? '📉' : '📈'}</span>
+            <span className="today-deficit-text">
+              {isDeficit
+                ? <>Bugün <strong>{deficit} kcal açık</strong> (hedef {data.targetCalories} · alınan {Math.round(data.calories)})</>
+                : <>Bugün <strong>{Math.abs(deficit)} kcal fazla</strong> (hedef {data.targetCalories} · alınan {Math.round(data.calories)})</>}
+            </span>
+          </div>
+        );
+      })()}
       <div className="today-stats">
         <StatCard icon="😴" value={data.sleep?.duration_hours ? `${data.sleep.duration_hours} sa` : '—'} label="Uyku" />
         <StatCard icon="👟" value={data.steps ? data.steps.toLocaleString('tr-TR') : '—'} label="Adım" />

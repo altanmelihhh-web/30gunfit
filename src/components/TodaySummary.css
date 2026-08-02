@@ -91,3 +91,26 @@
   font-size: 1.1rem;
   color: var(--color-text-primary);
 }
+
+.today-deficit {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 4px 0 14px;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  font-size: 0.9rem;
+}
+
+.today-deficit.good {
+  background: rgba(34, 197, 94, 0.1);
+  color: #16a34a;
+}
+
+.today-deficit.over {
+  background: rgba(239, 68, 68, 0.1);
+  color: #dc2626;
+}
+
+.today-deficit-icon { font-size: 1.3rem; }
+.today-deficit strong { font-weight: 700; }
