@@ -139,94 +139,188 @@ const buildReport = async (uid) => {
   const g = goalsDoc || {};
   const waterVals = Object.values(waterByDate);
 
+  // Kalori açığı (hedef − alınan), sadece öğün girilen günler üzerinden
+  let totalDeficit = null, avgDeficit = null;
+  if (g.calories && cals.length) {
+    const defs = cals.map((c) => g.calories - c);
+    totalDeficit = Math.round(defs.reduce((s, x) => s + x, 0));
+    avgDeficit = Math.round(totalDeficit / cals.length);
+  }
+
   return {
     period: `${dates[0]} – ${dates[dates.length - 1]}`,
-    nutrition: { cals: avg(cals), prot: avg(prot), carb: avg(carb), fat: avg(fat), days: cals.length },
+    nutrition: { cals: avg(cals), prot: avg(prot), carb: avg(carb), fat: avg(fat), days: cals.length, totalDeficit, avgDeficit },
     goals: g,
     water: avg(waterVals),
+    waterDays: waterVals.length,
     sleep: sleepVals.length ? (sleepVals.reduce((s, x) => s + x, 0) / sleepVals.length).toFixed(1) : null,
     sleepScore: avg(sleepScores),
     steps: avg(stepVals),
+    stepDays: stepVals.length,
     workout: { days: workoutDays, sets: totalSets, volume: Math.round(totalVolume), duration: Math.round(totalDuration), regions: regionRows },
     weight: { end: weightEnd, change: weightChange }
   };
 };
 
-const cell = (label, value) =>
-  `<td style="padding:10px 12px;background:#f4f6fb;border-radius:10px;text-align:center;">
-     <div style="font-size:18px;font-weight:700;color:#0f172a;">${value}</div>
-     <div style="font-size:11px;color:#64748b;">${label}</div>
-   </td>`;
+// ---- e-posta şablonu (tablo-tabanlı, tüm istemcilerde hizalı) ----
+const NF = (n) => Number(n || 0).toLocaleString('tr-TR');
+
+// Net etiket → değer satırı (ince ayraçlı). value HTML olabilir.
+const row = (label, value, last) => `
+  <tr>
+    <td style="padding:12px 0;${last ? '' : 'border-bottom:1px solid #eef1f6;'}font-size:14px;color:#475569;">${label}</td>
+    <td align="right" style="padding:12px 0;${last ? '' : 'border-bottom:1px solid #eef1f6;'}font-size:15px;color:#0f172a;font-weight:700;white-space:nowrap;">${value}</td>
+  </tr>`;
+
+const goalSfx = (g, unit) => (g != null && g !== '' ? ` <span style="color:#94a3b8;font-weight:400;font-size:13px;">/ ${NF(g)}${unit}</span>` : ` <span style="color:#94a3b8;font-weight:400;font-size:13px;">${unit}</span>`);
+
+// Beyaz kart sarmalayıcı
+const card = (title, inner) => `
+  <tr><td style="padding:0 24px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;border:1px solid #e8ecf3;border-radius:14px;margin-bottom:14px;">
+      <tr><td style="padding:16px 18px 2px;font-size:15px;font-weight:800;color:#0f172a;">${title}</td></tr>
+      <tr><td style="padding:2px 18px 14px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0">${inner}</table>
+      </td></tr>
+    </table>
+  </td></tr>`;
+
+// Kas bölgesi barı (email-güvenli: iç içe tablo + bgcolor)
+const barRow = (label, sets, max) => {
+  const pct = Math.max(8, Math.round((sets / (max || 1)) * 100));
+  return `<tr>
+    <td width="80" style="padding:7px 8px 7px 0;font-size:13px;color:#334155;">${label}</td>
+    <td style="padding:7px 0;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
+        <td width="${pct}%" bgcolor="#6366f1" style="background:#6366f1;height:12px;border-radius:6px;font-size:0;line-height:0;mso-line-height-rule:exactly;">&nbsp;</td>
+        <td bgcolor="#eef1f6" style="background:#eef1f6;height:12px;border-radius:6px;font-size:0;line-height:0;mso-line-height-rule:exactly;">&nbsp;</td>
+      </tr></table>
+    </td>
+    <td width="36" align="right" style="padding:7px 0 7px 8px;font-size:13px;color:#475569;font-weight:700;">${sets}</td>
+  </tr>`;
+};
 
 const renderHtml = (name, r) => {
-  const goalTxt = (v, g) => (g ? `${v} / ${g}` : `${v}`);
-  const regionBars = r.workout.regions.length
-    ? r.workout.regions.map(([label, sets]) => {
-        const max = r.workout.regions[0][1] || 1;
-        return `<div style="display:flex;align-items:center;gap:8px;margin:4px 0;">
-          <span style="width:70px;font-size:13px;color:#0f172a;">${label}</span>
-          <div style="flex:1;height:10px;background:#eef2ff;border-radius:6px;overflow:hidden;">
-            <div style="height:100%;width:${(sets / max) * 100}%;background:linear-gradient(135deg,#6366f1,#8b5cf6);"></div>
-          </div>
-          <span style="width:26px;text-align:right;font-size:13px;color:#475569;">${sets}</span>
-        </div>`;
-      }).join('')
-    : '<p style="color:#64748b;font-size:13px;">Bu hafta antrenman kaydı yok.</p>';
+  const g = r.goals || {};
+  const n = r.nutrition;
 
-  return `<!doctype html><html><body style="margin:0;background:#eef1f7;font-family:-apple-system,Segoe UI,Roboto,sans-serif;">
-  <div style="max-width:600px;margin:0 auto;padding:24px;">
-    <div style="background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;padding:24px;border-radius:16px;margin-bottom:16px;">
-      <h1 style="margin:0;font-size:22px;">💪 Haftalık Sağlık Raporun</h1>
-      <p style="margin:6px 0 0;opacity:.9;">${name} · ${r.period}</p>
-    </div>
-
-    <div style="background:#fff;border-radius:16px;padding:18px;margin-bottom:14px;">
-      <h2 style="margin:0 0 12px;font-size:16px;color:#0f172a;">🍎 Beslenme (günlük ort.)</h2>
-      ${r.nutrition.days > 0
-        ? `<table width="100%" cellspacing="8"><tr>
-             ${cell('kcal', goalTxt(r.nutrition.cals, r.goals.calories))}
-             ${cell('protein', goalTxt(r.nutrition.prot + 'g', r.goals.protein && r.goals.protein + 'g'))}
-             ${cell('karb.', goalTxt(r.nutrition.carb + 'g', r.goals.carbs && r.goals.carbs + 'g'))}
-             ${cell('yağ', goalTxt(r.nutrition.fat + 'g', r.goals.fats && r.goals.fats + 'g'))}
-           </tr></table>
-           <p style="color:#64748b;font-size:12px;margin:10px 0 0;">${r.nutrition.days} gün kayıt girildi</p>`
-        : '<p style="color:#64748b;font-size:13px;">Bu hafta öğün kaydı yok.</p>'}
-    </div>
-
-    <div style="background:#fff;border-radius:16px;padding:18px;margin-bottom:14px;">
-      <h2 style="margin:0 0 12px;font-size:16px;color:#0f172a;">🏋️ Antrenman</h2>
-      <table width="100%" cellspacing="8"><tr>
-        ${cell('gün', r.workout.days)}
-        ${cell('set', r.workout.sets)}
-        ${cell('kg hacim', r.workout.volume)}
-        ${cell('dk', r.workout.duration || '–')}
+  // Kalori açığı kutusu
+  let deficitBox = '';
+  if (n.avgDeficit != null) {
+    const under = n.avgDeficit >= 0;
+    const bg = under ? '#ecfdf5' : '#fef2f2', bd = under ? '#a7f3d0' : '#fecaca';
+    const fg = under ? '#047857' : '#b91c1c', fg2 = under ? '#065f46' : '#991b1b';
+    deficitBox = `<tr><td colspan="2" style="padding:4px 0 14px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
+        <td bgcolor="${bg}" style="background:${bg};border:1px solid ${bd};border-radius:12px;padding:14px 16px;">
+          <span style="font-size:22px;font-weight:800;color:${fg};">${under ? '📉' : '📈'} ${NF(Math.abs(n.avgDeficit))} kcal</span>
+          <span style="font-size:13px;color:${fg2};"> günlük ort. ${under ? 'açık' : 'fazla'}</span>
+          <div style="font-size:12px;color:${fg2};margin-top:4px;">Hafta toplamı: ${NF(Math.abs(n.totalDeficit))} kcal ${under ? 'açık' : 'fazla'} · hedef ${NF(g.calories)} kcal/gün</div>
+        </td>
       </tr></table>
-      <div style="margin-top:14px;">${regionBars}</div>
-    </div>
+    </td></tr>`;
+  }
 
-    <div style="background:#fff;border-radius:16px;padding:18px;margin-bottom:14px;">
-      <h2 style="margin:0 0 12px;font-size:16px;color:#0f172a;">💧 Su · 😴 Uyku · 👟 Adım (ort.)</h2>
-      <table width="100%" cellspacing="8"><tr>
-        ${cell('ml su', goalTxt(r.water || '–', r.goals.water))}
-        ${cell('sa uyku', r.sleep || '–')}
-        ${cell('uyku skoru', r.sleepScore || '–')}
-        ${cell('adım', r.steps || '–')}
-      </tr></table>
-    </div>
+  const nutritionCard = n.days > 0
+    ? card('🍎 Beslenme <span style="font-weight:400;color:#94a3b8;font-size:12px;">· günlük ortalama</span>',
+        deficitBox +
+        row('🔥 Kalori', `${NF(n.cals)}${goalSfx(g.calories, ' kcal')}`) +
+        row('🥩 Protein', `${NF(n.prot)}${goalSfx(g.protein, 'g')}`) +
+        row('🍞 Karbonhidrat', `${NF(n.carb)}${goalSfx(g.carbs, 'g')}`) +
+        row('🥑 Yağ', `${NF(n.fat)}${goalSfx(g.fats, 'g')}`, true) +
+        `<tr><td colspan="2" style="padding-top:10px;font-size:12px;color:#94a3b8;">Bu hafta ${n.days} gün öğün kaydı girildi</td></tr>`)
+    : card('🍎 Beslenme', `<tr><td style="font-size:13px;color:#94a3b8;padding:4px 0;">Bu hafta öğün kaydı yok.</td></tr>`);
 
-    <div style="background:#fff;border-radius:16px;padding:18px;margin-bottom:14px;">
-      <h2 style="margin:0 0 12px;font-size:16px;color:#0f172a;">⚖️ Kilo</h2>
-      ${r.weight.end != null
-        ? `<div style="font-size:24px;font-weight:700;color:#0f172a;">${r.weight.end} kg
-             ${r.weight.change ? `<span style="font-size:14px;color:${r.weight.change < 0 ? '#16a34a' : '#dc2626'};">${r.weight.change < 0 ? '↓' : '↑'} ${Math.abs(r.weight.change)} kg</span>` : ''}
-           </div>`
-        : '<p style="color:#64748b;font-size:13px;">Bu hafta kilo kaydı yok.</p>'}
-    </div>
+  const regionsInner = r.workout.regions.length
+    ? r.workout.regions.map(([label, sets]) => barRow(label, sets, r.workout.regions[0][1])).join('')
+    : '';
+  const workoutCard = r.workout.days > 0
+    ? card('🏋️ Antrenman',
+        row('📅 Antrenman günü', `${r.workout.days} gün`) +
+        row('🔢 Toplam set', NF(r.workout.sets)) +
+        row('🏋️ Toplam hacim', `${NF(r.workout.volume)} kg`) +
+        row('⏱️ Toplam süre', r.workout.duration ? `${NF(r.workout.duration)} dk` : '–', true) +
+        (regionsInner ? `<tr><td colspan="2" style="padding:14px 0 4px;font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.4px;">Kas bölgesi dağılımı (set)</td></tr>
+          <tr><td colspan="2"><table role="presentation" width="100%" cellpadding="0" cellspacing="0">${regionsInner}</table></td></tr>` : ''))
+    : card('🏋️ Antrenman', `<tr><td style="font-size:13px;color:#94a3b8;padding:4px 0;">Bu hafta antrenman kaydı yok.</td></tr>`);
 
-    <p style="text-align:center;color:#94a3b8;font-size:12px;margin-top:20px;">
-      30 Gün Fit · Track Everything. Understand Everything. Improve Every Day.
-    </p>
-  </div></body></html>`;
+  const vitalsCard = card('💧 Su · 😴 Uyku · 👟 Adım <span style="font-weight:400;color:#94a3b8;font-size:12px;">· günlük ortalama</span>',
+    row('💧 Su', `${r.water ? NF(r.water) : '–'}${goalSfx(g.water, ' ml')}`) +
+    row('😴 Uyku', r.sleep ? `${r.sleep} saat` : '–') +
+    row('⭐ Uyku skoru', r.sleepScore ? `${r.sleepScore}/100` : '–') +
+    row('👟 Adım', r.steps ? NF(r.steps) : '–', true));
+
+  const weightCard = card('⚖️ Kilo',
+    r.weight.end != null
+      ? row('Güncel kilo', `${r.weight.end} kg${r.weight.change ? ` <span style="font-size:13px;font-weight:700;color:${r.weight.change < 0 ? '#16a34a' : '#dc2626'};">${r.weight.change < 0 ? '↓' : '↑'} ${Math.abs(r.weight.change)} kg</span>` : ''}`, true)
+      : `<tr><td style="font-size:13px;color:#94a3b8;padding:4px 0;">Bu hafta kilo kaydı yok.</td></tr>`);
+
+  // Kısa değerlendirme
+  const ins = [];
+  if (n.avgDeficit != null) {
+    const pct = g.calories ? Math.round((Math.abs(n.avgDeficit) / g.calories) * 100) : null;
+    ins.push(n.avgDeficit >= 0
+      ? `Günlük ortalama <b>${NF(Math.abs(n.avgDeficit))} kcal açık</b> verdin${pct != null ? ` (hedefinin ~%${pct} altı)` : ''} — kilo verme yönünde iyi.`
+      : `Günlük ortalama <b>${NF(Math.abs(n.avgDeficit))} kcal fazla</b> aldın${pct != null ? ` (hedefinin ~%${pct} üstü)` : ''}.`);
+  }
+  if (g.protein && n.days > 0) {
+    ins.push(n.prot >= g.protein
+      ? `Protein hedefini tutturuyorsun (ort. ${NF(n.prot)}g).`
+      : `Protein hedefinin altındasın: ort. ${NF(n.prot)}g / ${NF(g.protein)}g — kas için biraz artır.`);
+  }
+  if (r.workout.days > 0) {
+    ins.push(`Bu hafta <b>${r.workout.days} gün</b> antrenman, ${NF(r.workout.sets)} set, ${NF(r.workout.volume)} kg hacim.`);
+    if (r.workout.regions.length) ins.push(`En çok <b>${r.workout.regions[0][0]}</b> çalıştın; en az çalışılan bölgeye de ağırlık verebilirsin.`);
+  } else {
+    ins.push('Bu hafta hiç antrenman kaydı yok — haftaya en az 3 seans hedefle.');
+  }
+  if (r.sleep) ins.push(parseFloat(r.sleep) >= 7 ? `Uyku ortalaman iyi (${r.sleep} saat).` : `Uyku ortalaman ${r.sleep} saat — 7+ saati hedefle.`);
+  if (r.steps) ins.push(`Ortalama ${NF(r.steps)} adım/gün.`);
+  const insightsCard = ins.length
+    ? card('🧭 Kısa değerlendirme',
+        `<tr><td>${ins.map((t) => `<div style="padding:6px 0;font-size:13px;color:#334155;line-height:1.5;">• ${t}</div>`).join('')}</td></tr>`)
+    : '';
+
+  return `<!doctype html>
+<html lang="tr"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light only">
+<meta name="supported-color-schemes" content="light only">
+<title>Haftalık Sağlık Raporu</title>
+</head>
+<body style="margin:0;padding:0;background:#eef1f7;-webkit-text-size-adjust:100%;">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;">Bu haftaki beslenme, antrenman, uyku ve kilo özetin — ${r.period}.</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#eef1f7;">
+  <tr><td align="center" style="padding:24px 12px;">
+    <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:600px;max-width:600px;background:#f7f8fb;border-radius:16px;overflow:hidden;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+
+      <tr><td bgcolor="#4f46e5" style="background:#4f46e5;background:linear-gradient(135deg,#6366f1,#8b5cf6);padding:30px 24px;">
+        <div style="font-size:12px;color:#e0e7ff;letter-spacing:1px;text-transform:uppercase;font-weight:700;">Haftalık Sağlık Raporu</div>
+        <div style="font-size:24px;font-weight:800;color:#ffffff;margin-top:6px;">💪 ${name}</div>
+        <div style="font-size:13px;color:#e0e7ff;margin-top:6px;">${r.period}</div>
+      </td></tr>
+
+      <tr><td style="height:16px;line-height:16px;font-size:0;">&nbsp;</td></tr>
+
+      ${nutritionCard}
+      ${workoutCard}
+      ${vitalsCard}
+      ${weightCard}
+      ${insightsCard}
+
+      <tr><td style="padding:8px 24px 28px;text-align:center;">
+        <div style="font-size:12px;color:#94a3b8;line-height:1.6;">
+          <b style="color:#64748b;">30 Gün Fit</b><br>
+          Track Everything · Understand Everything · Improve Every Day<br>
+          <a href="https://gunfit-c0243.web.app" style="color:#6366f1;text-decoration:none;">Uygulamayı aç →</a>
+        </div>
+      </td></tr>
+
+    </table>
+  </td></tr>
+</table>
+</body></html>`;
 };
 
 const sendEmail = async (to, subject, html) => {

@@ -473,3 +473,52 @@
   font-size: 0.9rem;
   margin-left: 6px;
 }
+
+/* Gün görünümü kalori açığı satırı */
+.trend-day-deficit {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  color: var(--color-text-primary);
+}
+.trend-day-deficit.good { background: rgba(34, 197, 94, 0.12); }
+.trend-day-deficit.over { background: rgba(239, 68, 68, 0.12); }
+.trend-day-deficit strong { font-weight: 700; }
+.trend-day-deficit span { color: var(--color-text-muted); font-size: 0.82rem; }
+
+/* --- Trend grafiği: legend + gruplu barlar + değer --- */
+.trend-chart { margin-bottom: 20px; }
+.trend-legend {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-bottom: 10px;
+  font-size: 0.72rem;
+  color: var(--color-text-secondary);
+}
+.trend-legend-item { display: inline-flex; align-items: center; gap: 5px; }
+.lg-dot { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+.lg-cal { background: linear-gradient(180deg, #f97316, #ea580c); }
+.lg-water { background: linear-gradient(180deg, #38bdf8, #0284c7); }
+.lg-sleep { background: linear-gradient(180deg, #a78bfa, #7c3aed); }
+.trend-bar-group {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  height: 120px;
+  gap: 2px;
+}
+.trend-bar-value {
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  margin-top: 5px;
+}
+.trend-chart-hint {
+  text-align: center;
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  margin: 4px 0 0;
+}

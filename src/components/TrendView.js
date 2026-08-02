@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import './TrendView.css';
-import { getCalorieTrackingRange, getDailyLogsRange, getWaterTracker, saveWaterTracker, saveDailyLog, getDailyLog, getNutritionGoals, saveNutritionGoals } from '../firebase/dataService';
+import { getCalorieTrackingRange, getDailyLogsRange, getWaterTracker, saveWaterTracker, saveDailyLog, getDailyLog, getNutritionGoals, saveNutritionGoals, getUserProfile } from '../firebase/dataService';
+import { computeBMR, dayBurned, dayDeficit, avgDeficit as avgDeficitFn } from '../utils/calorieMath';
 import {
   saveSleep, deleteSleep, saveVitals, deleteVitals,
   addSupplement, updateSupplement, deleteSupplement,
@@ -93,6 +94,15 @@ const TrendView = ({ user }) => {
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [recentMeals, setRecentMeals] = useState([]);
   const [goals, setGoals] = useState(null); // {calories, protein, carbs, fats, water}
+  const [bmr, setBmr] = useState(null); // profil BMR'si (gerçek kalori açığı için)
+
+  // Profil → BMR (kalori açığı hesabı için)
+  useEffect(() => {
+    if (!user) return;
+    getUserProfile(user.uid).then((res) => {
+      if (res?.success && res.data) setBmr(computeBMR(res.data));
+    }).catch(() => {});
+  }, [user]);
 
   // SABİT hedefleri yükle: önce Firestore, yoksa localStorage, yoksa Hesaplayıcı planından türet
   useEffect(() => {
@@ -223,6 +233,20 @@ const TrendView = ({ user }) => {
   const avgActiveCal = activeCalDays.length
     ? Math.round(activeCalDays.reduce((s, d) => s + (d.vitals.active_calories || 0), 0) / activeCalDays.length)
     : null;
+  // Gerçek kalori açığı ortalaması: (BMR + aktif) − alınan, sadece öğün girilen günler
+  const calorieDays = dailyTotals.filter((d) => d.calories > 0);
+  const avgRealDeficit = avgDeficitFn(
+    bmr,
+    calorieDays.map((d) => ({ consumed: d.calories, activeCalories: d.vitals?.active_calories }))
+  );
+  // BMR yoksa hedef-bazlı yedek (hedef − alınan) — kart hep görünsün
+  const avgGoalDeficit = (goals?.calories && calorieDays.length)
+    ? Math.round(goals.calories - (calorieDays.reduce((s, d) => s + d.calories, 0) / calorieDays.length))
+    : null;
+  const avgShownDeficit = avgRealDeficit != null ? avgRealDeficit : avgGoalDeficit;
+  const deficitIsReal = avgRealDeficit != null;
+  // Ort. yakılan (toplam): BMR + ort. aktif kalori
+  const avgBurned = bmr != null ? Math.round(bmr + (avgActiveCal || 0)) : null;
   const maxCalories = Math.max(...dailyTotals.map((d) => d.calories), 1);
   const maxWater = Math.max(...dailyTotals.map((d) => d.water), 1);
   const maxSleep = Math.max(...dailyTotals.map((d) => d.sleepHours || 0), 1);
@@ -736,6 +760,20 @@ const TrendView = ({ user }) => {
               <span className="trend-card-value">{avgCalories}</span>
               <span className="trend-card-label">Ort. Kalori</span>
             </div>
+            {avgShownDeficit != null && (
+              <div className="trend-card" title={deficitIsReal ? '(BMR + aktif kalori) − alınan' : 'hedef − alınan (BMR için profilini doldur)'}>
+                <span className="trend-card-icon">{avgShownDeficit >= 0 ? '📉' : '📈'}</span>
+                <span className="trend-card-value" style={{ color: avgShownDeficit >= 0 ? '#16a34a' : '#dc2626' }}>{Math.abs(avgShownDeficit)}</span>
+                <span className="trend-card-label">Ort. Kalori {avgShownDeficit >= 0 ? 'Açığı' : 'Fazlası'}{deficitIsReal ? '' : '*'}</span>
+              </div>
+            )}
+            {avgBurned != null && (
+              <div className="trend-card">
+                <span className="trend-card-icon">🔥</span>
+                <span className="trend-card-value">{avgBurned}</span>
+                <span className="trend-card-label">Ort. Yakılan (BMR+aktif)</span>
+              </div>
+            )}
             <div className="trend-card">
               <span className="trend-card-icon">💧</span>
               <span className="trend-card-value">{avgWater}</span>
@@ -764,21 +802,32 @@ const TrendView = ({ user }) => {
           </div>
 
           {rangeKey !== 'day' && (
-            <div className="trend-bars">
-              {dailyTotals.map((d) => (
-                <div key={d.date} className="trend-bar-day">
-                  <div className="trend-bar-track">
-                    <div className="trend-bar-fill calories" style={{ height: `${(d.calories / maxCalories) * 100}%` }} />
+            <div className="trend-chart">
+              <div className="trend-legend">
+                <span className="trend-legend-item"><i className="lg-dot lg-cal" />🔥 Kalori</span>
+                <span className="trend-legend-item"><i className="lg-dot lg-water" />💧 Su</span>
+                <span className="trend-legend-item"><i className="lg-dot lg-sleep" />😴 Uyku</span>
+              </div>
+              <div className="trend-bars">
+                {dailyTotals.map((d) => (
+                  <div key={d.date} className="trend-bar-day">
+                    <div className="trend-bar-group">
+                      <div className="trend-bar-track" title={`🔥 ${Math.round(d.calories)} kcal`}>
+                        <div className="trend-bar-fill calories" style={{ height: `${(d.calories / maxCalories) * 100}%` }} />
+                      </div>
+                      <div className="trend-bar-track water-track" title={`💧 ${Math.round(d.water)} ml`}>
+                        <div className="trend-bar-fill water" style={{ height: `${(d.water / maxWater) * 100}%` }} />
+                      </div>
+                      <div className="trend-bar-track sleep-track" title={`😴 ${d.sleepHours || 0} saat`}>
+                        <div className="trend-bar-fill sleep" style={{ height: `${((d.sleepHours || 0) / maxSleep) * 100}%` }} />
+                      </div>
+                    </div>
+                    <span className="trend-bar-value">{d.calories ? Math.round(d.calories) : '–'}</span>
+                    <span className="trend-bar-label">{formatShort(d.date)}</span>
                   </div>
-                  <div className="trend-bar-track water-track">
-                    <div className="trend-bar-fill water" style={{ height: `${(d.water / maxWater) * 100}%` }} />
-                  </div>
-                  <div className="trend-bar-track sleep-track">
-                    <div className="trend-bar-fill sleep" style={{ height: `${((d.sleepHours || 0) / maxSleep) * 100}%` }} />
-                  </div>
-                  <span className="trend-bar-label">{formatShort(d.date)}</span>
-                </div>
-              ))}
+                ))}
+              </div>
+              <p className="trend-chart-hint">Çubukların üstüne gelince tam değer görünür · alttaki sayı o günün kalorisi</p>
             </div>
           )}
 
@@ -1075,6 +1124,22 @@ const TrendView = ({ user }) => {
                   <span>Karbonhidrat: <strong>{Math.round(dailyTotals[0].carbs)}g</strong>{goals ? ` / ${goals.carbs}g` : ''}</span>
                   <span>Yağ: <strong>{Math.round(dailyTotals[0].fats)}g</strong>{goals ? ` / ${goals.fats}g` : ''}</span>
                 </div>
+                {bmr != null && dailyTotals[0].calories > 0 && (() => {
+                  const active = dailyTotals[0].vitals?.active_calories || 0;
+                  const burned = dayBurned(bmr, active);
+                  const def = dayDeficit(bmr, active, dailyTotals[0].calories);
+                  return (
+                    <div className={`trend-day-deficit ${def >= 0 ? 'good' : 'over'}`}>
+                      {def >= 0 ? '📉' : '📈'} Bu gün <strong>{Math.abs(def)} kcal {def >= 0 ? 'açık' : 'fazla'}</strong>
+                      <span> (yakılan {burned} = BMR {bmr}{active ? ` + aktif ${Math.round(active)}` : ''} · alınan {Math.round(dailyTotals[0].calories)})</span>
+                    </div>
+                  );
+                })()}
+                {bmr == null && dailyTotals[0].calories > 0 && (
+                  <div className="trend-day-deficit over">
+                    ⚠️ Kalori açığı için profilinde <strong>boy · kilo · yaş · cinsiyet</strong> dolu olmalı (Ayarlar → Profil).
+                  </div>
+                )}
               </div>
 
               <div className="trend-note-editor">
