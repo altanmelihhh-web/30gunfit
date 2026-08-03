@@ -39,6 +39,7 @@ const NutritionDashboard = ({ userProfile, user, driveAccessToken, onRequestDriv
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [trackerRefreshKey, setTrackerRefreshKey] = useState(0);
+  const [showDailyForm, setShowDailyForm] = useState(false);
 
   // Hesaplayıcıdan gelen sonuçları kaydet
   const handleNutritionResults = (results) => {
@@ -157,6 +158,25 @@ const NutritionDashboard = ({ userProfile, user, driveAccessToken, onRequestDriv
         {activeSection === 'tracker' && (
           <div className="section-content">
             <GoalsCard user={user} goals={goals} onSave={setGoals} />
+            <div className="daily-form-launcher">
+              <div>
+                <strong>Günlük Form</strong>
+                <span>Öğün, su, uyku, aktivite ve takviyeyi tek ekrandan gir.</span>
+              </div>
+              <button onClick={() => setShowDailyForm((prev) => !prev)}>
+                {showDailyForm ? 'Formu Kapat' : 'Formu Aç'}
+              </button>
+            </div>
+            {showDailyForm && (
+              <DailyLogForm
+                user={user}
+                nutritionResults={{ targetCalories, macros: targetMacros }}
+                onSaved={() => {
+                  setTrackerRefreshKey((prev) => prev + 1);
+                  setShowDailyForm(false);
+                }}
+              />
+            )}
             <CalorieTracker
               key={trackerRefreshKey}
               targetCalories={targetCalories}

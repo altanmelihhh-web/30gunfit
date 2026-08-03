@@ -129,6 +129,47 @@
   animation: fadeIn 0.3s ease-in-out;
 }
 
+.daily-form-launcher {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin: 14px 0;
+  padding: 14px 16px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 12px;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.daily-form-launcher strong,
+.daily-form-launcher span {
+  display: block;
+}
+
+.daily-form-launcher strong {
+  color: var(--color-text-primary);
+  font-size: 1rem;
+}
+
+.daily-form-launcher span {
+  margin-top: 3px;
+  color: var(--color-text-muted);
+  font-size: 0.86rem;
+}
+
+.daily-form-launcher button {
+  flex-shrink: 0;
+  min-height: 38px;
+  padding: 0 14px;
+  border: none;
+  border-radius: 10px;
+  background: var(--color-brand);
+  color: #fff;
+  font-weight: 800;
+  cursor: pointer;
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -338,6 +379,16 @@
   .dashboard-header h1 {
     font-size: 1.22rem;
     margin-bottom: 4px;
+  }
+
+  .daily-form-launcher {
+    align-items: stretch;
+    flex-direction: column;
+    padding: 13px;
+  }
+
+  .daily-form-launcher button {
+    width: 100%;
   }
 
   .dashboard-header p {

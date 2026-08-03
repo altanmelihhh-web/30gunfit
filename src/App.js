@@ -10,6 +10,7 @@ import NutritionDashboard from './components/NutritionDashboard';
 import WeightTracker from './components/WeightTracker';
 import SleepTracker from './components/SleepTracker';
 import TodaySummary from './components/TodaySummary';
+import TodayQuickEdit from './components/TodayQuickEdit';
 import ReportView from './components/ReportView';
 import ProgressPhotos from './components/ProgressPhotos';
 import BodyMeasurements from './components/BodyMeasurements';
@@ -135,6 +136,7 @@ function App() {
 
   const [workoutStreak, setWorkoutStreak] = useState(0);
   const [workoutCount, setWorkoutCount] = useState(0);
+  const [todayRefreshKey, setTodayRefreshKey] = useState(0);
   const lastReminderRef = useRef({});
 
   // Tema kalıcılığı
@@ -371,7 +373,8 @@ function App() {
         {/* Panel (Dashboard) - bugün + hafta/ay rapor + günün sözü */}
         {activeTab === 'home' && (
           <div className="tab-content">
-            <TodaySummary user={user} />
+            <TodaySummary user={user} refreshKey={todayRefreshKey} />
+            <TodayQuickEdit user={user} onSaved={() => setTodayRefreshKey((prev) => prev + 1)} />
             <ReportView user={user} />
             <DailyMotivation streak={workoutStreak} workoutCount={workoutCount} />
           </div>
