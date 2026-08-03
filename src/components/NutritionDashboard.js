@@ -157,31 +157,37 @@ const NutritionDashboard = ({ userProfile, user, driveAccessToken, onRequestDriv
       <div className="dashboard-content">
         {activeSection === 'tracker' && (
           <div className="section-content">
-            <GoalsCard user={user} goals={goals} onSave={setGoals} />
-            <div className="daily-form-launcher primary">
-              <div>
-                <strong>Bugün Girişi</strong>
-                <span>Öğün, su, uyku, Apple Watch aktivite, antrenman ve takviyeyi buradan gir.</span>
+            <div className="nutrition-today-layout">
+              <div className="nutrition-today-main">
+                <GoalsCard user={user} goals={goals} onSave={setGoals} />
+                <CalorieTracker
+                  key={trackerRefreshKey}
+                  targetCalories={targetCalories}
+                  targetMacros={targetMacros}
+                  user={user}
+                />
               </div>
-              <button onClick={() => setShowDailyForm((prev) => !prev)}>
-                {showDailyForm ? 'Formu Gizle' : 'Formu Göster'}
-              </button>
+              <div className="nutrition-today-side">
+                <div className="daily-form-launcher primary">
+                  <div>
+                    <strong>Bugün Girişi</strong>
+                    <span>Öğün, su, uyku, Apple Watch aktivite, antrenman ve takviyeyi buradan gir.</span>
+                  </div>
+                  <button onClick={() => setShowDailyForm((prev) => !prev)}>
+                    {showDailyForm ? 'Formu Gizle' : 'Formu Göster'}
+                  </button>
+                </div>
+                {showDailyForm && (
+                  <DailyLogForm
+                    user={user}
+                    nutritionResults={{ targetCalories, macros: targetMacros }}
+                    onSaved={() => {
+                      setTrackerRefreshKey((prev) => prev + 1);
+                    }}
+                  />
+                )}
+              </div>
             </div>
-            {showDailyForm && (
-              <DailyLogForm
-                user={user}
-                nutritionResults={{ targetCalories, macros: targetMacros }}
-                onSaved={() => {
-                  setTrackerRefreshKey((prev) => prev + 1);
-                }}
-              />
-            )}
-            <CalorieTracker
-              key={trackerRefreshKey}
-              targetCalories={targetCalories}
-              targetMacros={targetMacros}
-              user={user}
-            />
           </div>
         )}
 
