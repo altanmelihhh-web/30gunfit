@@ -101,7 +101,8 @@ const DailyLogForm = ({ user, nutritionResults, onSaved }) => {
         const existing = await getWaterTracker(user.uid);
         const currentEntries = existing.success ? (existing.data.entries || []) : [];
         const currentGoal = existing.success ? (existing.data.dailyGoal || 2500) : 2500;
-        await saveWaterTracker(user.uid, [...currentEntries, {
+        const otherEntries = currentEntries.filter((entry) => entry.date !== form.date);
+        await saveWaterTracker(user.uid, [...otherEntries, {
           id: Date.now(),
           amount: parseInt(form.su.total_ml, 10),
           date: form.date,
@@ -139,10 +140,11 @@ const DailyLogForm = ({ user, nutritionResults, onSaved }) => {
 
         if (form.spor.duration_min || form.spor.active_calories || form.spor.steps || form.spor.distance_km) {
           logFields.vitals = {
-            active_calories: form.spor.active_calories ? parseFloat(form.spor.active_calories) : null,
-            steps: form.spor.steps ? parseInt(form.spor.steps, 10) : null,
-            exercise_minutes: form.spor.duration_min ? parseFloat(form.spor.duration_min) : null,
-            distance_km: form.spor.distance_km ? parseFloat(form.spor.distance_km) : null
+            ...(existingLog.vitals || {}),
+            active_calories: form.spor.active_calories ? parseFloat(form.spor.active_calories) : existingLog.vitals?.active_calories || null,
+            steps: form.spor.steps ? parseInt(form.spor.steps, 10) : existingLog.vitals?.steps || null,
+            exercise_minutes: form.spor.duration_min ? parseFloat(form.spor.duration_min) : existingLog.vitals?.exercise_minutes || null,
+            distance_km: form.spor.distance_km ? parseFloat(form.spor.distance_km) : existingLog.vitals?.distance_km || null
           };
         }
 

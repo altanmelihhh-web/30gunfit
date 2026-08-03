@@ -15,7 +15,7 @@ import './NutritionDashboard.css';
 
 // Beslenme merkezindeki tüm sekmeler (kaydırmalı olarak hepsi görünür)
 const NUTRITION_TABS = [
-  { key: 'tracker', icon: '📝', label: 'Beslenme' },
+  { key: 'tracker', icon: '📝', label: 'Bugün' },
   { key: 'quick-entry', icon: '⌨️', label: 'Toplu Giriş' },
   { key: 'ai-analyzer', icon: '🤖', label: 'AI Foto' },
   { key: 'water', icon: '💧', label: 'Su' },
@@ -39,7 +39,7 @@ const NutritionDashboard = ({ userProfile, user, driveAccessToken, onRequestDriv
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [trackerRefreshKey, setTrackerRefreshKey] = useState(0);
-  const [showDailyForm, setShowDailyForm] = useState(false);
+  const [showDailyForm, setShowDailyForm] = useState(true);
 
   // Hesaplayıcıdan gelen sonuçları kaydet
   const handleNutritionResults = (results) => {
@@ -158,13 +158,13 @@ const NutritionDashboard = ({ userProfile, user, driveAccessToken, onRequestDriv
         {activeSection === 'tracker' && (
           <div className="section-content">
             <GoalsCard user={user} goals={goals} onSave={setGoals} />
-            <div className="daily-form-launcher">
+            <div className="daily-form-launcher primary">
               <div>
-                <strong>Günlük Form</strong>
-                <span>Öğün, su, uyku, aktivite ve takviyeyi tek ekrandan gir.</span>
+                <strong>Bugün Girişi</strong>
+                <span>Öğün, su, uyku, Apple Watch aktivite, antrenman ve takviyeyi buradan gir.</span>
               </div>
               <button onClick={() => setShowDailyForm((prev) => !prev)}>
-                {showDailyForm ? 'Formu Kapat' : 'Formu Aç'}
+                {showDailyForm ? 'Formu Gizle' : 'Formu Göster'}
               </button>
             </div>
             {showDailyForm && (
@@ -173,7 +173,6 @@ const NutritionDashboard = ({ userProfile, user, driveAccessToken, onRequestDriv
                 nutritionResults={{ targetCalories, macros: targetMacros }}
                 onSaved={() => {
                   setTrackerRefreshKey((prev) => prev + 1);
-                  setShowDailyForm(false);
                 }}
               />
             )}
