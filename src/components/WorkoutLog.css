@@ -1,6 +1,24 @@
 .workout-log {
-  max-width: 720px;
+  max-width: 960px;
   margin: 0 auto;
+}
+
+.wl-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.wl-eyebrow {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--color-accent);
+  font-size: 0.7rem;
+  font-weight: 850;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
 }
 
 .wl-header h2 {
@@ -10,9 +28,12 @@
 }
 
 .wl-header p {
-  margin: 0 0 16px;
+  margin: 0;
+  max-width: 430px;
   color: var(--color-text-secondary);
   font-size: 0.9rem;
+  line-height: 1.45;
+  text-align: right;
 }
 
 .wl-success {
@@ -25,11 +46,53 @@
 
 .wl-entry {
   background: var(--color-surface);
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-lg);
-  padding: 16px;
+  padding: 18px;
   box-shadow: var(--shadow-sm);
   margin-bottom: 24px;
+}
+
+.wl-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.wl-summary-card {
+  min-height: 92px;
+  padding: 13px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.wl-summary-card span,
+.wl-summary-card small {
+  display: block;
+}
+
+.wl-summary-card span {
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.wl-summary-card strong {
+  display: block;
+  margin-top: 7px;
+  color: var(--color-text-primary);
+  font-size: 1.25rem;
+  font-weight: 850;
+}
+
+.wl-summary-card small {
+  margin-top: 3px;
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
 }
 
 .wl-mode-tabs {
@@ -220,10 +283,24 @@
   cursor: pointer;
 }
 
-.wl-history h3 {
+.wl-history-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.wl-history-head h3 {
   margin: 0 0 12px;
   font-size: 1.1rem;
   color: var(--color-text-primary);
+}
+
+.wl-history-head span {
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
+  font-weight: 650;
 }
 
 .wl-hist-item {
@@ -232,10 +309,11 @@
   align-items: flex-start;
   gap: 10px;
   background: var(--color-surface);
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-md);
-  padding: 12px 14px;
+  padding: 14px;
   margin-bottom: 8px;
+  box-shadow: var(--shadow-sm);
 }
 
 .wl-hist-title { font-weight: 700; color: var(--color-text-primary); }
@@ -244,6 +322,33 @@
 .wl-hist-del { border: none; background: transparent; cursor: pointer; font-size: 1rem; flex-shrink: 0; }
 
 .wl-empty { color: var(--color-text-muted); text-align: center; padding: 20px 0; }
+
+@media (max-width: 900px) {
+  .wl-summary-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .wl-header {
+    display: block;
+  }
+
+  .wl-header p {
+    margin-top: 6px;
+    text-align: left;
+  }
+
+  .wl-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .wl-summary-card {
+    min-height: 78px;
+    padding: 11px;
+  }
+}
 
 @media (max-width: 480px) {
   .workout-log {
@@ -256,6 +361,14 @@
   .wl-entry {
     padding: 12px;
     border-radius: 12px;
+  }
+
+  .wl-history-head {
+    display: block;
+  }
+
+  .wl-history-head h3 {
+    margin-bottom: 3px;
   }
 
   .wl-field-grid {

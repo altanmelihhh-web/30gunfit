@@ -15,11 +15,11 @@ import './NutritionDashboard.css';
 
 // Beslenme merkezindeki tüm sekmeler (kaydırmalı olarak hepsi görünür)
 const NUTRITION_TABS = [
-  { key: 'tracker', icon: '📝', label: 'Bugün' },
-  { key: 'quick-entry', icon: '⌨️', label: 'Hızlı Giriş' },
+  { key: 'tracker', icon: '📝', label: 'Beslenme' },
+  { key: 'quick-entry', icon: '⌨️', label: 'Toplu Giriş' },
   { key: 'ai-analyzer', icon: '🤖', label: 'AI Foto' },
   { key: 'water', icon: '💧', label: 'Su' },
-  { key: 'trends', icon: '📈', label: 'Analiz' },
+  { key: 'trends', icon: '📈', label: 'Trend' },
   { key: 'tools', icon: '🧰', label: 'Araçlar' }
 ];
 
@@ -128,7 +128,7 @@ const NutritionDashboard = ({ userProfile, user, driveAccessToken, onRequestDriv
           <span className="dashboard-eyebrow">Nutrition Command Center</span>
           <h1>Beslenme Operasyonları</h1>
         </div>
-        <p>Günlük kalori, makro, su ve aktivite kayıtlarını tek veri akışında takip et.</p>
+        <p>Günlük kalori, makro, su ve aktivite kayıtlarını tek akışta gir, izle ve haftalık eğilime bağla.</p>
       </div>
 
       {/* Navigasyon - tüm sekmeler görünür (yatay kaydırmalı) */}

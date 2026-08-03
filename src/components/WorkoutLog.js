@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import './WorkoutLog.css';
 import { parseHevyWorkout, workoutStats } from '../utils/hevyParser';
-import { getDailyLogsRange } from '../firebase/dataService';
+import { getDailyLog, getDailyLogsRange } from '../firebase/dataService';
 import { addWorkout, deleteWorkout, saveVitals } from '../firebase/dailyLogService';
 
 /**
@@ -32,6 +32,7 @@ const WorkoutLog = ({ user }) => {
   const [isSaving, setIsSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState(false);
   const [history, setHistory] = useState([]); // [{date, index, workout}]
+  const [weeklySummary, setWeeklySummary] = useState(null);
   const [loading, setLoading] = useState(true);
 
   const loadHistory = useCallback(async () => {
@@ -47,6 +48,17 @@ const WorkoutLog = ({ user }) => {
       }
       const logs = await getDailyLogsRange(user.uid, dates);
       const items = [];
+      const weekDates = dates.slice(0, 7);
+      const week = {
+        sessions: 0,
+        sets: 0,
+        volume: 0,
+        duration: 0,
+        activeCalories: 0,
+        steps: 0,
+        exerciseMinutes: 0,
+        distance: 0
+      };
       dates.forEach((dt) => {
         (logs[dt]?.workouts || []).forEach((w, index) => {
           // Sadece hareket/set içeren gerçek antrenmanları göster (jenerik vitals değil)
@@ -55,7 +67,23 @@ const WorkoutLog = ({ user }) => {
           }
         });
       });
+      weekDates.forEach((dt) => {
+        const log = logs[dt] || {};
+        const workouts = (log.workouts || []).filter((w) => (w.exercises && w.exercises.length > 0) || w.title);
+        if (workouts.length > 0) week.sessions += 1;
+        workouts.forEach((w) => {
+          const s = workoutStats(w);
+          week.sets += s.totalSets;
+          week.volume += s.volume;
+          week.duration += parseFloat(w.duration_min) || 0;
+        });
+        week.activeCalories += parseFloat(log.vitals?.active_calories) || 0;
+        week.steps += parseFloat(log.vitals?.steps) || 0;
+        week.exerciseMinutes += parseFloat(log.vitals?.exercise_minutes) || 0;
+        week.distance += parseFloat(log.vitals?.distance_km) || 0;
+      });
       setHistory(items);
+      setWeeklySummary(week);
     } finally {
       setLoading(false);
     }
@@ -141,11 +169,14 @@ const WorkoutLog = ({ user }) => {
         });
       }
       if (hasVitals) {
+        const existingLog = await getDailyLog(user.uid, date);
+        const existingVitals = existingLog.success ? (existingLog.data.vitals || {}) : {};
         await saveVitals(user.uid, date, {
-          active_calories: manualWorkout.active_calories ? parseFloat(manualWorkout.active_calories) : null,
-          exercise_minutes: manualWorkout.duration_min ? parseFloat(manualWorkout.duration_min) : null,
-          steps: manualWorkout.steps ? parseInt(manualWorkout.steps, 10) : null,
-          distance_km: manualWorkout.distance_km ? parseFloat(manualWorkout.distance_km) : null
+          ...existingVitals,
+          active_calories: manualWorkout.active_calories ? parseFloat(manualWorkout.active_calories) : existingVitals.active_calories || null,
+          exercise_minutes: manualWorkout.duration_min ? parseFloat(manualWorkout.duration_min) : existingVitals.exercise_minutes || null,
+          steps: manualWorkout.steps ? parseInt(manualWorkout.steps, 10) : existingVitals.steps || null,
+          distance_km: manualWorkout.distance_km ? parseFloat(manualWorkout.distance_km) : existingVitals.distance_km || null
         });
       }
       setSavedMsg(true);
@@ -172,11 +203,25 @@ const WorkoutLog = ({ user }) => {
   return (
     <div className="workout-log">
       <div className="wl-header">
-        <h2>🏋️ Antrenman Günlüğü</h2>
-        <p>Antrenmanı ve Apple Watch aktivite değerlerini aynı güne kaydet.</p>
+        <div>
+          <span className="wl-eyebrow">Training Operations</span>
+          <h2>🏋️ Antrenman Günlüğü</h2>
+        </div>
+        <p>Antrenman, süre, aktif kalori, mesafe ve adımı tek günlük kayıt altında takip et.</p>
       </div>
 
       {savedMsg && <div className="wl-success">✅ Antrenman kaydedildi!</div>}
+
+      {weeklySummary && (
+        <div className="wl-summary-grid">
+          <div className="wl-summary-card"><span>Seans</span><strong>{weeklySummary.sessions}</strong><small>son 7 gün</small></div>
+          <div className="wl-summary-card"><span>Set</span><strong>{weeklySummary.sets}</strong><small>toplam çalışma</small></div>
+          <div className="wl-summary-card"><span>Hacim</span><strong>{Math.round(weeklySummary.volume).toLocaleString('tr-TR')}</strong><small>kg</small></div>
+          <div className="wl-summary-card"><span>Aktif</span><strong>{Math.round(weeklySummary.activeCalories).toLocaleString('tr-TR')}</strong><small>kcal</small></div>
+          <div className="wl-summary-card"><span>Süre</span><strong>{Math.round(weeklySummary.exerciseMinutes || weeklySummary.duration)}</strong><small>dk</small></div>
+          <div className="wl-summary-card"><span>Adım</span><strong>{Math.round(weeklySummary.steps).toLocaleString('tr-TR')}</strong><small>son 7 gün</small></div>
+        </div>
+      )}
 
       <div className="wl-entry">
         <div className="wl-row">
@@ -292,7 +337,10 @@ const WorkoutLog = ({ user }) => {
       </div>
 
       <div className="wl-history">
-        <h3>Geçmiş Antrenmanlar</h3>
+        <div className="wl-history-head">
+          <h3>Geçmiş Antrenmanlar</h3>
+          <span>{history.length} kayıt · son {HISTORY_DAYS} gün</span>
+        </div>
         {loading ? (
           <p className="wl-empty">Yükleniyor...</p>
         ) : history.length === 0 ? (

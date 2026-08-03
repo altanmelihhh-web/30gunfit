@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import './CalorieTracker.css';
-import { getMeals, addMeal, updateMeal, deleteMeal } from '../firebase/mealsService';
+import { getMeals, addMeal, updateMeal, deleteMeal, getRecentMeals } from '../firebase/mealsService';
 
 /**
  * CalorieTracker - Günlük kalori ve makro takibi
@@ -31,6 +31,7 @@ const CalorieTracker = ({ targetCalories, targetMacros, onDataChange, user }) =>
   const [editingMealId, setEditingMealId] = useState(null);
   const [newMeal, setNewMeal] = useState(EMPTY_MEAL);
   const [isSaving, setIsSaving] = useState(false);
+  const [recentMeals, setRecentMeals] = useState([]);
 
   const MEAL_TYPES = {
     breakfast: { label: 'Kahvaltı', icon: '🌅' },
@@ -50,6 +51,10 @@ const CalorieTracker = ({ targetCalories, targetMacros, onDataChange, user }) =>
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDate, user]);
 
+  useEffect(() => {
+    getRecentMeals(user?.uid, 30, 8).then(setRecentMeals).catch(() => setRecentMeals([]));
+  }, [user, selectedDate]);
+
   const calculateTotals = () => {
     return meals.reduce(
       (totals, meal) => ({
@@ -63,6 +68,16 @@ const CalorieTracker = ({ targetCalories, targetMacros, onDataChange, user }) =>
   };
 
   const totals = calculateTotals();
+  const macroCalories = {
+    protein: totals.protein * 4,
+    carbs: totals.carbs * 4,
+    fats: totals.fats * 9
+  };
+  const trackedMacroCalories = macroCalories.protein + macroCalories.carbs + macroCalories.fats;
+  const targetBalance = targetCalories ? Math.round(targetCalories - totals.calories) : null;
+  const biggestMeal = meals.length
+    ? [...meals].sort((a, b) => (parseFloat(b.calories) || 0) - (parseFloat(a.calories) || 0))[0]
+    : null;
 
   const resetForm = () => {
     setNewMeal(EMPTY_MEAL);
@@ -103,6 +118,21 @@ const CalorieTracker = ({ targetCalories, targetMacros, onDataChange, user }) =>
     });
     setEditingMealId(meal.id);
     setIsAddingMeal(true);
+  };
+
+  const handleQuickRepeat = async (meal) => {
+    setIsSaving(true);
+    try {
+      await addMeal(user?.uid, selectedDate, {
+        ...meal,
+        source: 'Hızlı Tekrar'
+      });
+      await refreshMeals();
+    } catch (error) {
+      alert('Hızlı ekleme sırasında hata oluştu: ' + error.message);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleDeleteMeal = async (mealId) => {
@@ -163,38 +193,44 @@ const CalorieTracker = ({ targetCalories, targetMacros, onDataChange, user }) =>
       {/* Günlük özet */}
       {targetCalories && (
         <div className="daily-summary">
-          <div className="summary-card main-calories">
-            <div className="summary-header">
-              <span className="summary-icon">🔥</span>
+          <div className="nutrition-command-summary">
+            <div className="nutrition-primary-kpi">
               <span className="summary-label">Günlük Kalori</span>
+              <div className="summary-values">
+                <span className="current-value">{Math.round(totals.calories)}</span>
+                <span className="target-divider">/</span>
+                <span className="target-value">{targetCalories}</span>
+                <span className="unit">kcal</span>
+              </div>
+              <div className="progress-bar">
+                <div
+                  className="calorie-tracker-progress-fill"
+                  style={{
+                    width: `${getProgressPercentage(totals.calories, targetCalories)}%`,
+                    background: totals.calories > targetCalories ?
+                      'linear-gradient(90deg, #ef4444, #dc2626)' :
+                      'linear-gradient(90deg, #22c55e, #16a34a)'
+                  }}
+                />
+              </div>
             </div>
-            <div className="summary-values">
-              <span className="current-value">{Math.round(totals.calories)}</span>
-              <span className="target-divider">/</span>
-              <span className="target-value">{targetCalories}</span>
-              <span className="unit">kcal</span>
-            </div>
-            <div className="progress-bar">
-              <div
-                className="calorie-tracker-progress-fill"
-                style={{
-                  width: `${getProgressPercentage(totals.calories, targetCalories)}%`,
-                  background: totals.calories > targetCalories ?
-                    'linear-gradient(90deg, #ef4444, #dc2626)' :
-                    'linear-gradient(90deg, #22c55e, #16a34a)'
-                }}
-              />
-            </div>
-            <div className="summary-remaining">
-              {targetCalories - totals.calories > 0 ? (
-                <span style={{ color: '#22c55e' }}>
-                  ✓ {Math.round(targetCalories - totals.calories)} kcal kaldı
-                </span>
-              ) : (
-                <span style={{ color: '#ef4444' }}>
-                  ⚠️ {Math.round(totals.calories - targetCalories)} kcal fazla
-                </span>
-              )}
+            <div className="nutrition-kpi-grid">
+              <div className={targetBalance >= 0 ? 'nutrition-kpi good' : 'nutrition-kpi over'}>
+                <span>{targetBalance >= 0 ? 'Kalan' : 'Fazla'}</span>
+                <strong>{Math.abs(targetBalance).toLocaleString('tr-TR')} kcal</strong>
+              </div>
+              <div className="nutrition-kpi">
+                <span>Öğün</span>
+                <strong>{meals.length}</strong>
+              </div>
+              <div className="nutrition-kpi">
+                <span>Makro kapsama</span>
+                <strong>{totals.calories > 0 ? `%${Math.min(100, Math.round((trackedMacroCalories / totals.calories) * 100))}` : '—'}</strong>
+              </div>
+              <div className="nutrition-kpi">
+                <span>En yüksek</span>
+                <strong>{biggestMeal ? `${Math.round(biggestMeal.calories)} kcal` : '—'}</strong>
+              </div>
             </div>
           </div>
 
@@ -250,6 +286,23 @@ const CalorieTracker = ({ targetCalories, targetMacros, onDataChange, user }) =>
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {recentMeals.length > 0 && (
+        <div className="recent-meals-panel">
+          <div className="recent-meals-head">
+            <h4>Sık Kullanılanlar</h4>
+            <span>Son 30 gün</span>
+          </div>
+          <div className="recent-meal-chips">
+            {recentMeals.map((meal) => (
+              <button key={`${meal.name}-${meal.timestamp}`} onClick={() => handleQuickRepeat(meal)} disabled={isSaving}>
+                <strong>{meal.name}</strong>
+                <span>{Math.round(meal.calories)} kcal · {meal.count}x</span>
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
@@ -356,7 +409,10 @@ const CalorieTracker = ({ targetCalories, targetMacros, onDataChange, user }) =>
 
       {/* Yemek listesi */}
       <div className="meals-list">
-        <h4>Öğünler ({meals.length})</h4>
+        <div className="meals-list-head">
+          <h4>Öğünler ({meals.length})</h4>
+          {biggestMeal && <span>En yüksek: {biggestMeal.name} · {Math.round(biggestMeal.calories)} kcal</span>}
+        </div>
 
         {meals.length === 0 ? (
           <div className="empty-meals">
