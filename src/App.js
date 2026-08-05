@@ -1,33 +1,38 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { Suspense, lazy, useState, useEffect, useRef, useCallback } from 'react';
 import './App.css';
-import ReminderSettings from './components/ReminderSettings';
 import ThemeToggle from './components/ThemeToggle';
-import DailyMotivation from './components/DailyMotivation';
-import ProfileSettings from './components/ProfileSettings';
-import WorkoutLog from './components/WorkoutLog';
 import AuthModal from './components/AuthModal';
-import NutritionDashboard from './components/NutritionDashboard';
-import WeightTracker from './components/WeightTracker';
-import SleepTracker from './components/SleepTracker';
-import TodaySummary from './components/TodaySummary';
-import ReportView from './components/ReportView';
-import ProgressPhotos from './components/ProgressPhotos';
-import BodyMeasurements from './components/BodyMeasurements';
-import BodyComposition from './components/BodyComposition';
-import IOSInstallPrompt from './components/IOSInstallPrompt';
 import { playNotificationSound } from './utils/notificationSounds';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from './firebase/config';
-import { logout, handleGoogleRedirectResult, loginWithGoogle } from './firebase/authService';
-import { getAllUserData, saveUserProfile, saveUserSettings, getDailyLogsRange } from './firebase/dataService';
+import { logout, handleGoogleRedirectResult, requestGoogleDriveAccess } from './firebase/authService';
+import { getAllUserData, saveUserProfile, saveUserSettings, getDailyLogsRange, getCalorieTrackingRange, getWaterTracker } from './firebase/dataService';
+import { getScopedJson, setScopedJson } from './utils/userScopedStorage';
+import { getCachedPeriodTracker, getPeriodTracker } from './firebase/periodService';
+import { getCycleNotification, getPredictions, todayKey } from './utils/cycleMath';
 
-// Bu kişisel uygulamayı sadece bu hesaplar kullanabilir
-const ALLOWED_EMAILS = ['altanmelihhh@gmail.com', 'emineay12@gmail.com'];
+const ReportSettings = lazy(() => import('./components/ReportSettings'));
+const DailyMotivation = lazy(() => import('./components/DailyMotivation'));
+const ProfileSettings = lazy(() => import('./components/ProfileSettings'));
+const WorkoutLog = lazy(() => import('./components/WorkoutLog'));
+const PeriodTracker = lazy(() => import('./components/PeriodTracker'));
+const NutritionDashboard = lazy(() => import('./components/NutritionDashboard'));
+const TrendView = lazy(() => import('./components/TrendView'));
+const WeightTracker = lazy(() => import('./components/WeightTracker'));
+const SleepTracker = lazy(() => import('./components/SleepTracker'));
+const TodaySummary = lazy(() => import('./components/TodaySummary'));
+const ReportView = lazy(() => import('./components/ReportView'));
+const BodyMeasurements = lazy(() => import('./components/BodyMeasurements'));
+const IOSInstallPrompt = lazy(() => import('./components/IOSInstallPrompt'));
 
 const DEFAULT_REMINDERS = {
   enabled: false,
-  times: ['09:00', '13:00', '20:00'],
-  soundType: 'phoneRing'
+  times: ['20:00'],
+  soundType: 'phoneRing',
+  weeklyReportEnabled: true,
+  weeklyReportDay: 0,
+  weeklyReportHour: 12,
+  weeklyReportMinute: 0
 };
 
 const DEFAULT_PROFILE = {
@@ -35,13 +40,16 @@ const DEFAULT_PROFILE = {
   age: 25,
   weight: 70,
   height: 170,
-  gender: 'male',
+  gender: '',
   goal: 'general_fitness',
   bmi: 24.2
 };
 
 const THEME_STORAGE_KEY = 'appTheme';
 const PROFILE_STORAGE_KEY = 'userProfile';
+// Regl takibi profildeki cinsiyete göre açılır. Cinsiyet henüz seçilmemiş ama
+// kayıt varsa özellik kapanmasın diye mevcut veri de kontrol ediliyor.
+const isFemaleProfile = (profile) => (profile?.gender || '').toLowerCase() === 'female';
 
 const resolveInitialTheme = () => {
   if (typeof window === 'undefined') return 'light';
@@ -68,6 +76,8 @@ const getCurrentTimeString = () => {
   return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 };
 
+const LoadingPanel = () => <div className="lazy-loading-panel">Yükleniyor...</div>;
+
 // Son N günün dailyLogs'undan antrenman kaydedilen günleri bul
 const computeWorkoutStats = (logsByDate, dates) => {
   const workoutDates = dates.filter((d) => (logsByDate[d]?.workouts || []).some(
@@ -88,6 +98,39 @@ const computeWorkoutStats = (logsByDate, dates) => {
     else break;
   }
   return { count, streak };
+};
+
+const hasDailyLogData = (log = {}) =>
+  !!(
+    log.sleep ||
+    log.notes ||
+    log.vitals ||
+    (log.workouts || []).length > 0 ||
+    (log.supplements || []).length > 0
+  );
+
+const computeDailyDataStats = (logsByDate, caloriesByDate, waterEntries, dates) => {
+  const waterDates = new Set((waterEntries || []).map((entry) => entry.date));
+  const dataDates = dates.filter((date) => {
+    const meals = caloriesByDate[date]?.meals || [];
+    return meals.length > 0 || waterDates.has(date) || hasDailyLogData(logsByDate[date]);
+  });
+  const set = new Set(dataDates);
+  let streak = 0;
+  const cursor = new Date();
+  cursor.setHours(0, 0, 0, 0);
+  const todayStr = cursor.toISOString().split('T')[0];
+  if (!set.has(todayStr)) cursor.setDate(cursor.getDate() - 1);
+  for (;;) {
+    const key = cursor.toISOString().split('T')[0];
+    if (set.has(key)) {
+      streak += 1;
+      cursor.setDate(cursor.getDate() - 1);
+    } else {
+      break;
+    }
+  }
+  return { count: dataDates.length, streak };
 };
 
 function App() {
@@ -111,31 +154,22 @@ function App() {
   const [activeTab, setActiveTab] = useState('home'); // 'home' | 'workout' | 'nutrition' | 'stats' | 'settings'
 
   const [userProfile, setUserProfile] = useState(() => {
-    try {
-      const saved = localStorage.getItem(PROFILE_STORAGE_KEY);
-      if (saved) return JSON.parse(saved);
-    } catch (error) { /* ignore */ }
     return { ...DEFAULT_PROFILE };
   });
+  const [profileReady, setProfileReady] = useState(false);
 
   const [reminderSettings, setReminderSettings] = useState(() => {
-    try {
-      const saved = localStorage.getItem('reminderSettings');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        return {
-          enabled: Boolean(parsed.enabled),
-          times: sanitizeTimes(parsed.times),
-          soundType: parsed.soundType || 'beep3x'
-        };
-      }
-    } catch (error) { /* ignore */ }
     return { ...DEFAULT_REMINDERS };
   });
+  const [settingsReady, setSettingsReady] = useState(false);
 
   const [workoutStreak, setWorkoutStreak] = useState(0);
   const [workoutCount, setWorkoutCount] = useState(0);
+  const [dataStreak, setDataStreak] = useState(0);
+  const [dataDayCount, setDataDayCount] = useState(0);
   const lastReminderRef = useRef({});
+  const [hasCycleData, setHasCycleData] = useState(false);
+  const showCycleTab = isFemaleProfile(userProfile) || hasCycleData;
 
   // Tema kalıcılığı
   useEffect(() => {
@@ -147,19 +181,21 @@ function App() {
 
   // Hatırlatma ayarları kalıcılığı (+ Firestore)
   useEffect(() => {
-    localStorage.setItem('reminderSettings', JSON.stringify(reminderSettings));
+    if (!user || !settingsReady) return;
+    setScopedJson('reminderSettings', user.uid, reminderSettings);
     if (user) {
       saveUserSettings(user.uid, { reminderSettings, theme }).catch((e) => console.error('Settings save error:', e));
     }
-  }, [reminderSettings, user, theme]);
+  }, [reminderSettings, user, theme, settingsReady]);
 
   // Profil kalıcılığı (+ Firestore)
   useEffect(() => {
-    localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(userProfile));
+    if (!user || !profileReady) return;
+    setScopedJson(PROFILE_STORAGE_KEY, user.uid, userProfile);
     if (user) {
       saveUserProfile(user.uid, userProfile).catch((e) => console.error('Profile save error:', e));
     }
-  }, [userProfile, user]);
+  }, [userProfile, user, profileReady]);
 
   // Antrenman streak/sayısı (son 60 gün)
   const loadWorkoutStats = useCallback(async () => {
@@ -172,14 +208,36 @@ function App() {
       dates.push(d.toISOString().split('T')[0]);
     }
     try {
-      const logs = await getDailyLogsRange(user.uid, dates);
+      const [logs, calories, water] = await Promise.all([
+        getDailyLogsRange(user.uid, dates),
+        getCalorieTrackingRange(user.uid, dates),
+        getWaterTracker(user.uid)
+      ]);
       const { count, streak } = computeWorkoutStats(logs, dates);
+      const dataStats = computeDailyDataStats(logs, calories, water.success ? water.data.entries || [] : [], dates);
       setWorkoutCount(count);
       setWorkoutStreak(streak);
+      setDataDayCount(dataStats.count);
+      setDataStreak(dataStats.streak);
     } catch (e) { /* yoksay */ }
   }, [user]);
 
   useEffect(() => { loadWorkoutStats(); }, [loadWorkoutStats, activeTab]);
+
+  useEffect(() => {
+    if (!profileReady) return;
+    if (activeTab === 'period' && !showCycleTab) setActiveTab('home');
+  }, [activeTab, showCycleTab, profileReady]);
+
+  // Yerel önbellekte regl kaydı varsa sekme cinsiyet seçilmemiş olsa da açık kalsın
+  useEffect(() => {
+    if (!user) { setHasCycleData(false); return; }
+    try {
+      setHasCycleData((getCachedPeriodTracker(user.uid).entries || []).length > 0);
+    } catch (error) {
+      setHasCycleData(false);
+    }
+  }, [user]);
 
   // Firebase auth listener - sadece profil + ayarları yükler (program yok)
   useEffect(() => {
@@ -192,14 +250,18 @@ function App() {
       await redirectResultPromise;
 
       if (firebaseUser) {
-        if (!ALLOWED_EMAILS.includes(firebaseUser.email)) {
-          alert('Bu uygulama sadece belirli hesaplara açık. Bu hesapla erişim yetkiniz yok.');
-          await logout();
-          setUser(null);
-          setAuthChecked(true);
-          return;
-        }
+        setProfileReady(false);
+        setSettingsReady(false);
         setUser(firebaseUser);
+        const cachedProfile = getScopedJson(PROFILE_STORAGE_KEY, firebaseUser.uid, null);
+        const cachedSettings = getScopedJson('reminderSettings', firebaseUser.uid, null);
+        setUserProfile(cachedProfile || { ...DEFAULT_PROFILE });
+        setReminderSettings(cachedSettings ? {
+          ...DEFAULT_REMINDERS,
+          ...cachedSettings,
+          enabled: Boolean(cachedSettings.enabled),
+          times: sanitizeTimes(cachedSettings.times)
+        } : { ...DEFAULT_REMINDERS });
         try {
           const result = await getAllUserData(firebaseUser.uid);
           if (result.success) {
@@ -207,17 +269,25 @@ function App() {
             if (data.profile) setUserProfile(data.profile);
             if (data.settings) {
               setReminderSettings({
-                enabled: data.settings.reminderSettings?.enabled || false,
-                times: sanitizeTimes(data.settings.reminderSettings?.times),
-                soundType: data.settings.reminderSettings?.soundType || 'beep3x'
+                ...DEFAULT_REMINDERS,
+                ...(data.settings.reminderSettings || {}),
+                enabled: Boolean(data.settings.reminderSettings?.enabled),
+                times: sanitizeTimes(data.settings.reminderSettings?.times)
               });
             }
           }
         } catch (error) {
           console.error('Firestore veri yükleme hatası:', error);
+        } finally {
+          setProfileReady(true);
+          setSettingsReady(true);
         }
       } else {
         setUser(null);
+        setProfileReady(false);
+        setSettingsReady(false);
+        setUserProfile({ ...DEFAULT_PROFILE });
+        setReminderSettings({ ...DEFAULT_REMINDERS });
       }
       setAuthChecked(true);
     });
@@ -253,13 +323,18 @@ function App() {
   // Pazar 12:00 haftalık rapor hatırlatması (en iyi çaba - uygulama açıkken/açılışında)
   useEffect(() => {
     if (!user || !notificationsSupported) return undefined;
+    if (reminderSettings.weeklyReportEnabled === false) return undefined;
 
     const check = () => {
       if (Notification.permission !== 'granted') return;
       const now = new Date();
-      if (now.getDay() !== 0 || now.getHours() < 12) return; // Pazar & >=12:00
+      const targetDay = reminderSettings.weeklyReportDay ?? 0;
+      const targetHour = reminderSettings.weeklyReportHour ?? 12;
+      const targetMinute = reminderSettings.weeklyReportMinute ?? 0;
+      if (now.getDay() !== targetDay) return;
+      if (now.getHours() < targetHour || (now.getHours() === targetHour && now.getMinutes() < targetMinute)) return;
       // O haftaya ait Pazar tarihini anahtar yap
-      const key = `weeklyReport-${now.toISOString().split('T')[0]}`;
+      const key = `weeklyReport-${user.uid}-${now.toISOString().split('T')[0]}`;
       if (localStorage.getItem(key)) return;
       new Notification('📊 Haftalık Raporun Hazır', {
         body: 'Bu haftanın özetine göz at: antrenman, beslenme, uyku ve kilo. İlerleme sekmesi → Rapor.',
@@ -271,19 +346,68 @@ function App() {
     check();
     const id = setInterval(check, 5 * 60 * 1000); // 5 dk'da bir kontrol
     return () => clearInterval(id);
-  }, [user, notificationsSupported]);
+  }, [user, notificationsSupported, reminderSettings]);
+
+  // Regl hatırlatması: tahmini tarihe yaklaşınca veya gecikince günde bir bildirim
+  useEffect(() => {
+    if (!user || !showCycleTab || !notificationsSupported) return undefined;
+
+    let cancelled = false;
+    let periodData = getCachedPeriodTracker(user.uid);
+
+    const check = () => {
+      if (Notification.permission !== 'granted') return;
+      if (periodData.settings.notifyEnabled === false) return;
+      const predictions = getPredictions(periodData.entries, periodData.settings);
+      const message = getCycleNotification(predictions, {
+        notifyBeforeDays: periodData.settings.notifyBeforeDays
+      });
+      if (!message) return;
+      const key = `periodReminder-${user.uid}-${todayKey()}-${message.kind}`;
+      if (localStorage.getItem(key)) return;
+      new Notification(message.title, { body: message.body, icon: '/logo192.png' });
+      localStorage.setItem(key, '1');
+    };
+
+    check(); // önce önbellek, sonra Firestore'dan tazele
+    getPeriodTracker(user.uid)
+      .then((data) => {
+        if (cancelled) return;
+        periodData = data;
+        check();
+      })
+      .catch(() => { /* yoksay */ });
+
+    const id = setInterval(check, 10 * 60 * 1000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [user, showCycleTab, notificationsSupported]);
 
   const handleReminderChange = (nextSettings) => {
     setReminderSettings({
+      ...DEFAULT_REMINDERS,
+      ...nextSettings,
       enabled: Boolean(nextSettings.enabled),
       times: sanitizeTimes(nextSettings.times),
       soundType: nextSettings.soundType || 'beep3x'
     });
+    setSettingsReady(true);
   };
 
   const handleThemeToggle = () => setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
-  const handleProfileSave = (updatedProfile) => setUserProfile(updatedProfile);
-  const handleAuthSuccess = (firebaseUser) => { setUser(firebaseUser); setIsAuthModalOpen(false); };
+  const handleProfileSave = (updatedProfile) => {
+    setProfileReady(true);
+    setUserProfile(updatedProfile);
+  };
+  const handleAuthSuccess = (firebaseUser) => {
+    setUser(firebaseUser);
+    setIsAuthModalOpen(false);
+  };
+
+  const handleRequestDriveAccess = async () => {
+    const result = await requestGoogleDriveAccess();
+    if (result?.driveAccessToken) setDriveAccessToken(result.driveAccessToken);
+    return result;
+  };
 
   const handleLogout = async () => {
     if (!window.confirm('Çıkış yapmak istediğinize emin misiniz?')) return;
@@ -354,6 +478,12 @@ function App() {
             <span className="tab-btn-icon">🏋️</span>
             <span className="tab-btn-label">Antrenman</span>
           </button>
+          {showCycleTab && (
+            <button className={`tab-btn ${activeTab === 'period' ? 'active' : ''}`} onClick={() => setActiveTab('period')}>
+              <span className="tab-btn-icon">🌙</span>
+              <span className="tab-btn-label">Regl</span>
+            </button>
+          )}
           <button className={`tab-btn ${activeTab === 'nutrition' ? 'active' : ''}`} onClick={() => setActiveTab('nutrition')}>
             <span className="tab-btn-icon">🍎</span>
             <span className="tab-btn-label">Beslenme</span>
@@ -368,68 +498,74 @@ function App() {
           </button>
         </nav>
 
-        {/* Panel (Dashboard) - bugün + hafta/ay rapor + günün sözü */}
-        {activeTab === 'home' && (
-          <div className="tab-content">
-            <TodaySummary user={user} />
-            <ReportView user={user} />
-            <DailyMotivation streak={workoutStreak} workoutCount={workoutCount} />
-          </div>
-        )}
+        <Suspense fallback={<LoadingPanel />}>
+          {/* Panel (Dashboard) - bugün + hafta/ay rapor + günün sözü */}
+          {activeTab === 'home' && (
+            <div className="tab-content">
+              <TodaySummary user={user} />
+              <ReportView user={user} />
+              <DailyMotivation
+                streak={workoutStreak}
+                workoutCount={workoutCount}
+                dataStreak={dataStreak}
+                dataDayCount={dataDayCount}
+              />
+            </div>
+          )}
 
         {/* Antrenman */}
-        {activeTab === 'workout' && (
-          <div className="tab-content">
-            <WorkoutLog user={user} />
-          </div>
-        )}
+          {activeTab === 'workout' && (
+            <div className="tab-content">
+              <WorkoutLog user={user} />
+            </div>
+          )}
+
+          {activeTab === 'period' && showCycleTab && (
+            <div className="tab-content">
+              <PeriodTracker user={user} />
+            </div>
+          )}
 
         {/* İlerleme - vücut takibi veri girişi */}
-        {activeTab === 'stats' && (
-          <div className="tab-content">
-            <div className="dashboard-sections">
-              <WeightTracker user={user} initialWeight={userProfile?.weight} />
-              <SleepTracker user={user} />
+          {activeTab === 'stats' && (
+            <div className="tab-content">
+              <TrendView user={user} />
+              <div className="dashboard-sections">
+                <WeightTracker user={user} initialWeight={userProfile?.weight} />
+                <SleepTracker user={user} />
+              </div>
+              <div className="dashboard-sections" style={{ marginTop: '28px' }}>
+                <BodyMeasurements user={user} />
+              </div>
             </div>
-            <div style={{ marginTop: '28px' }}>
-              <ProgressPhotos
-                user={user}
-                driveAccessToken={driveAccessToken}
-                onRequestDriveAccess={async () => { await loginWithGoogle(); }}
-              />
-            </div>
-            <div className="dashboard-sections" style={{ marginTop: '28px' }}>
-              <BodyMeasurements user={user} />
-              <BodyComposition user={user} />
-            </div>
-          </div>
-        )}
+          )}
 
         {/* Ayarlar */}
-        {activeTab === 'settings' && (
-          <div className="tab-content">
-            <div className="dashboard-sections">
-              <ProfileSettings profile={userProfile} onSave={handleProfileSave} />
-              <ReminderSettings
-                settings={reminderSettings}
-                onChange={handleReminderChange}
-                notificationsSupported={notificationsSupported}
-              />
+          {activeTab === 'settings' && (
+            <div className="tab-content">
+              <div className="dashboard-sections">
+                <ProfileSettings profile={userProfile} onSave={handleProfileSave} />
+                <ReportSettings
+                  settings={reminderSettings}
+                  onChange={handleReminderChange}
+                  notificationsSupported={notificationsSupported}
+                />
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
         {/* Beslenme */}
-        {activeTab === 'nutrition' && (
-          <div className="tab-content">
-            <NutritionDashboard
-              userProfile={userProfile}
-              user={user}
-              driveAccessToken={driveAccessToken}
-              onRequestDriveAccess={async () => { await loginWithGoogle(); }}
-            />
-          </div>
-        )}
+          {activeTab === 'nutrition' && (
+            <div className="tab-content">
+              <NutritionDashboard
+                userProfile={userProfile}
+                user={user}
+                driveAccessToken={driveAccessToken}
+                onRequestDriveAccess={handleRequestDriveAccess}
+              />
+            </div>
+          )}
+        </Suspense>
       </main>
 
       <AuthModal
@@ -438,7 +574,9 @@ function App() {
         onAuthSuccess={handleAuthSuccess}
       />
 
-      <IOSInstallPrompt />
+      <Suspense fallback={null}>
+        <IOSInstallPrompt />
+      </Suspense>
     </div>
   );
 }

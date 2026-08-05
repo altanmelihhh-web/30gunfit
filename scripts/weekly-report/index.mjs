@@ -294,10 +294,12 @@ const buildPrevSummary = async (uid, dates, { waterDoc, bmr }) => {
   };
 };
 
-// Regl bölümü yalnızca periodTrackers dokümanı olan kullanıcıda üretilir.
-const buildCycleSummary = (periodDoc, dates) => {
+// Regl bölümü profildeki cinsiyet "female" ise üretilir. Cinsiyet seçilmemiş ama
+// kayıt varsa (eski kullanıcı) bölüm yine gösterilir - uygulamadaki kuralla aynı.
+const buildCycleSummary = (periodDoc, dates, profileDoc) => {
   const entries = periodDoc?.entries || [];
-  if (!entries.length) return null;
+  const eligible = (profileDoc?.gender || '').toLowerCase() === 'female' || entries.length > 0;
+  if (!eligible || !entries.length) return null;
 
   const today = dates[dates.length - 1];
   const predictions = getPredictions(entries, periodDoc.settings || {}, today);
@@ -493,7 +495,7 @@ const buildReport = async (uid, email, dates = lastNDates(7)) => {
       checklist: checklistSummary(planDoc, checklistDoc, dates)
     },
     weight: { end: weightEnd, change: weightChange, target: targetWeight, toTarget, staleDays: weightStaleDays },
-    cycle: buildCycleSummary(periodDoc, dates),
+    cycle: buildCycleSummary(periodDoc, dates, profileDoc),
     daily
   };
 };
@@ -1025,7 +1027,7 @@ const sampleCycle = (dates, overdue = false) => {
       { date: shiftKeyLocal(lastStart, -56), flow: 'medium', pain: 5, symptoms: [] },
       { date: dates[2], flow: 'none', pain: 0, symptoms: ['Şişkinlik', 'Tatlı isteği'] }
     ];
-    return buildCycleSummary({ entries, settings: { cycleLength: 28, periodLength: 5 } }, dates);
+    return buildCycleSummary({ entries, settings: { cycleLength: 28, periodLength: 5 } }, dates, { gender: 'female' });
   }
   const entries = [
     { date: dates[1], flow: 'medium', pain: 6, symptoms: ['Kramp', 'Yorgunluk'] },
@@ -1036,7 +1038,7 @@ const sampleCycle = (dates, overdue = false) => {
     { date: shiftKeyLocal(dates[1], -59), flow: 'medium', pain: 6, symptoms: [] },
     { date: shiftKeyLocal(dates[1], -58), flow: 'light', pain: 3, symptoms: [] }
   ];
-  return buildCycleSummary({ entries, settings: { cycleLength: 28, periodLength: 5 } }, dates);
+  return buildCycleSummary({ entries, settings: { cycleLength: 28, periodLength: 5 } }, dates, { gender: 'female' });
 };
 
 const sampleReport = (variant) => {
