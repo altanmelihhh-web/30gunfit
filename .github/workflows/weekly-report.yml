@@ -4,7 +4,12 @@ on:
   schedule:
     # Pazar 09:00 UTC = 12:00 Europe/Istanbul (UTC+3, DST yok)
     - cron: '0 9 * * 0'
-  workflow_dispatch: {}   # Elle test için "Run workflow" butonu
+  workflow_dispatch:      # Elle test için "Run workflow" butonu
+    inputs:
+      only_email:
+        description: 'Sadece bu adrese gönder (boş bırakılırsa tüm kullanıcılara)'
+        required: false
+        default: ''
 
 jobs:
   send-report:
@@ -26,4 +31,5 @@ jobs:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           GMAIL_USER: ${{ secrets.GMAIL_USER }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          REPORT_ONLY_EMAIL: ${{ inputs.only_email }}
         run: node index.mjs
