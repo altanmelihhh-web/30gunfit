@@ -68,6 +68,16 @@ const lastNDates = (n) => {
 const avg = (arr) => (arr.length ? Math.round(arr.reduce((s, x) => s + x, 0) / arr.length) : 0);
 const num = (v) => parseFloat(v) || 0;
 const validRange = (v, min, max) => v >= min && v <= max;
+const SCALE_REPORT_FIELDS = [
+  ['weightKg', 'Ağırlık', 'kg'],
+  ['bmi', 'BMI', ''],
+  ['bodyFatPercent', 'Yağ', '%'],
+  ['musclePercent', 'Kas', '%'],
+  ['waterPercent', 'Su', '%'],
+  ['visceralFat', 'V-Yağ', ''],
+  ['metabolismKcal', 'Metabolizma', ' kcal/gün'],
+  ['skeletalMuscleWeightKg', 'İskelet kası', 'kg']
+];
 const computeBMR = (profile) => {
   if (!profile) return null;
   const weight = num(profile.weight);
@@ -84,6 +94,28 @@ const profileWithLatestWeight = (profile, entries = []) => {
     .filter((entry) => validRange(num(entry.weight), 30, 300))
     .sort((a, b) => new Date(b.date || b.timestamp || 0) - new Date(a.date || a.timestamp || 0))[0];
   return latest ? { ...profile, weight: num(latest.weight) } : profile;
+};
+
+const summarizeScaleMetrics = (scaleDoc, dates) => {
+  const all = (scaleDoc?.entries || [])
+    .filter((entry) => entry?.date || entry?.measuredAt || entry?.timestamp)
+    .sort((a, b) => new Date(a.measuredAt || a.timestamp || a.date) - new Date(b.measuredAt || b.timestamp || b.date));
+  if (!all.length) return { entries: [], weekEntries: [], latest: null, rows: [] };
+
+  const weekEntries = all.filter((entry) => dates.includes(entry.date || String(entry.measuredAt || '').slice(0, 10)));
+  const latest = weekEntries[weekEntries.length - 1] || all[all.length - 1];
+  const base = weekEntries.length >= 2 ? weekEntries[0] : all.length >= 2 ? all[0] : null;
+  const rows = SCALE_REPORT_FIELDS
+    .map(([key, label, unit]) => {
+      const value = num(latest?.[key]);
+      if (!value) return null;
+      const prev = base ? num(base[key]) : 0;
+      const diff = prev ? Math.round((value - prev) * 10) / 10 : null;
+      return { key, label, unit, value, diff };
+    })
+    .filter(Boolean);
+
+  return { entries: all, weekEntries, latest, rows };
 };
 
 const REGION_KEYWORDS = [
@@ -189,13 +221,37 @@ const getWeightDoc = async (uid, email) => {
   };
 };
 
-const weekStartKeyFor = (dateStr) => {
-  const date = new Date(dateStr);
-  const day = date.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  date.setDate(date.getDate() + diff);
-  return date.toISOString().split('T')[0];
+// Tarihler yerel takvim bileşenleriyle işlenir; `new Date('YYYY-MM-DD')` UTC
+// gece yarısına düştüğü için uygulama tarafıyla anahtar kayması yaratıyordu.
+const dateKeyOf = (date) => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
 };
+
+const parseDateKey = (dateStr) => {
+  const [y, m, d] = String(dateStr).split('-').map(Number);
+  return new Date(y, (m || 1) - 1, d || 1);
+};
+
+const weekStartKeyFor = (dateStr) => {
+  const date = parseDateKey(dateStr);
+  const day = date.getDay();
+  date.setDate(date.getDate() + (day === 0 ? -6 : 1 - day));
+  return dateKeyOf(date);
+};
+
+// Eski ISO kaymalı anahtarlar (UTC+ dilimlerinde Pazartesi yerine Pazar'a
+// yazılmıştı) hâlâ Firestore'da duruyor; okurken ikisini de kabul ediyoruz.
+const weekKeyVariants = (weekStartKey) => {
+  const shifted = parseDateKey(weekStartKey);
+  shifted.setDate(shifted.getDate() - 1);
+  return [weekStartKey, dateKeyOf(shifted)];
+};
+
+const isWeekChecked = (checks, weekStartKey, itemId) =>
+  weekKeyVariants(weekStartKey).some((key) => !!checks[`${key}:${itemId}`]);
 
 const checklistSummary = (planDoc, checklistDoc, dates) => {
   const items = planDoc?.items || [];
@@ -203,14 +259,14 @@ const checklistSummary = (planDoc, checklistDoc, dates) => {
   const weekKeys = new Set(dates.map(weekStartKeyFor));
   const planned = items.length * weekKeys.size;
   const completed = items.reduce((count, item) => (
-    count + [...weekKeys].filter((weekKey) => checks[`${weekKey}:${item.id}`]).length
+    count + [...weekKeys].filter((weekKey) => isWeekChecked(checks, weekKey, item.id)).length
   ), 0);
   return {
     planned,
     completed,
     items: items.map((item) => ({
       ...item,
-      completed: [...weekKeys].some((weekKey) => checks[`${weekKey}:${item.id}`])
+      completed: [...weekKeys].some((weekKey) => isWeekChecked(checks, weekKey, item.id))
     }))
   };
 };
@@ -327,7 +383,7 @@ const buildCycleSummary = (periodDoc, dates, profileDoc) => {
 
 const buildReport = async (uid, email, dates = lastNDates(7)) => {
 
-  const [calDocs, logDocs, waterDoc, weightDoc, goalsDoc, profileDoc, planDoc, checklistDoc, periodDoc] = await Promise.all([
+  const [calDocs, logDocs, waterDoc, weightDoc, goalsDoc, profileDoc, planDoc, checklistDoc, periodDoc, scaleDoc] = await Promise.all([
     Promise.all(dates.map((d) => getDoc(`calorieTracking/${uid}_${d}`))),
     Promise.all(dates.map((d) => getDoc(`dailyLogs/${uid}_${d}`))),
     getDoc(`waterTracking/${uid}`),
@@ -336,7 +392,8 @@ const buildReport = async (uid, email, dates = lastNDates(7)) => {
     getDoc(`userProfiles/${uid}`),
     getDoc(`weeklyWorkoutPlans/${uid}`),
     getDoc(`weeklyWorkoutChecklists/${uid}`),
-    getDoc(`periodTrackers/${uid}`)
+    getDoc(`periodTrackers/${uid}`),
+    getDoc(`scaleMetrics/${uid}`)
   ]);
 
   // Beslenme
@@ -459,6 +516,7 @@ const buildReport = async (uid, email, dates = lastNDates(7)) => {
   const microDays = calDocs.map((c) => dayMicros(c?.meals || []));
   const supplements = supplementSummary(logDocs);
   const notes = noteList(dates, logDocs);
+  const scale = summarizeScaleMetrics(scaleDoc, dates);
   const coverage = {
     meals: cals.length,
     sleep: sleepVals.length,
@@ -495,6 +553,7 @@ const buildReport = async (uid, email, dates = lastNDates(7)) => {
       checklist: checklistSummary(planDoc, checklistDoc, dates)
     },
     weight: { end: weightEnd, change: weightChange, target: targetWeight, toTarget, staleDays: weightStaleDays },
+    scale,
     cycle: buildCycleSummary(periodDoc, dates, profileDoc),
     daily
   };
@@ -752,6 +811,24 @@ const cycleSection = (r) => {
     <div style="margin-top:10px;font-family:Arial,Helvetica,sans-serif;font-size:11px;line-height:17px;color:#9ca3af;">Bu bölüm yalnızca kendi kayıtlarının özetidir, tıbbi değerlendirme değildir.</div>`);
 };
 
+const scaleSection = (r) => {
+  const scale = r.scale;
+  if (!scale?.rows?.length) return '';
+  const latestDate = scale.latest?.date || String(scale.latest?.measuredAt || '').slice(0, 10);
+  const rows = scale.rows.map((item, index) => {
+    const valueText = `${Number(item.value).toFixed(Number.isInteger(item.value) ? 0 : 1)}${item.unit}`;
+    const note = item.diff == null
+      ? ''
+      : `${item.diff > 0 ? '+' : ''}${item.diff.toFixed(1)}${item.unit} ${scale.weekEntries.length >= 2 ? 'hafta içi ilk ölçüme göre' : 'ilk kayda göre'}`;
+    return kvRow(item.label, valueText, note, index === scale.rows.length - 1);
+  }).join('');
+  return section(
+    'Tartı Verileri',
+    `${scale.weekEntries.length ? `${scale.weekEntries.length} ölçüm bu hafta` : 'Bu hafta ölçüm yok, son kayıt gösteriliyor'}${latestDate ? ` · son kayıt ${shortDate(latestDate)}` : ''}`,
+    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${rows}</table>`
+  );
+};
+
 const summarizeWeek = (r) => {
   const g = r.goals || {};
   const n = r.nutrition || {};
@@ -846,6 +923,7 @@ const renderText = (name, r) => {
     r.steps ? `Adım: ${r.steps}` : '',
     `Antrenman: ${r.workout.days} gün`,
     r.weight.end != null ? `Kilo: ${r.weight.end} kg${r.weight.toTarget != null ? ` (hedefe ${Math.abs(r.weight.toTarget)} kg)` : ''}` : '',
+    r.scale?.rows?.length ? `Tartı verileri: ${r.scale.rows.slice(0, 4).map((item) => `${item.label} ${Number(item.value).toFixed(Number.isInteger(item.value) ? 0 : 1)}${item.unit}`).join(' · ')}` : '',
     r.cycle ? `Döngü: ${r.cycle.cycleDay}. gün${r.cycle.phase ? ` (${r.cycle.phase})` : ''} · sonraki tahmin ${r.cycle.nextStart}${r.cycle.overdue ? ` · ${r.cycle.overdue} gün gecikme` : ''}` : '',
     '',
     'Kayıt kapsamı: ' + [
@@ -972,6 +1050,8 @@ const renderHtml = (name, r) => {
           ${r.supplements.days ? kvRow('Takviye düzeni', `${r.supplements.days}/7 gün`, supplementNote) : ''}
           ${r.weight.end != null ? kvRow('Güncel kilo', `${r.weight.end} kg ${weightTrend}`, weightNote, true) : ''}
         </table>`)}
+
+      ${scaleSection(r)}
 
       ${cycleSection(r)}
 
@@ -1108,6 +1188,14 @@ const sampleReport = (variant) => {
     weight: rich
       ? { end: 78.2, change: -0.7, target: 75, toTarget: 3.2, staleDays: null }
       : { end: 79.4, change: null, target: 75, toTarget: 4.4, staleDays: 12 },
+    scale: rich
+      ? summarizeScaleMetrics({
+        entries: [
+          { date: dates[1], measuredAt: `${dates[1]}T08:10:00`, weightKg: 78.8, bmi: 24.9, bodyFatPercent: 22.4, musclePercent: 45.1, waterPercent: 54.2, visceralFat: 10, metabolismKcal: 1840, skeletalMuscleWeightKg: 35.4 },
+          { date: dates[6], measuredAt: `${dates[6]}T08:05:00`, weightKg: 78.2, bmi: 24.7, bodyFatPercent: 21.9, musclePercent: 45.6, waterPercent: 54.8, visceralFat: 10, metabolismKcal: 1854, skeletalMuscleWeightKg: 35.7 }
+        ]
+      }, dates)
+      : { entries: [], weekEntries: [], latest: null, rows: [] },
     cycle: rich ? null : sampleCycle(dates, variant === 'overdue'),
     daily
   };
