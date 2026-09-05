@@ -1,3 +1,5 @@
+import { classifyGeminiError } from './geminiRetry';
+
 const MAX_RETRIES = 3;
 const FREE_TIER_RPM_LIMIT = 20;
 const WINDOW_MS = 60 * 1000;
@@ -45,19 +47,6 @@ const extractJson = (text) => {
 };
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-// Hata mesajından "Please retry in 17.47s" gibi bir bekleme süresi çıkarmayı dener
-const parseRetryDelayMs = (message) => {
-  const match = message?.match(/retry in ([\d.]+)s/i);
-  if (match) {
-    return Math.ceil(parseFloat(match[1]) * 1000) + 500;
-  }
-  const trMatch = message?.match(/(\d+)\s*saniye/i);
-  if (trMatch) {
-    return parseInt(trMatch[1], 10) * 1000 + 500;
-  }
-  return 15000;
-};
 
 const toGeminiParts = ({ prompt, images = [] }) => {
   const parts = [{ text: prompt }];
@@ -137,25 +126,23 @@ const fetchGeminiWithRetry = async (body, onRetry) => {
 
       if (!response.ok) {
         const message = data.error?.message || 'Gemini API isteği başarısız oldu';
-        throw new Error(message);
+        const httpError = new Error(message);
+        httpError.status = response.status;
+        throw httpError;
       }
 
       return normalizeGeminiResponse(data);
     } catch (error) {
-      const message = error.message || 'Gemini API isteği başarısız oldu';
-      lastError = new Error(message);
-      const isQuotaError = /quota|limit|429|saniye/i.test(message);
+      const verdict = classifyGeminiError({ status: error.status, message: error.message });
+      lastError = new Error(verdict.userMessage);
+      lastError.status = error.status;
 
-      if (isQuotaError && attempt < MAX_RETRIES && !/günlük kota/i.test(message)) {
-        const waitMs = parseRetryDelayMs(message);
-        if (onRetry) onRetry(attempt + 1, waitMs);
-        await sleep(waitMs);
+      if (verdict.retryable && attempt < MAX_RETRIES) {
+        if (onRetry) onRetry(attempt + 1, verdict.waitMs);
+        await sleep(verdict.waitMs);
         continue;
       }
 
-      if (isQuotaError) {
-        throw new Error(message || 'AI istek limitine takıldı. Lütfen biraz bekleyip tekrar deneyin.');
-      }
       throw lastError;
     }
   }
