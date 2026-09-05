@@ -1,7 +1,7 @@
 /* eslint-disable no-restricted-globals */
 
 // Cache adını her önemli değişiklikte artır - eskisi activate sırasında otomatik silinir
-const CACHE_NAME = '30gunfit-v4';
+const CACHE_NAME = '30gunfit-v5';
 
 // Sadece adı hiç değişmeyen, stabil dosyalar - hashlenmiş JS/CSS burada YOK,
 // onlar runtime'da kendi kuralıyla (isStaticAsset) cache'leniyor
@@ -59,9 +59,14 @@ self.addEventListener('fetch', (event) => {
 
   // Navigasyon istekleri (sayfa yüklemeleri) - önce ağa git, en güncel index.html'i al.
   // Deploy sonrası kullanıcı hep en son sürümü görsün diye. Sadece offline'ken cache'e düş.
+  //
+  // cache: 'no-store' şart: düz fetch() tarayıcının HTTP cache'ini kullanır ve
+  // index.html oradan bayat gelebilir - bu durumda sayfa eski JS chunk adlarını
+  // isteyip deploy edilen sürümü hiç görmez. Hosting header'ı da no-cache veriyor,
+  // bu ikinci savunma hattı.
   if (request.mode === 'navigate') {
     event.respondWith(
-      fetch(request)
+      fetch(request, { cache: 'no-store' })
         .then((response) => {
           const responseToCache = response.clone();
           caches.open(CACHE_NAME).then((cache) => safeCachePut(cache, request, responseToCache));
