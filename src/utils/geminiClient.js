@@ -1,8 +1,9 @@
-const GEMINI_API_KEY = 'AIzaSyD_dcOAyVSRYx9N3fzHkbZ3AamrJAC3klg';
-const GEMINI_MODEL = 'gemini-2.5-flash';
 const MAX_RETRIES = 3;
 const FREE_TIER_RPM_LIMIT = 20;
 const WINDOW_MS = 60 * 1000;
+const GEMINI_MODEL = 'gemini-flash-latest';
+const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
 // Uygulama genelinde (tüm bileşenler ortak) son 1 dakikadaki istek zaman damgaları
 let requestTimestamps = [];
@@ -51,7 +52,60 @@ const parseRetryDelayMs = (message) => {
   if (match) {
     return Math.ceil(parseFloat(match[1]) * 1000) + 500;
   }
+  const trMatch = message?.match(/(\d+)\s*saniye/i);
+  if (trMatch) {
+    return parseInt(trMatch[1], 10) * 1000 + 500;
+  }
   return 15000;
+};
+
+const toGeminiParts = ({ prompt, images = [] }) => {
+  const parts = [{ text: prompt }];
+  images.forEach((image) => {
+    if (!image?.base64Data || !image?.mimeType) {
+      throw new Error('Görsel verisi eksik.');
+    }
+    if (!String(image.mimeType).startsWith('image/')) {
+      throw new Error('Sadece görsel dosyaları desteklenir.');
+    }
+    parts.push({
+      inline_data: {
+        mime_type: image.mimeType,
+        data: image.base64Data
+      }
+    });
+  });
+  return parts;
+};
+
+const buildGeminiRequest = ({
+  prompt,
+  images = [],
+  responseSchema = null,
+  responseMimeType = null,
+  temperature = 0.2,
+  maxOutputTokens = 4096
+}) => {
+  const generationConfig = {
+    temperature,
+    maxOutputTokens
+  };
+  if (responseMimeType) generationConfig.responseMimeType = responseMimeType;
+  if (responseSchema) generationConfig.responseSchema = responseSchema;
+
+  return {
+    contents: [{ parts: toGeminiParts({ prompt, images }) }],
+    generationConfig
+  };
+};
+
+const normalizeGeminiResponse = (data) => {
+  const candidate = data.candidates?.[0];
+  const text = candidate?.content?.parts?.map((part) => part.text || '').join('').trim();
+  return {
+    text,
+    finishReason: candidate?.finishReason || null
+  };
 };
 
 /**
@@ -61,47 +115,44 @@ const parseRetryDelayMs = (message) => {
  * @param {(attempt: number, waitMs: number) => void} onRetry - her tekrar denemede çağrılır (UI'da bildirmek için)
  */
 const fetchGeminiWithRetry = async (body, onRetry) => {
+  if (!GEMINI_API_KEY) {
+    throw new Error('Gemini API anahtarı eksik. .env dosyasına VITE_GEMINI_API_KEY ekleyin.');
+  }
+
   let lastError;
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     trackRequest();
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`,
-      {
+    try {
+      const response = await fetch(`${GEMINI_ENDPOINT}?key=${GEMINI_API_KEY}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
+        body: JSON.stringify(buildGeminiRequest(body))
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        const message = data.error?.message || 'Gemini API isteği başarısız oldu';
+        throw new Error(message);
       }
-    );
 
-    if (response.ok) {
-      return response.json();
+      return normalizeGeminiResponse(data);
+    } catch (error) {
+      const message = error.message || 'Gemini API isteği başarısız oldu';
+      lastError = new Error(message);
+      const isQuotaError = /quota|limit|429|saniye/i.test(message);
+
+      if (isQuotaError && attempt < MAX_RETRIES && !/günlük kota/i.test(message)) {
+        const waitMs = parseRetryDelayMs(message);
+        if (onRetry) onRetry(attempt + 1, waitMs);
+        await sleep(waitMs);
+        continue;
+      }
+
+      if (isQuotaError) {
+        throw new Error(message || 'AI istek limitine takıldı. Lütfen biraz bekleyip tekrar deneyin.');
+      }
+      throw lastError;
     }
-
-    const errorData = await response.json().catch(() => ({}));
-    const message = errorData.error?.message || 'Gemini API isteği başarısız oldu';
-    lastError = new Error(message);
-
-    const isQuotaError = response.status === 429;
-    // Google, günlük/aylık kota dolduğunda da 429 döner - bu durumda saniyeler içinde
-    // tekrar denemenin hiçbir faydası yok (kota saatler sonra sıfırlanır), o yüzden
-    // hata detaylarındaki quotaId'ye bakıp "PerDay" ise hemen açıklayıcı hata fırlat
-    const violations = errorData.error?.details?.find((d) => d.violations)?.violations || [];
-    const isDailyQuota = violations.some((v) => /perday/i.test(v.quotaId || ''));
-    if (isDailyQuota) {
-      throw new Error('Google ücretsiz Gemini planının günlük istek kotası doldu. Kota her gün sıfırlanır, birkaç saat sonra tekrar dene (veya Google AI Studio\'dan planı yükselt).');
-    }
-
-    if (isQuotaError && attempt < MAX_RETRIES) {
-      const waitMs = parseRetryDelayMs(message);
-      if (onRetry) onRetry(attempt + 1, waitMs);
-      await sleep(waitMs);
-      continue;
-    }
-
-    if (isQuotaError) {
-      throw new Error('Google ücretsiz Gemini planının dakikalık istek limitine takıldı. Birkaç kez otomatik denendi ama olmadı — lütfen 1 dakika bekleyip tekrar dene.');
-    }
-    throw lastError;
   }
   throw lastError;
 };
@@ -116,23 +167,15 @@ const fetchGeminiWithRetry = async (body, onRetry) => {
  * @param {(attempt: number, waitMs: number) => void} onRetry - kota limitinde tekrar deneme bildirimi
  */
 export const callGeminiForJSON = async (prompt, images = [], responseSchema = null, onRetry = null) => {
-  const parts = [{ text: prompt }];
-  images.forEach((img) => {
-    parts.push({ inline_data: { mime_type: img.mimeType, data: img.base64Data } });
-  });
-
-  const generationConfig = {
+  const data = await fetchGeminiWithRetry({
+    prompt,
+    images,
+    responseSchema,
+    responseMimeType: 'application/json',
     temperature: 0.2,
-    maxOutputTokens: 8192,
-    responseMimeType: 'application/json'
-  };
-  if (responseSchema) {
-    generationConfig.responseSchema = responseSchema;
-  }
-
-  const data = await fetchGeminiWithRetry({ contents: [{ parts }], generationConfig }, onRetry);
-  const candidate = data.candidates?.[0];
-  const aiResponse = candidate?.content?.parts?.[0]?.text;
+    maxOutputTokens: 8192
+  }, onRetry);
+  const aiResponse = data.text;
 
   if (!aiResponse || aiResponse.trim() === '') {
     throw new Error('AI boş yanıt döndü. Lütfen tekrar deneyin.');
@@ -141,7 +184,7 @@ export const callGeminiForJSON = async (prompt, images = [], responseSchema = nu
   try {
     return extractJson(aiResponse);
   } catch (e) {
-    const truncated = candidate?.finishReason === 'MAX_TOKENS' ? ' (yanıt çok uzundu ve kesildi, girdiyi kısaltıp tekrar deneyin)' : '';
+    const truncated = data.finishReason === 'MAX_TOKENS' ? ' (yanıt çok uzundu ve kesildi, girdiyi kısaltıp tekrar deneyin)' : '';
     throw new Error('AI yanıtı işlenemedi' + truncated + ': ' + e.message);
   }
 };
@@ -151,12 +194,11 @@ export const callGeminiForJSON = async (prompt, images = [], responseSchema = nu
  */
 export const callGeminiForText = async (prompt, onRetry = null) => {
   const data = await fetchGeminiWithRetry({
-    contents: [{ parts: [{ text: prompt }] }],
-    generationConfig: { temperature: 0.4, maxOutputTokens: 2048 }
+    prompt,
+    temperature: 0.4,
+    maxOutputTokens: 2048
   }, onRetry);
-
-  const candidate = data.candidates?.[0];
-  const aiResponse = candidate?.content?.parts?.[0]?.text;
+  const aiResponse = data.text;
 
   if (!aiResponse || aiResponse.trim() === '') {
     throw new Error('AI boş yanıt döndü. Lütfen tekrar deneyin.');

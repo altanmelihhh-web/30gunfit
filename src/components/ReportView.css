@@ -67,7 +67,7 @@
 
 .report-stats {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
   gap: 8px;
 }
 
@@ -114,6 +114,47 @@
   margin: 10px 0 0;
   font-size: 0.78rem;
   color: var(--color-text-muted);
+}
+
+.report-micros {
+  margin-top: 12px;
+}
+
+.report-micros-title {
+  margin-bottom: 8px;
+  color: var(--color-text-secondary);
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.report-micros-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.report-micro {
+  padding: 11px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-surface-muted);
+}
+
+.report-micro span,
+.report-micro strong {
+  display: block;
+}
+
+.report-micro span {
+  color: var(--color-text-muted);
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.report-micro strong {
+  margin-top: 4px;
+  color: var(--color-text-primary);
 }
 
 .report-regions {
@@ -251,7 +292,8 @@
   }
 
   .report-stats,
-  .report-macro-grid {
+  .report-macro-grid,
+  .report-micros-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
   }

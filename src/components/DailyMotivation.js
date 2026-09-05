@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import './DailyMotivation.css';
 
-function DailyMotivation({ streak = 0, workoutCount = 0 }) {
+function DailyMotivation({ streak = 0, workoutCount = 0, dataStreak = 0, dataDayCount = 0 }) {
   // Motivasyon mesajları koleksiyonu
   const motivationQuotes = useMemo(() => [
     {
@@ -156,26 +156,26 @@ function DailyMotivation({ streak = 0, workoutCount = 0 }) {
     }
   ], []);
 
-  // Streak'e özel motivasyon mesajları
+  // Günlük kayıt serisine özel motivasyon mesajları
   const streakMessages = {
     0: {
       message: "Bugün yeni bir başlangıç! İlk adımını at!",
       emoji: "🌅"
     },
     1: {
-      message: "İlk günü tamamladın! Momentumu koru!",
+      message: "İlk günlük kaydını tamamladın! Momentumu koru!",
       emoji: "🎯"
     },
     3: {
-      message: "3 gün streak! Alışkanlık oluşuyor! 🔥",
+      message: "3 gün kayıt serisi! Alışkanlık oluşuyor! 🔥",
       emoji: "🔥"
     },
     7: {
-      message: "1 hafta tamamlandı! Sen bir şampiyonsun! 🏆",
+      message: "1 hafta kayıt tamamlandı! Ritim oturuyor! 🏆",
       emoji: "🏆"
     },
     14: {
-      message: "2 hafta streak! İnanılmaz bir disiplin! 💎",
+      message: "2 hafta kayıt serisi! İnanılmaz bir disiplin! 💎",
       emoji: "💎"
     },
     21: {
@@ -194,16 +194,16 @@ function DailyMotivation({ streak = 0, workoutCount = 0 }) {
     return motivationQuotes[dayOfYear % motivationQuotes.length];
   }, [motivationQuotes]);
 
-  // Streak'e özel mesaj varsa göster
-  const streakMessage = streakMessages[streak];
+  // Kayıt serisine özel mesaj varsa göster
+  const streakMessage = streakMessages[dataStreak];
 
   // Antrenman durumuna göre mesaj
   const progressMessage = useMemo(() => {
-    if (workoutCount === 0) return { text: "Haydi başla! İlk antrenmanını kaydet 💪", color: "#6366f1" };
-    if (streak >= 3) return { text: `${streak} gün üst üste! Momentumu koru 🔥`, color: "#f59e0b" };
-    if (workoutCount < 5) return { text: "Güzel başlangıç! Devam et 👏", color: "#3b82f6" };
-    return { text: "İstikrarlı gidiyorsun, harikasın! 💎", color: "#22c55e" };
-  }, [workoutCount, streak]);
+    if (dataDayCount === 0) return { text: "Haydi başla! İlk günlük kaydını oluştur 💪", color: "#6366f1" };
+    if (dataStreak >= 3) return { text: `${dataStreak} gün kayıt üst üste! Momentumu koru 🔥`, color: "#f59e0b" };
+    if (dataDayCount < 5) return { text: "Güzel başlangıç! Kayıt düzenini koru 👏", color: "#3b82f6" };
+    return { text: `${dataDayCount} kayıtlı gün var. İstikrar iyi gidiyor 💎`, color: "#22c55e" };
+  }, [dataDayCount, dataStreak]);
 
   return (
     <div className="daily-motivation">
@@ -233,11 +233,19 @@ function DailyMotivation({ streak = 0, workoutCount = 0 }) {
       <div className="motivation-stats">
         <div className="mini-stat">
           <span className="stat-icon">🔥</span>
-          <span className="stat-text">{streak} gün streak</span>
+          <span className="stat-text">{dataStreak} gün kayıt serisi</span>
+        </div>
+        <div className="mini-stat">
+          <span className="stat-icon">📅</span>
+          <span className="stat-text">{dataDayCount} kayıtlı gün</span>
+        </div>
+        <div className="mini-stat">
+          <span className="stat-icon">⚡</span>
+          <span className="stat-text">{streak} gün aktivite serisi</span>
         </div>
         <div className="mini-stat">
           <span className="stat-icon">🏋️</span>
-          <span className="stat-text">{workoutCount} antrenman (60g)</span>
+          <span className="stat-text">{workoutCount} aktivite günü</span>
         </div>
       </div>
     </div>

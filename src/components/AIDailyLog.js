@@ -4,8 +4,9 @@ import { callGeminiForJSON, fileToBase64Image } from '../utils/geminiClient';
 import { getWaterTracker, saveWaterTracker, saveDailyLog, getDailyLog } from '../firebase/dataService';
 import { addMeals, getMealsSummary } from '../firebase/mealsService';
 import { normalizeImageFile } from '../utils/imageUtils';
-import { uploadMealPhotoToDrive } from '../utils/driveService';
+import { compressImageToDataUrl, estimateDataUrlBytes } from '../utils/photoStorage';
 import GeminiQuotaBadge from './GeminiQuotaBadge';
+import { validateMealNutrition, validateSleepDuration, isBlocking } from '../utils/entryValidation';
 
 const EXTRACT_PROMPT = `Sen bir sağlık/fitness günlüğü asistanısın. Kullanıcının yazdığı metni ve varsa ekli görseli (yemek fotoğrafı, Apple Health uyku/aktivite ekranı, su takibi uygulaması ekranı, Hevy antrenman ekranı, takviye şişesi vb.) analiz et. Kullanıcı kendi metnini yazabileceği gibi, ChatGPT'den aldığı hazır bir günlük analiz özetini de yapıştırabilir - her iki durumda da aynı şekilde ayrıştır.
 
@@ -133,7 +134,7 @@ const MEAL_TYPE_LABELS = {
   snack: '🍎 Ara Öğün'
 };
 
-const AIDailyLog = ({ user, onSaved, driveAccessToken, onRequestDriveAccess }) => {
+const AIDailyLog = ({ user, onSaved }) => {
   const [inputText, setInputText] = useState('');
   const [selectedImage, setSelectedImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
@@ -241,8 +242,22 @@ const AIDailyLog = ({ user, onSaved, driveAccessToken, onRequestDriveAccess }) =
     setDraft({ ...draft, [key]: null });
   };
 
+  // AI taslağındaki fiziksel olarak imkânsız değerler (1 kcal / 64 g protein, 649 saat uyku)
+  // kaydedilmeden önce burada durur.
+  const draftMealChecks = (draft?.meals || []).map((m) => validateMealNutrition({ ...m, name: m.food_name }));
+  const draftSleepCheck = draft?.sleep?.duration_hours != null ? validateSleepDuration(draft.sleep.duration_hours) : null;
+  const draftBlockers = [
+    ...draftMealChecks.filter(isBlocking),
+    ...(draftSleepCheck && isBlocking(draftSleepCheck) ? [draftSleepCheck] : [])
+  ];
+
   const handleSave = async () => {
     if (!user || !draft) return;
+
+    if (draftBlockers.length > 0) {
+      setError(`Kaydedilemez — önce şu satırları düzelt veya sil: ${draftBlockers.map((b) => b.message).join(' ')}`);
+      return;
+    }
 
     // Mükerrer kayıt uyarısı - bu tarihte zaten öğün varsa kullanıcıya sor
     if (draft.meals && draft.meals.length > 0) {
@@ -262,17 +277,15 @@ const AIDailyLog = ({ user, onSaved, driveAccessToken, onRequestDriveAccess }) =
     try {
       // Öğünler - mealsService üzerinden GÜNCEL listeye ekle (bayat state üzerine yazmaz)
       if (draft.meals && draft.meals.length > 0) {
-        // Fotoğraf eklenmişse Drive'a yükle, meal(lar)a bağla - başarısız olursa öğün kaydı yine de devam etsin
-        let driveFileId = null;
-        if (selectedImage && driveAccessToken) {
+        let mealPhoto = null;
+        if (selectedImage) {
           try {
-            driveFileId = await uploadMealPhotoToDrive(
-              driveAccessToken,
-              selectedImage,
-              `${selectedDate}_${Date.now()}.jpg`
-            );
+            mealPhoto = await compressImageToDataUrl(selectedImage, { maxSize: 720, quality: 0.7 });
+            if (estimateDataUrlBytes(mealPhoto.dataUrl) > 750 * 1024) {
+              mealPhoto = await compressImageToDataUrl(selectedImage, { maxSize: 520, quality: 0.62 });
+            }
           } catch (photoErr) {
-            console.error('Drive fotoğraf yükleme hatası:', photoErr);
+            console.error('Fotoğraf sıkıştırma hatası:', photoErr);
           }
         }
 
@@ -286,7 +299,16 @@ const AIDailyLog = ({ user, onSaved, driveAccessToken, onRequestDriveAccess }) =
           mealType: m.meal_type || 'snack',
           mealLabel: m.meal_label || '',
           source: 'AI Günlük Giriş',
-          ...(driveFileId ? { photoDriveId: driveFileId } : {})
+          ...(mealPhoto ? {
+            photoDataUrl: mealPhoto.dataUrl,
+            photoMeta: {
+              storage: 'firestore-data-url',
+              width: mealPhoto.width,
+              height: mealPhoto.height,
+              mimeType: mealPhoto.mimeType,
+              bytes: estimateDataUrlBytes(mealPhoto.dataUrl)
+            }
+          } : {})
         }));
         await addMeals(user.uid, selectedDate, newMeals);
       }
@@ -405,14 +427,9 @@ const AIDailyLog = ({ user, onSaved, driveAccessToken, onRequestDriveAccess }) =
           <div className="ai-log-image-preview">
             <img src={imagePreview} alt="Seçilen" />
             <button type="button" onClick={clearImage}>❌ Kaldır</button>
-            {!driveAccessToken && (
-              <div className="ai-log-drive-hint">
-                📷 Bu fotoğraf yemek galerisine kaydedilecek ama Drive bağlantın yok/süresi dolmuş.{' '}
-                <button type="button" className="ai-log-drive-connect-btn" onClick={onRequestDriveAccess}>
-                  Drive'a bağlan
-                </button>
-              </div>
-            )}
+            <div className="ai-log-drive-hint">
+              📷 Kaydedersen bu fotoğraf küçük galeri kopyası olarak öğün kaydında saklanır.
+            </div>
           </div>
         )}
       </div>
@@ -435,17 +452,25 @@ const AIDailyLog = ({ user, onSaved, driveAccessToken, onRequestDriveAccess }) =
           {draft.meals && draft.meals.length > 0 && (
             <div className="draft-section">
               <h5>🍽️ Öğünler</h5>
-              {draft.meals.map((m, i) => (
-                <div key={i} className="draft-item">
+              {draft.meals.map((m, i) => {
+                const check = draftMealChecks[i];
+                return (
+                <div key={i} className={`draft-item ${check && check.level !== 'ok' ? `has-${check.level}` : ''}`}>
                   <span>
                     {m.meal_label || MEAL_TYPE_LABELS[m.meal_type] || m.meal_type} — {m.food_name} ({Math.round(m.calories)} kcal
                     {m.protein ? `, P:${Math.round(m.protein)}g` : ''}
                     {m.carbs ? `, K:${Math.round(m.carbs)}g` : ''}
                     {m.fats ? `, Y:${Math.round(m.fats)}g` : ''})
+                    {check && check.level !== 'ok' && (
+                      <small className={`draft-validation ${check.level}`}>
+                        {check.level === 'error' ? '⛔' : '⚠️'} {check.message}
+                      </small>
+                    )}
                   </span>
                   <button onClick={() => removeDraftMeal(i)}>🗑️</button>
                 </div>
-              ))}
+                );
+              })}
               <div className="draft-item draft-item-total">
                 <strong>
                   Toplam: {Math.round(draft.meals.reduce((sum, m) => sum + (m.calories || 0), 0))} kcal
@@ -470,12 +495,17 @@ const AIDailyLog = ({ user, onSaved, driveAccessToken, onRequestDriveAccess }) =
           {draft.sleep && (
             <div className="draft-section">
               <h5>😴 Uyku</h5>
-              <div className="draft-item">
+              <div className={`draft-item ${draftSleepCheck && draftSleepCheck.level !== 'ok' ? `has-${draftSleepCheck.level}` : ''}`}>
                 <span>
                   {draft.sleep.duration_hours} saat
                   {draft.sleep.score ? ` — Skor: ${draft.sleep.score}` : ''}
                   {draft.sleep.bedtime ? ` — Yatış: ${draft.sleep.bedtime}` : ''}
                   {draft.sleep.night_wakes ? ` — ${draft.sleep.night_wakes}x uyanma` : ''}
+                  {draftSleepCheck && draftSleepCheck.level !== 'ok' && (
+                    <small className={`draft-validation ${draftSleepCheck.level}`}>
+                      {draftSleepCheck.level === 'error' ? '⛔' : '⚠️'} {draftSleepCheck.message}
+                    </small>
+                  )}
                 </span>
                 <button onClick={() => clearDraftSection('sleep')}>🗑️</button>
               </div>

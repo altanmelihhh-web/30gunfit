@@ -3,6 +3,81 @@
   margin: 0 auto;
 }
 
+.nutrition-accordion {
+  min-width: 0;
+  margin-bottom: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+.nutrition-accordion-head {
+  width: 100%;
+  min-height: 54px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 0;
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  text-align: left;
+  cursor: pointer;
+}
+
+.nutrition-accordion-head span {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.nutrition-accordion-head strong {
+  color: var(--color-text-primary);
+  font-size: 0.96rem;
+  line-height: 1.25;
+}
+
+.nutrition-accordion-head small {
+  color: var(--color-text-muted);
+  font-size: 0.76rem;
+  line-height: 1.25;
+}
+
+.nutrition-accordion-head b {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 54px;
+  min-height: 28px;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: var(--color-surface-muted);
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.nutrition-accordion.open .nutrition-accordion-head {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.nutrition-accordion-body {
+  min-width: 0;
+  padding: 12px;
+}
+
+.nutrition-accordion:not(.open) .nutrition-accordion-body {
+  display: none;
+}
+
+.nutrition-accordion-body > * {
+  min-width: 0;
+}
+
 /* Tarih seçici */
 .date-selector {
   display: flex;
@@ -262,6 +337,62 @@
   background: linear-gradient(90deg, #a855f7, #9333ea);
 }
 
+.micros-summary {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--color-border);
+}
+
+.micros-summary-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.micros-summary-head strong {
+  color: var(--color-text-primary);
+  font-size: 0.95rem;
+}
+
+.micros-summary-head span {
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.micros-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.micro-chip {
+  padding: 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-surface-muted);
+}
+
+.micro-chip span,
+.micro-chip strong {
+  display: block;
+}
+
+.micro-chip span {
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.micro-chip strong {
+  margin-top: 4px;
+  color: var(--color-text-primary);
+  font-size: 0.98rem;
+}
+
 /* Yemek ekleme */
 .add-meal-section {
   margin-bottom: 24px;
@@ -365,9 +496,24 @@
   box-shadow: 0 8px 20px rgba(34, 197, 94, 0.3);
 }
 
-.btn-save-meal:hover {
+.btn-save-meal:hover:not(:disabled) {
   transform: translateY(-2px);
   box-shadow: 0 12px 28px rgba(34, 197, 94, 0.4);
+}
+
+/* Doğrulama hatası varken buton kilitli - kilitli olduğu net görünmeli. */
+.btn-save-meal:disabled {
+  background: #d1d5db;
+  color: #4b5563;
+  box-shadow: none;
+  cursor: not-allowed;
+  transform: none;
+  opacity: 1;
+}
+
+[data-theme='dark'] .btn-save-meal:disabled {
+  background: rgba(148, 163, 184, 0.22);
+  color: #cbd5e1;
 }
 
 .recent-meals-panel {
@@ -437,6 +583,7 @@
 
 /* Yemek listesi */
 .meals-list {
+  margin-bottom: 18px;
   background: var(--color-surface);
   border-radius: var(--radius-lg);
   padding: 24px;
@@ -459,6 +606,22 @@
   text-align: center;
   padding: 40px 20px;
   color: var(--color-text-muted);
+}
+
+.empty-meals.compact {
+  padding: 22px 16px;
+  border: 1px dashed var(--color-border-strong);
+  border-radius: 12px;
+  background: var(--color-surface-muted);
+}
+
+.meals-list-eyebrow {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--color-accent);
+  font-size: 0.72rem;
+  font-weight: 850;
+  text-transform: uppercase;
 }
 
 .empty-icon {
@@ -702,6 +865,10 @@
     gap: 8px;
   }
 
+  .micros-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .macro-summary-item {
     align-items: flex-start;
     padding: 10px;
@@ -740,6 +907,20 @@
   .recent-meal-chips button {
     flex: 0 0 190px;
     scroll-snap-align: start;
+  }
+
+  .nutrition-accordion {
+    margin-bottom: 10px;
+    border-radius: 12px;
+  }
+
+  .nutrition-accordion-head {
+    min-height: 52px;
+    padding: 11px 12px;
+  }
+
+  .nutrition-accordion-body {
+    padding: 10px;
   }
 }
 
@@ -783,4 +964,85 @@
   .btn-edit-meal {
     align-self: flex-end;
   }
+
+  .nutrition-accordion-head small {
+    display: none;
+  }
 }
+
+/* Düzenlenen öğün ve satır içi düzenleme formu */
+.meal-item.editing {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.16);
+}
+
+.meal-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.meal-form-actions .btn-save-meal {
+  flex: 1 1 160px;
+}
+
+.btn-cancel-meal {
+  min-height: 42px;
+  padding: 0 16px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 8px;
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.btn-cancel-meal:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* Kalori/makro tutarlılık uyarıları */
+.meal-validation {
+  margin: 8px 0 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  border: 1px solid transparent;
+}
+
+.meal-validation.warning {
+  background: rgba(245, 158, 11, 0.12);
+  border-color: rgba(245, 158, 11, 0.45);
+  color: #b45309;
+}
+
+.meal-validation.error {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.45);
+  color: #b91c1c;
+}
+
+.nutrition-badge.validation-badge.warning {
+  background: rgba(245, 158, 11, 0.18);
+  color: #b45309;
+}
+
+.nutrition-badge.validation-badge.error {
+  background: rgba(239, 68, 68, 0.18);
+  color: #b91c1c;
+}
+
+.meal-item.has-error {
+  border-left: 3px solid rgba(239, 68, 68, 0.6);
+}
+
+.meal-item.has-warning {
+  border-left: 3px solid rgba(245, 158, 11, 0.6);
+}
+
+[data-theme='dark'] .meal-validation.warning { color: #fbbf24; }
+[data-theme='dark'] .meal-validation.error { color: #fca5a5; }
+[data-theme='dark'] .nutrition-badge.validation-badge.warning { color: #fbbf24; }
+[data-theme='dark'] .nutrition-badge.validation-badge.error { color: #fca5a5; }

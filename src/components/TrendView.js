@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import './TrendView.css';
-import { getCalorieTrackingRange, getDailyLogsRange, getWaterTracker, saveWaterTracker, saveDailyLog, getDailyLog, getNutritionGoals, saveNutritionGoals, getUserProfile, getWeightTracker } from '../firebase/dataService';
+import { getCalorieTrackingRange, getDailyLogsRange, getWaterTracker, saveWaterTracker, saveDailyLog, getDailyLog, getNutritionGoals, saveNutritionGoals, getUserProfile, saveUserProfile, getWeightTracker, getBodyMeasurements } from '../firebase/dataService';
 import { computeBMR, energyBalance, getActiveEnergy, getBMRProfileIssue, profileWithLatestWeight, avgDeficit as avgDeficitFn } from '../utils/calorieMath';
+import { getScopedJson, setScopedJson } from '../utils/userScopedStorage';
 import {
   saveSleep, deleteSleep, saveVitals, deleteVitals,
   addSupplement, updateSupplement, deleteSupplement,
@@ -10,10 +11,12 @@ import {
 import { getMeals, addMeal, updateMeal, deleteMeal } from '../firebase/mealsService';
 import { callGeminiForText } from '../utils/geminiClient';
 import GeminiQuotaBadge from './GeminiQuotaBadge';
+import { dayDiff, getPhaseInfo, getPredictions, parseDateKey, shiftKey, todayKey } from '../utils/cycleMath';
+import { getPeriodTracker } from '../firebase/periodService';
+import { MAX_CUSTOM_DAYS, RANGE_DAYS, RANGE_LABELS, getDateList, isCustomRangeTooLong } from '../utils/dateRange';
 
 const WORKOUT_TYPE_LABELS = { strength: 'Antrenman', cardio: 'Kardiyo', walk: 'Yürüyüş', other: 'Aktivite' };
 
-const RANGE_DAYS = { day: 1, week: 7, month: 30 };
 
 // Gün görünümündeki öğün kategorileri - kullanıcının günlük rapor taslağındaki 5 öğün bölümü + Öğle
 const MEAL_CATEGORIES = [
@@ -57,21 +60,65 @@ const stripCategoryPrefix = (name) =>
 const normalizeSupplementName = (name) =>
   (name || '').toLocaleLowerCase('tr').replace(/[\s.]/g, '');
 
-const getDateList = (anchorDate, rangeKey) => {
-  const days = RANGE_DAYS[rangeKey];
-  const dates = [];
-  const anchor = new Date(anchorDate);
-  for (let i = days - 1; i >= 0; i--) {
-    const d = new Date(anchor);
-    d.setDate(d.getDate() - i);
-    dates.push(d.toISOString().split('T')[0]);
-  }
-  return dates;
+const formatShort = (dateStr) => parseDateKey(dateStr).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' });
+
+const isDateKey = (value) => /^\d{4}-\d{2}-\d{2}$/.test(value || '');
+
+const escapeHtml = (value) => String(value ?? '')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#39;');
+
+const formatExportValue = (value) => {
+  if (value == null || value === '') return '-';
+  if (typeof value === 'number') return Number.isFinite(value) ? value : '-';
+  return value;
 };
 
-const formatShort = (dateStr) => {
-  const d = new Date(dateStr);
-  return d.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' });
+const downloadBlob = (blob, filename) => {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+};
+
+const removePrivateExportFields = (value) => {
+  if (Array.isArray(value)) return value.map(removePrivateExportFields);
+  if (!value || typeof value !== 'object') return value;
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([key]) => !['userId', 'uid', 'ownerUid', 'ownerEmail'].includes(key))
+      .map(([key, item]) => [key, removePrivateExportFields(item)])
+  );
+};
+
+const dateKeyFromDate = (date) => date.toISOString().split('T')[0];
+
+const getExportDatesFromAccountStart = (user) => {
+  const today = parseDateKey(todayKey());
+  const rawCreatedAt = user?.metadata?.creationTime;
+  const start = rawCreatedAt ? new Date(rawCreatedAt) : new Date(today.getFullYear(), 0, 1);
+  if (Number.isNaN(start.getTime())) start.setTime(new Date(today.getFullYear(), 0, 1).getTime());
+  start.setHours(0, 0, 0, 0);
+  const datesOut = [];
+  const cursor = new Date(start);
+  while (cursor <= today) {
+    datesOut.push(dateKeyFromDate(cursor));
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return datesOut;
+};
+
+const isValidTargetDate = (value) => {
+  if (!isDateKey(value)) return false;
+  const year = parseInt(value.slice(0, 4), 10);
+  return year >= 2026 && year <= 2035 && value >= todayKey();
 };
 
 const activityTotals = (day) => {
@@ -96,24 +143,32 @@ const activitySummary = (activity) => {
   return parts.join(' · ');
 };
 
-const TrendView = ({ user }) => {
-  const [rangeKey, setRangeKey] = useState('week');
-  const [anchorDate, setAnchorDate] = useState(new Date().toISOString().split('T')[0]);
+const TrendView = ({ user, initialRangeKey = 'week', lockRangeKey = null, embedded = false }) => {
+  const [rangeKey, setRangeKeyState] = useState(lockRangeKey || initialRangeKey);
+  const [anchorDate, setAnchorDate] = useState(todayKey);
+  const [customRange, setCustomRange] = useState(() => ({ start: shiftKey(todayKey(), -13), end: todayKey() }));
+  const [chartTab, setChartTab] = useState('nutrition');
   const [loading, setLoading] = useState(false);
   const [calorieData, setCalorieData] = useState({});
   const [logData, setLogData] = useState({});
   const [waterByDate, setWaterByDate] = useState({});
+  const [bodyMeasurements, setBodyMeasurements] = useState([]);
+  const [weightState, setWeightState] = useState({ entries: [], targetWeight: '' });
+  const [progressProfile, setProgressProfile] = useState(null);
   const [geminiComment, setGeminiComment] = useState('');
   const [isCommenting, setIsCommenting] = useState(false);
   const [retryStatus, setRetryStatus] = useState(null);
   const [noteDraft, setNoteDraft] = useState('');
   const [isSavingNote, setIsSavingNote] = useState(false);
+  const [cycleInsight, setCycleInsight] = useState(null);
 
   // Gün görünümünde düzenleme - null | 'sleep' | 'vitals' | 'water' | 'workout-new' | 'workout-{i}'
   // | 'supplement-new' | 'supplement-{i}' | 'meal-new-{catKey}' | 'meal-{id}'
   const [editingSection, setEditingSection] = useState(null);
+  const [openDaySections, setOpenDaySections] = useState({ totals: true });
   const [editForm, setEditForm] = useState({});
   const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [isSavingTargetDate, setIsSavingTargetDate] = useState(false);
   const [goals, setGoals] = useState(null); // {calories, protein, carbs, fats, water}
   const [bmr, setBmr] = useState(null); // profil BMR'si (gerçek kalori açığı için)
   const [bmrIssue, setBmrIssue] = useState(null);
@@ -125,30 +180,99 @@ const TrendView = ({ user }) => {
       getUserProfile(user.uid),
       getWeightTracker(user.uid, user.email)
     ]).then(([res, weight]) => {
+      if (weight?.success) {
+        setWeightState({
+          entries: weight.data.entries || [],
+          targetWeight: weight.data.targetWeight || ''
+        });
+      }
       if (res?.success && res.data) {
+        setProgressProfile(res.data);
         const profile = profileWithLatestWeight(res.data, weight?.success ? weight.data.entries || [] : []);
         setBmr(computeBMR(profile));
         setBmrIssue(getBMRProfileIssue(profile));
         return;
       }
       try {
-        const savedProfile = JSON.parse(localStorage.getItem('userProfile') || 'null');
+        const savedProfile = getScopedJson('userProfile', user.uid, null);
+        setProgressProfile(savedProfile);
         setBmr(computeBMR(savedProfile));
         setBmrIssue(getBMRProfileIssue(savedProfile));
       } catch {
+        setProgressProfile(null);
         setBmr(null);
         setBmrIssue('Profil okunamadı.');
       }
     }).catch(() => {
+      setWeightState({ entries: [], targetWeight: '' });
       try {
-        const savedProfile = JSON.parse(localStorage.getItem('userProfile') || 'null');
+        const savedProfile = getScopedJson('userProfile', user.uid, null);
+        setProgressProfile(savedProfile);
         setBmr(computeBMR(savedProfile));
         setBmrIssue(getBMRProfileIssue(savedProfile));
       } catch {
+        setProgressProfile(null);
         setBmr(null);
         setBmrIssue('Profil okunamadı.');
       }
     });
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    const isFemale = (progressProfile?.gender || '').toLowerCase() === 'female';
+    if (!isFemale) {
+      setCycleInsight(null);
+      return;
+    }
+
+    let cancelled = false;
+    getPeriodTracker(user.uid).then((tracker) => {
+      if (cancelled) return;
+      const predictions = getPredictions(tracker.entries || [], tracker.settings || {});
+      if (!predictions) {
+        setCycleInsight(null);
+        return;
+      }
+      const phase = getPhaseInfo(predictions.cycleDay, predictions.cycleLength, predictions.periodLength);
+      const today = todayKey();
+      const daysUntil = dayDiff(today, predictions.nextStart);
+      const inPredictedPeriod = daysUntil <= 0 && dayDiff(today, predictions.nextEnd) >= 0;
+      const entryToday = (tracker.entries || []).find((entry) => entry.date === today);
+      const isLoggedPeriod = entryToday && entryToday.flow && entryToday.flow !== 'none';
+
+      let weightNote = null;
+      let supportNote = null;
+      if (isLoggedPeriod || phase.key === 'menstrual' || inPredictedPeriod) {
+        weightNote = 'Döngü/kanama günlerinde tartı geçici yüksek oynayabilir; su tutma ve iştah artışı normal olabilir.';
+        supportNote = 'Bugün hedef kusursuzluk değil: protein, su ve rahat tolere edilen hareket yeterli bir kazanım sayılır.';
+      } else if (daysUntil > 0 && daysUntil <= 3) {
+        weightNote = `${daysUntil} gün içinde döngü bekleniyor; tartı ve iştah birkaç gün daha dalgalı görünebilir.`;
+        supportNote = 'Bu dönemde tuz, uyku ve su takibi rota yorumundan daha değerli olabilir.';
+      } else if (phase.key === 'luteal') {
+        weightNote = 'Luteal dönemde iştah, uyku ve su tutma artabilir; tek tartıyı karar sebebi yapma.';
+        supportNote = 'Planı koru, ama açlık belirginse proteini ve lifli öğünleri öne al.';
+      }
+
+      setCycleInsight({
+        phase,
+        cycleDay: predictions.cycleDay,
+        daysUntilNext: daysUntil,
+        weightNote,
+        supportNote
+      });
+    }).catch(() => {
+      if (!cancelled) setCycleInsight(null);
+    });
+
+    return () => { cancelled = true; };
+  }, [user, progressProfile?.gender]);
+
+  useEffect(() => {
+    if (!user) return;
+    getBodyMeasurements(user.uid).then((result) => {
+      setBodyMeasurements(result.success ? result.data.entries || [] : []);
+    }).catch(() => setBodyMeasurements([]));
   }, [user]);
 
   // SABİT hedefleri yükle: önce Firestore, yoksa localStorage, yoksa Hesaplayıcı planından türet
@@ -158,14 +282,14 @@ const TrendView = ({ user }) => {
       const result = await getNutritionGoals(user.uid);
       if (result.success) {
         setGoals(result.data);
-        localStorage.setItem('nutrition_goals', JSON.stringify(result.data));
+        setScopedJson('nutrition_goals', user.uid, result.data);
         return;
       }
-      const savedGoals = localStorage.getItem('nutrition_goals');
-      if (savedGoals) { setGoals(JSON.parse(savedGoals)); return; }
+      const savedGoals = getScopedJson('nutrition_goals', user.uid, null);
+      if (savedGoals) { setGoals(savedGoals); return; }
       // İlk kez: eski Hesaplayıcı planı varsa ondan başlangıç değeri al
       try {
-        const plan = JSON.parse(localStorage.getItem('nutrition_plan') || 'null');
+        const plan = getScopedJson('nutrition_plan', user.uid, null);
         if (plan) {
           setGoals({
             calories: plan.targetCalories || 2400,
@@ -180,8 +304,14 @@ const TrendView = ({ user }) => {
   }, [user]);
 
   const waterGoal = goals?.water || 4000;
+  const effectiveRangeKey = lockRangeKey || rangeKey;
+  const setRangeKey = (key) => {
+    if (lockRangeKey) return;
+    setRangeKeyState(key);
+  };
 
-  const dates = getDateList(anchorDate, rangeKey);
+  const dates = getDateList(anchorDate, effectiveRangeKey, customRange);
+  const customTooLong = effectiveRangeKey === 'custom' && isCustomRangeTooLong(customRange);
 
   const loadData = useCallback(async () => {
     if (!user) return;
@@ -207,7 +337,7 @@ const TrendView = ({ user }) => {
       setWaterByDate(waterMap);
 
       // Gün görünümünde mevcut notu düzenleme kutusuna yükle
-      if (rangeKey === 'day') {
+      if (effectiveRangeKey === 'day') {
         const todayLog = logs[anchorDate];
         setNoteDraft(todayLog?.notes || '');
       }
@@ -215,7 +345,7 @@ const TrendView = ({ user }) => {
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, anchorDate, rangeKey]);
+  }, [user, anchorDate, effectiveRangeKey, customRange.start, customRange.end]);
 
   useEffect(() => {
     loadData();
@@ -247,11 +377,30 @@ const TrendView = ({ user }) => {
   });
 
   const daysWithData = dailyTotals.filter((d) => d.calories > 0 || d.water > 0);
+  const meaningfulDays = dailyTotals.filter((d) =>
+    d.calories > 0 ||
+    d.water > 0 ||
+    d.sleepHours ||
+    d.workouts.length > 0 ||
+    d.supplements.length > 0 ||
+    d.vitals
+  );
+  const dataCoverage = dates.length ? Math.round((meaningfulDays.length / dates.length) * 100) : 0;
   const avgCalories = daysWithData.length
     ? Math.round(daysWithData.reduce((s, d) => s + d.calories, 0) / daysWithData.length)
     : 0;
   const avgWater = daysWithData.length
     ? Math.round(daysWithData.reduce((s, d) => s + d.water, 0) / daysWithData.length)
+    : 0;
+  const macroDays = dailyTotals.filter((d) => d.calories > 0 || d.protein > 0 || d.carbs > 0 || d.fats > 0);
+  const avgProtein = macroDays.length
+    ? Math.round(macroDays.reduce((s, d) => s + d.protein, 0) / macroDays.length)
+    : 0;
+  const avgCarbs = macroDays.length
+    ? Math.round(macroDays.reduce((s, d) => s + d.carbs, 0) / macroDays.length)
+    : 0;
+  const avgFats = macroDays.length
+    ? Math.round(macroDays.reduce((s, d) => s + d.fats, 0) / macroDays.length)
     : 0;
   const sleepDays = dailyTotals.filter((d) => d.sleepHours);
   const avgSleep = sleepDays.length
@@ -268,45 +417,374 @@ const TrendView = ({ user }) => {
   const avgWorkoutMin = activityDaysMin.length
     ? Math.round(activityDaysMin.reduce((s, m) => s + m, 0) / activityDaysMin.length)
     : null;
-  // Aktif kalori ortalaması - Apple Watch varsa vitals, yoksa eski workout kalorisi.
-  const activeCalDays = activityDays.filter((d) => d.activity.activeCalories);
-  const avgActiveCal = activeCalDays.length
-    ? Math.round(activeCalDays.reduce((s, d) => s + (d.activity.activeCalories || 0), 0) / activeCalDays.length)
-    : null;
   // Bilimsel kalori açığı: toplam harcama (BMR + aktif) - alınan, sadece öğün girilen günler
   const calorieDays = dailyTotals.filter((d) => d.calories > 0);
   const avgRealDeficit = avgDeficitFn(
     bmr,
     calorieDays.map((d) => ({ consumed: d.calories, activeCalories: activityTotals(d).activeCalories, vitals: d.vitals || {}, date: d.date }))
   );
-  const expenditureDays = dailyTotals
-    .map((d) => energyBalance({
-      bmr,
-      vitals: d.vitals || {},
-      consumed: d.calories || 1,
-      date: d.date,
-      mode: 'full-day',
-      workoutActiveCalories: activityTotals(d).activeCalories || 0
-    }).totalExpenditure)
-    .filter((v) => v != null);
-  const avgBurned = expenditureDays.length
-    ? Math.round(expenditureDays.reduce((s, v) => s + v, 0) / expenditureDays.length)
-    : null;
   const maxCalories = Math.max(...dailyTotals.map((d) => d.calories), 1);
   const maxWater = Math.max(...dailyTotals.map((d) => d.water), 1);
   const maxSleep = Math.max(...dailyTotals.map((d) => d.sleepHours || 0), 1);
+  const maxProtein = Math.max(...dailyTotals.map((d) => d.protein), goals?.protein || 1, 1);
+  const maxCarbs = Math.max(...dailyTotals.map((d) => d.carbs), goals?.carbs || 1, 1);
+  const maxFats = Math.max(...dailyTotals.map((d) => d.fats), goals?.fats || 1, 1);
+  const maxSteps = Math.max(...dailyTotals.map((d) => activityTotals(d).steps || 0), 1);
+  const maxActiveCalories = Math.max(...dailyTotals.map((d) => activityTotals(d).activeCalories || 0), 1);
+  const maxActivityMin = Math.max(...dailyTotals.map((d) => activityTotals(d).durationMin || 0), 1);
 
+  const calorieGoalDays = goals ? calorieDays.filter((d) => d.calories >= goals.calories * 0.9 && d.calories <= goals.calories * 1.1).length : 0;
+  const proteinGoalDays = goals ? macroDays.filter((d) => d.protein >= goals.protein * 0.8).length : 0;
+  const waterGoalDays = goals ? dailyTotals.filter((d) => d.water >= goals.water).length : 0;
+  const activityGoalDays = activityDays.length;
+  const complianceChecks = goals ? [
+    { done: calorieGoalDays, total: Math.max(calorieDays.length, 1) },
+    { done: proteinGoalDays, total: Math.max(macroDays.length, 1) },
+    { done: waterGoalDays, total: dates.length },
+    { done: activityGoalDays, total: dates.length }
+  ] : [];
+  const complianceScore = complianceChecks.length
+    ? Math.round((complianceChecks.reduce((sum, item) => sum + (item.done / item.total), 0) / complianceChecks.length) * 100)
+    : null;
+  const targetCalorieBalances = goals
+    ? calorieDays.map((d) => goals.calories - d.calories)
+    : [];
+  const avgTargetCalorieBalance = targetCalorieBalances.length
+    ? Math.round(targetCalorieBalances.reduce((sum, value) => sum + value, 0) / targetCalorieBalances.length)
+    : null;
+  const todayTargetCalorieBalance = goals && dailyTotals[0]
+    ? Math.round(goals.calories - dailyTotals[0].calories)
+    : null;
+
+  const sortedMeasurements = [...bodyMeasurements].sort((a, b) => new Date(a.date) - new Date(b.date));
+  const waistEntries = sortedMeasurements.filter((item) => item.waist);
+  const waistChange = waistEntries.length >= 2
+    ? waistEntries[waistEntries.length - 1].waist - waistEntries[0].waist
+    : null;
+  const sortedWeights = [...(weightState.entries || [])].filter((item) => item.weight).sort((a, b) => new Date(a.date) - new Date(b.date));
+  const rangeWeights = sortedWeights.filter((item) => item.date >= dates[0] && item.date <= dates[dates.length - 1]);
+  const recentWeights = sortedWeights.slice(-7);
+  const currentWeight = sortedWeights.length ? sortedWeights[sortedWeights.length - 1].weight : null;
+  const previousWeight = sortedWeights.length >= 2 ? sortedWeights[sortedWeights.length - 2].weight : null;
+  const weightChange = rangeWeights.length >= 2
+    ? rangeWeights[rangeWeights.length - 1].weight - rangeWeights[0].weight
+    : sortedWeights.length >= 2 ? sortedWeights[sortedWeights.length - 1].weight - sortedWeights[0].weight : null;
+  const weightAverage7 = recentWeights.length
+    ? recentWeights.reduce((sum, item) => sum + item.weight, 0) / recentWeights.length
+    : null;
+  const targetWeight = parseFloat(weightState.targetWeight);
+  const targetRemaining = currentWeight != null && targetWeight ? currentWeight - targetWeight : null;
+  const lastWeightDate = sortedWeights.length ? sortedWeights[sortedWeights.length - 1].date : null;
+  const lastWaistDate = waistEntries.length ? waistEntries[waistEntries.length - 1].date : null;
+  const daysSince = (date) => date ? Math.max(0, Math.floor((parseDateKey(todayKey()) - parseDateKey(date)) / 86400000)) : null;
+  const dayDiffLocal = (from, to) => Math.round((parseDateKey(to) - parseDateKey(from)) / 86400000);
+  const formatLongDate = (key) => parseDateKey(key).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' });
+  const rawTargetDate = progressProfile?.targetDate || progressProfile?.goalDate || '';
+  const fallbackTargetDate = !rawTargetDate && (user?.email || '').toLowerCase() === 'emineay12@gmail.com' ? '2027-01-01' : '';
+  const targetDate = isValidTargetDate(rawTargetDate) ? rawTargetDate : fallbackTargetDate;
+  const targetDateIssue = rawTargetDate && !isValidTargetDate(rawTargetDate)
+    ? 'Hedef tarihi geçersiz. 2026-2035 arasında gelecek bir tarih seç.'
+    : '';
+  const weightRateKgPerDay = sortedWeights.length >= 2
+    ? (sortedWeights[sortedWeights.length - 1].weight - sortedWeights[0].weight) / Math.max(1, dayDiffLocal(sortedWeights[0].date, sortedWeights[sortedWeights.length - 1].date))
+    : null;
+  const dailyTargetDirection = currentWeight != null && targetWeight ? Math.sign(targetWeight - currentWeight) : 0;
+  const movingTowardTarget = weightRateKgPerDay != null && dailyTargetDirection !== 0 && Math.sign(weightRateKgPerDay) === dailyTargetDirection;
+  const etaDays = movingTowardTarget && targetRemaining != null
+    ? Math.ceil(Math.abs(targetRemaining) / Math.max(Math.abs(weightRateKgPerDay), 0.001))
+    : null;
+  const etaDate = etaDays != null && etaDays <= 730 ? shiftKey(todayKey(), etaDays) : null;
+  const plannedWeightToday = targetDate && sortedWeights.length && targetWeight && dayDiffLocal(sortedWeights[0].date, targetDate) > 0
+    ? (() => {
+      const start = sortedWeights[0];
+      const totalDays = Math.max(1, dayDiffLocal(start.date, targetDate));
+      const elapsed = Math.max(0, Math.min(totalDays, dayDiffLocal(start.date, todayKey())));
+      return start.weight + ((targetWeight - start.weight) * (elapsed / totalDays));
+    })()
+    : null;
+  const planDelta = plannedWeightToday != null && currentWeight != null ? currentWeight - plannedWeightToday : null;
+  const latestDelta = currentWeight != null && previousWeight != null ? currentWeight - previousWeight : null;
+  const averageDirection = weightAverage7 != null && currentWeight != null ? currentWeight - weightAverage7 : null;
+  const formatKg = (value, digits = 1) => `${value > 0 ? '+' : ''}${value.toFixed(digits)} kg`;
+  const scaleNoiseNote = (() => {
+    if (latestDelta == null || weightAverage7 == null) return null;
+    if (latestDelta > 0.4 && averageDirection <= 0.2) return 'Son tartı yükselmiş ama 7 kayıt ortalaması panik gerektirmiyor; tek güne göre karar verme.';
+    if (latestDelta < -0.4 && Math.abs(averageDirection) <= 0.2) return 'Son tartı hızlı düşmüş olabilir; trendi 7 kayıt ortalamasıyla doğrulamak daha doğru.';
+    if (Math.abs(latestDelta) >= 0.7) {
+      const cyclePart = cycleInsight?.weightNote ? ` ${cycleInsight.weightNote}` : '';
+      return `Son tartıda belirgin oynama var. Tuz, su, uyku, antrenman yoğunluğu ve tartı saatini kontrol et.${cyclePart}`;
+    }
+    return null;
+  })();
+  const dayQuality = (d) => {
+    const activity = activityTotals(d);
+    const checks = [];
+    const addCheck = (label, status, detail) => checks.push({ label, status, detail });
+
+    if (goals && d.calories > 0) {
+      const ok = d.calories >= goals.calories * 0.9 && d.calories <= goals.calories * 1.1;
+      addCheck('Kalori', ok, `${Math.round(d.calories)} / ${goals.calories} kcal`);
+    } else {
+      addCheck('Kalori', null, 'veri yok');
+    }
+
+    if (goals && (d.protein || d.calories)) {
+      const target = Math.round(goals.protein * 0.8);
+      addCheck('Protein', d.protein >= target, `${Math.round(d.protein)}g / min ${target}g`);
+    } else {
+      addCheck('Protein', null, 'veri yok');
+    }
+
+    if (goals && d.water > 0) {
+      addCheck('Su', d.water >= goals.water, `${Math.round(d.water)} / ${goals.water} ml`);
+    } else {
+      addCheck('Su', null, 'veri yok');
+    }
+
+    if (activity.steps || activity.durationMin) {
+      addCheck('Aktivite', true, activity.steps ? `${Math.round(activity.steps)} adım` : `${Math.round(activity.durationMin)} dk`);
+    } else {
+      addCheck('Aktivite', null, 'veri yok');
+    }
+
+    const scored = checks.filter((item) => item.status !== null);
+    if (!scored.length) {
+      return {
+        quality: 'empty',
+        scoreText: 'kayıt yok',
+        detail: checks.map((item) => `${item.label}: ${item.detail}`).join(' · ')
+      };
+    }
+    const passed = scored.filter((item) => item.status).length;
+    const ratio = passed / scored.length;
+    const quality = ratio >= 0.75 ? 'good' : ratio >= 0.45 ? 'ok' : 'low';
+    return {
+      quality,
+      scoreText: `${passed}/${scored.length} kriter`,
+      detail: checks.map((item) => {
+        if (item.status === null) return `${item.label}: ${item.detail}`;
+        return `${item.label}: ${item.status ? 'tamam' : 'eksik'} (${item.detail})`;
+      }).join(' · ')
+    };
+  };
+  const progressCalendarDays = dailyTotals.map((d) => ({ date: d.date, ...dayQuality(d) }));
+  const insightItems = [];
+  if (weightChange != null) {
+    insightItems.push({
+      label: 'Kilo Trendi',
+      value: `${weightChange > 0 ? '+' : ''}${weightChange.toFixed(1)} kg`,
+      tone: weightChange < 0 ? 'good' : weightChange > 0 ? 'watch' : 'neutral'
+    });
+  }
+  if (weightAverage7 != null) {
+    insightItems.push({
+      label: '7 Kayıt Ort.',
+      value: `${weightAverage7.toFixed(1)} kg`,
+      tone: previousWeight && currentWeight < previousWeight ? 'good' : 'neutral'
+    });
+  }
+  if (targetRemaining != null) {
+    insightItems.push({
+      label: targetRemaining >= 0 ? 'Hedefe Kalan' : 'Hedef Altı',
+      value: `${Math.abs(targetRemaining).toFixed(1)} kg`,
+      tone: targetRemaining <= 0 ? 'good' : 'neutral'
+    });
+  }
+  if (etaDate) {
+    insightItems.push({
+      label: 'Tahmini Hedef',
+      value: formatShort(etaDate),
+      tone: targetDate && etaDate <= targetDate ? 'good' : 'neutral'
+    });
+  }
+  if (planDelta != null) {
+    insightItems.push({
+      label: 'Plana Göre',
+      value: `${planDelta > 0 ? '+' : ''}${planDelta.toFixed(1)} kg`,
+      tone: planDelta <= 0 ? 'good' : 'watch'
+    });
+  }
+  if (waistChange != null) {
+    insightItems.push({
+      label: 'Bel Değişimi',
+      value: `${waistChange > 0 ? '+' : ''}${waistChange.toFixed(1)} cm`,
+      tone: waistChange < 0 ? 'good' : waistChange > 0 ? 'watch' : 'neutral'
+    });
+  }
+
+  const dataWarnings = [];
+  const weightAge = daysSince(lastWeightDate);
+  const waistAge = daysSince(lastWaistDate);
+  if (weightAge == null) dataWarnings.push('Kilo kaydı yok.');
+  else if (weightAge >= 7) dataWarnings.push(`Son kilo kaydı ${weightAge} gün önce.`);
+  if (waistAge == null) dataWarnings.push('Bel ölçüsü yok.');
+  else if (waistAge >= 14) dataWarnings.push(`Son bel ölçüsü ${waistAge} gün önce.`);
+  if (dataCoverage < 60) dataWarnings.push(`Bu aralıkta veri doluluğu düşük: %${dataCoverage}.`);
+  if (sleepDays.length === 0 && effectiveRangeKey !== 'day') dataWarnings.push('Uyku verisi yok.');
+
+  const routeDetails = (() => {
+    const items = [];
+    if (!currentWeight || !targetWeight) {
+      items.push('Hedef rotası için mevcut kilo ve hedef kilo birlikte gerekli.');
+      return items;
+    }
+    if (targetDate && plannedWeightToday != null && planDelta != null) {
+      const status = Math.abs(planDelta) < 0.3
+        ? 'plan çizgisine çok yakınsın'
+        : planDelta > 0
+          ? `bugünkü plan çizgisinin ${formatKg(planDelta)} üzerindesin`
+          : `bugünkü plan çizgisinin ${Math.abs(planDelta).toFixed(1)} kg altındasın`;
+      items.push(`Hedef tarih çizgisi: ${formatLongDate(targetDate)} için bugün beklenen ${plannedWeightToday.toFixed(1)} kg; şu an ${currentWeight.toFixed(1)} kg, yani ${status}.`);
+    } else if (!targetDate) {
+      items.push('Hedef tarih girilirse uygulama bugünkü beklenen kiloyu ve plandan farkı hesaplar.');
+    }
+
+    if (etaDate) {
+      const etaGap = targetDate ? dayDiffLocal(targetDate, etaDate) : null;
+      const etaStatus = etaGap == null
+        ? ''
+        : etaGap <= 0
+          ? ` Bu hız hedef tarihinden yaklaşık ${Math.abs(etaGap)} gün erken/yakın bitiriyor.`
+          : ` Bu hız hedef tarihinden yaklaşık ${etaGap} gün geç kalıyor.`;
+      items.push(`Trend tahmini: son kayıtların ortalama yönü korunursa hedefe varış ${formatLongDate(etaDate)}.${etaStatus}`);
+    } else if (sortedWeights.length < 2) {
+      items.push('Trend tahmini için en az iki kilo kaydı gerekiyor.');
+    } else if (!movingTowardTarget) {
+      items.push('Trend tahmini şu an hedef yönünde değil veya çok kararsız; tek tarih yerine birkaç tartı daha beklemek daha doğru.');
+    }
+
+    if (scaleNoiseNote) {
+      items.push('Son tartı tek başına karar sinyali değil; rota yorumunda 7 kayıt ortalaması daha önemli.');
+    } else if (weightAverage7 != null) {
+      items.push(`7 kayıt ortalaması ${weightAverage7.toFixed(1)} kg; günlük iniş çıkışları buna göre süzmek daha sağlıklı.`);
+    }
+
+    return items.slice(0, 3);
+  })();
+
+  const routeSummary = (() => {
+    if (!currentWeight || !targetWeight) {
+      return {
+        tone: 'neutral',
+        title: 'Rota eksik',
+        text: 'Mevcut kilo ve hedef kilo birlikte olmadan plan çizgisi kurulamaz.',
+        next: 'Önce hedef kilo ve düzenli tartı kaydı gerekir.'
+      };
+    }
+    if (planDelta != null && Math.abs(planDelta) <= 0.3) {
+      return {
+        tone: 'good',
+        title: 'Plan çizgisine yakın',
+        text: `Bugünkü beklenen kilo ile gerçek kilo arasındaki fark ${Math.abs(planDelta).toFixed(1)} kg. Bu pratikte aynı çizgi sayılır.`,
+        next: 'Bugün büyük ayar yapma; aynı düzeni birkaç kayıt daha sürdür.'
+      };
+    }
+    if (planDelta != null && planDelta > 0) {
+      return {
+        tone: planDelta > 1 ? 'watch' : 'neutral',
+        title: 'Planın biraz gerisinde',
+        text: `Bugünkü hedef çizgisine göre ${planDelta.toFixed(1)} kg yukarıdasın. Bu tek tartıysa önce dalgalanma ihtimalini elemek gerekir.`,
+        next: 'İlk hamle kalori kısmak değil; kayıt kaçağı, adım ortalaması, uyku ve tartı saatini sabitlemek.'
+      };
+    }
+    if (planDelta != null && planDelta < 0) {
+      return {
+        tone: 'good',
+        title: 'Planın önünde',
+        text: `Bugünkü hedef çizgisine göre ${Math.abs(planDelta).toFixed(1)} kg aşağıdasın. Hız fazla agresifse sürdürülebilirlik bozulabilir.`,
+        next: 'Protein, uyku ve antrenman performansını koruyarak devam et.'
+      };
+    }
+    if (etaDate) {
+      return {
+        tone: targetDate && etaDate > targetDate ? 'watch' : 'neutral',
+        title: 'Trend tahmini var',
+        text: `Son kilo yönü korunursa tahmini varış ${formatLongDate(etaDate)}.`,
+        next: 'Hedef tarih girersen bugünkü beklenen kilo ve gerçek fark da görünür.'
+      };
+    }
+    return {
+      tone: 'neutral',
+      title: 'Trend kararsız',
+      text: 'Kilo yönü hedefe doğru değil veya veri sayısı düşük. Bu durumda varış tarihi güvenilir olmaz.',
+      next: 'Aynı tartı koşulunda birkaç kayıt daha eklemek rota yorumunu güçlendirir.'
+    };
+  })();
+
+  const progressSignal = (() => {
+    if (meaningfulDays.length === 0) return 'Bu aralıkta yorum yapacak kadar kayıt yok.';
+    if (scaleNoiseNote) return scaleNoiseNote;
+    if (planDelta != null && planDelta > 0.8) return `Planın yaklaşık ${planDelta.toFixed(1)} kg gerisindesin. Kaloriyi sert kısmadan önce kayıt doğruluğu, adım ortalaması ve uyku düzeni birlikte kontrol edilmeli.`;
+    if (planDelta != null && planDelta < -0.5) return `Planın yaklaşık ${Math.abs(planDelta).toFixed(1)} kg önündesin. Çok agresifleşmeden sürdürülebilirliği koru.`;
+    if (avgRealDeficit != null && weightChange != null && waistChange != null && avgRealDeficit > 250 && Math.abs(weightChange) < 0.3 && waistChange < 0) return 'Kilo sabit ama bel düşüyor; yağ kaybı veya kompozisyon iyileşmesi olabilir.';
+    if (avgRealDeficit != null && weightChange != null && avgRealDeficit > 250 && weightChange > 0.4) return 'Kalori açığı görünmesine rağmen kilo artmış. Tartı saati, su tutma ve kayıt doğruluğunu kontrol etmek gerekir.';
+    if (avgRealDeficit != null && weightChange != null && avgRealDeficit < 100 && weightChange >= 0) return 'Kilo ilerlemesi zayıf. Kaloriyi kısmadan önce hareketi veya adımı artırmak daha mantıklı.';
+    if (goals && complianceScore >= 75) return 'Genel uyum iyi. Aynı düzeni koruyup kilo ve bel trendini izlemek mantıklı.';
+    if (goals && avgProtein && avgProtein < goals.protein * 0.8) return 'Protein ortalaması hedefin altında. Öncelik öğünleri kısmadan proteini tamamlamak olmalı.';
+    if (goals && avgWater && avgWater < goals.water * 0.75) return 'Su tarafı zayıf görünüyor. Gün içinde daha erken saatlere su hedefi bölmek işe yarar.';
+    if (!avgSteps && !avgWorkoutMin) return 'Beslenme kaydı var ama hareket verisi zayıf. İlerleme yorumunu güçlendirmek için aktivite girilmeli.';
+    return 'Veri akışı yeterli. Bir sonraki karar için kilo ve bel ölçüsüyle birlikte takip edelim.';
+  })();
+
+  const actionItems = [];
+  if (scaleNoiseNote) actionItems.push(`Tartı dalgalanması ${formatKg(latestDelta)}: bugün plan değiştirme, aynı tartı saatinde 3-4 kayıt daha bekle.`);
+  if (cycleInsight?.supportNote) actionItems.push(cycleInsight.supportNote);
+  if (etaDate && targetDate && etaDate > targetDate) actionItems.push(`Tahmini varış ${formatLongDate(etaDate)}; hedef tarihe yetişmek için önce yürüyüş/adım ve protein uyumunu artır.`);
+  if (planDelta != null && planDelta > 0.8) actionItems.push(`Plan farkı ${formatKg(planDelta)}: kalori düşürmeden önce 7 günlük adım ortalamasını ve kayıt kaçaklarını kontrol et.`);
+  if (dataWarnings.length > 0) actionItems.push(dataWarnings[0]);
+  if (goals && avgProtein && avgProtein < goals.protein * 0.8) actionItems.push(`Protein ortalaması ${avgProtein}g; hedefe yaklaşmak için +${Math.max(5, Math.round(goals.protein - avgProtein))}g ekle.`);
+  if (goals && avgWater && avgWater < goals.water * 0.75) actionItems.push(`Su ortalaması ${avgWater} ml; hedef ${goals.water} ml.`);
+  if (!avgSteps && !avgWorkoutMin) actionItems.push('Aktivite girilmemiş; yürüyüş/adım verisi eklenirse yorum netleşir.');
+  if (actionItems.length === 0) actionItems.push('Bu aralık için ana sinyal temiz. Planı bozma, aynı rutini sürdür.');
+
+  const trendEvidenceItems = [
+    weightChange != null ? `Kilo değişimi: seçili aralıkta ${formatKg(weightChange)}; son tartı farkı ${latestDelta == null ? 'yok' : formatKg(latestDelta)}.` : null,
+    goals ? `Uyum dağılımı: kalori ${calorieGoalDays}/${Math.max(calorieDays.length, 1)}, protein ${proteinGoalDays}/${Math.max(macroDays.length, 1)}, su ${waterGoalDays}/${dates.length}, aktivite ${activityGoalDays}/${dates.length}.` : null,
+    avgRealDeficit != null ? `Enerji sinyali: BMR + aktif kaloriye göre ortalama günlük açık yaklaşık ${Math.round(avgRealDeficit)} kcal.` : null,
+    avgTargetCalorieBalance != null ? `Hedef sinyali: günlük kalori hedefine göre ortalama ${Math.abs(avgTargetCalorieBalance)} kcal ${avgTargetCalorieBalance >= 0 ? 'kalan' : 'hedef üstü'} var.` : null,
+    waistChange == null ? 'Bel ölçüsü olmadığı için yağ kaybı ile su/kas glikojeni ayrımı zayıf kalıyor.' : `Bel değişimi: ${waistChange > 0 ? '+' : ''}${waistChange.toFixed(1)} cm.`,
+    cycleInsight?.weightNote ? `Döngü notu: ${cycleInsight.phase.label}, ${cycleInsight.cycleDay}. gün. ${cycleInsight.weightNote}` : null
+  ].filter(Boolean).slice(0, 4);
+
+  const bestProteinDay = macroDays.length > 0 ? [...macroDays].sort((a, b) => b.protein - a.protein)[0] : null;
+  const highestCalorieDay = daysWithData.length > 0 ? [...daysWithData].sort((a, b) => b.calories - a.calories)[0] : null;
+  const waterLoggedDays = dailyTotals.filter((d) => d.water > 0);
+  const lowestWaterDay = waterLoggedDays.length > 0 ? [...waterLoggedDays].sort((a, b) => a.water - b.water)[0] : null;
+  const bestWorstItems = [
+    bestProteinDay ? {
+      label: 'En iyi protein',
+      value: `${formatShort(bestProteinDay.date)} · ${Math.round(bestProteinDay.protein)}g`
+    } : null,
+    highestCalorieDay ? {
+      label: 'En yüksek kalori',
+      value: `${formatShort(highestCalorieDay.date)} · ${Math.round(highestCalorieDay.calories)} kcal`
+    } : null,
+    lowestWaterDay ? {
+      label: 'En düşük su',
+      value: `${formatShort(lowestWaterDay.date)} · ${Math.round(lowestWaterDay.water)} ml`
+    } : null
+  ].filter(Boolean);
+
+  // Özel aralıkta pencerenin tamamını (gün sayısı kadar) ileri/geri kaydırır.
   const shiftAnchor = (direction) => {
-    const step = RANGE_DAYS[rangeKey];
-    const d = new Date(anchorDate);
-    d.setDate(d.getDate() + direction * step);
-    const today = new Date().toISOString().split('T')[0];
-    const newDate = d.toISOString().split('T')[0];
-    setAnchorDate(newDate > today ? today : newDate);
+    const today = todayKey();
+    if (effectiveRangeKey === 'custom') {
+      const step = dates.length * direction;
+      const nextEnd = shiftKey(customRange.end, step);
+      if (nextEnd > today) {
+        setCustomRange({ start: shiftKey(today, -(dates.length - 1)), end: today });
+        return;
+      }
+      setCustomRange({ start: shiftKey(customRange.start, step), end: nextEnd });
+      return;
+    }
+    const next = shiftKey(anchorDate, direction * RANGE_DAYS[effectiveRangeKey]);
+    setAnchorDate(next > today ? today : next);
   };
 
   const buildExportText = () => {
-    const lines = [`30 Gün Fit - ${rangeKey === 'day' ? 'Günlük' : rangeKey === 'week' ? 'Haftalık' : 'Aylık'} Özet (${formatShort(dates[0])} - ${formatShort(dates[dates.length - 1])})`, ''];
+    const rangeTitle = { day: 'Günlük', week: 'Haftalık', month: 'Aylık', custom: `${dates.length} Günlük` }[effectiveRangeKey];
+    const lines = [`30 Gün Fit - ${rangeTitle} Özet (${formatShort(dates[0])} - ${formatShort(dates[dates.length - 1])})`, ''];
     dailyTotals.forEach((d) => {
       if (d.calories === 0 && d.water === 0 && !d.sleepHours && d.workouts.length === 0 && d.supplements.length === 0 && !d.notes) return;
       lines.push(`${formatShort(d.date)}:`);
@@ -320,6 +798,405 @@ const TrendView = ({ user }) => {
       lines.push('');
     });
     return lines.join('\n');
+  };
+
+  const buildExportTable = (title, columns, rows) => {
+    const safeRows = rows.length ? rows : [columns.reduce((acc, column) => ({ ...acc, [column.key]: '-' }), {})];
+    return `
+      <h2>${escapeHtml(title)}</h2>
+      <table>
+        <thead>
+          <tr>${columns.map((column) => `<th>${escapeHtml(column.label)}</th>`).join('')}</tr>
+        </thead>
+        <tbody>
+          ${safeRows.map((row) => `
+            <tr>
+              ${columns.map((column) => `<td>${escapeHtml(formatExportValue(row[column.key]))}</td>`).join('')}
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+  };
+
+  const handleExcelExport = () => {
+    const rangeTitle = { day: 'Günlük', week: 'Haftalık', month: 'Aylık', custom: `${dates.length} Günlük Özel` }[effectiveRangeKey];
+    const startDate = dates[0];
+    const endDate = dates[dates.length - 1];
+    const rangeMeasurements = sortedMeasurements.filter((item) => item.date >= startDate && item.date <= endDate);
+    const exportWeights = rangeWeights.length ? rangeWeights : (currentWeight != null ? [{ date: lastWeightDate, weight: currentWeight }] : []);
+
+    const summaryRows = [
+      { metric: 'Aralık', value: `${rangeTitle} (${startDate} - ${endDate})` },
+      { metric: 'Gün sayısı', value: dates.length },
+      { metric: 'Kayıtlı gün', value: meaningfulDays.length },
+      { metric: 'Veri doluluğu', value: `%${dataCoverage}` },
+      { metric: 'Uyum skoru', value: complianceScore == null ? '-' : `%${complianceScore}` },
+      { metric: 'Ortalama kalori', value: avgCalories ? `${avgCalories} kcal` : '-' },
+      { metric: 'Ortalama protein', value: avgProtein ? `${avgProtein} g` : '-' },
+      { metric: 'Ortalama karbonhidrat', value: avgCarbs ? `${avgCarbs} g` : '-' },
+      { metric: 'Ortalama yağ', value: avgFats ? `${avgFats} g` : '-' },
+      { metric: 'Ortalama su', value: avgWater ? `${avgWater} ml` : '-' },
+      { metric: 'Ortalama uyku', value: avgSleep ? `${avgSleep} saat` : '-' },
+      { metric: 'Ortalama adım', value: avgSteps || '-' },
+      { metric: 'Ortalama aktivite', value: avgWorkoutMin ? `${avgWorkoutMin} dk` : '-' },
+      { metric: 'Ortalama kalori açığı/fazlası', value: avgRealDeficit == null ? '-' : `${avgRealDeficit} kcal` },
+      { metric: 'Kilo değişimi', value: weightChange == null ? '-' : `${weightChange.toFixed(1)} kg` },
+      { metric: 'Bel değişimi', value: waistChange == null ? '-' : `${waistChange.toFixed(1)} cm` },
+      { metric: 'Ana yorum', value: progressSignal },
+      { metric: 'Aksiyon', value: actionItems.slice(0, 3).join(' | ') }
+    ];
+
+    const dailyRows = dailyTotals.map((d) => {
+      const activity = activityTotals(d);
+      const quality = dayQuality(d);
+      return {
+        date: d.date,
+        day: parseDateKey(d.date).toLocaleDateString('tr-TR', { weekday: 'long' }),
+        calories: Math.round(d.calories || 0),
+        protein: Math.round(d.protein || 0),
+        carbs: Math.round(d.carbs || 0),
+        fats: Math.round(d.fats || 0),
+        water: Math.round(d.water || 0),
+        sleepHours: d.sleepHours || '',
+        sleepScore: d.sleepScore || '',
+        steps: activity.steps ? Math.round(activity.steps) : '',
+        activeCalories: activity.activeCalories ? Math.round(activity.activeCalories) : '',
+        activityMinutes: activity.durationMin ? Math.round(activity.durationMin) : '',
+        distanceKm: activity.distanceKm || '',
+        workouts: d.workouts.length,
+        supplements: d.supplements.map((s) => `${s.name}${s.dose ? ` (${s.dose})` : ''}`).join(', '),
+        score: quality.scoreText,
+        notes: d.notes || ''
+      };
+    });
+
+    const mealRows = dailyTotals.flatMap((d) => d.meals.map((meal) => ({
+      date: d.date,
+      category: MEAL_CATEGORIES.find((cat) => cat.key === classifyMeal(meal))?.title || 'Öğün',
+      name: stripCategoryPrefix(meal.name),
+      calories: Math.round(Number(meal.calories) || 0),
+      protein: Math.round(Number(meal.protein) || 0),
+      carbs: Math.round(Number(meal.carbs) || 0),
+      fats: Math.round(Number(meal.fats) || 0)
+    })));
+
+    const workoutRows = dailyTotals.flatMap((d) => d.workouts.map((workout) => ({
+      date: d.date,
+      type: WORKOUT_TYPE_LABELS[workout.type] || workout.type || 'Aktivite',
+      title: workout.title || workout.exercises?.map((exercise) => exercise.name).join(', ') || '',
+      durationMin: workout.duration_min || '',
+      distanceKm: workout.distance_km || '',
+      calories: workout.calories || '',
+      exercises: workout.exercises?.map((exercise) => {
+        const sets = (exercise.sets || []).map((set) => `${set.reps || '-'}x${set.weight || '-'}`).join(', ');
+        return sets ? `${exercise.name}: ${sets}` : exercise.name;
+      }).join(' | ') || ''
+    })));
+
+    const dayDetailRows = dailyTotals.map((d) => {
+      const activity = activityTotals(d);
+      const mealsText = d.meals.length
+        ? d.meals.map((meal) => {
+          const category = MEAL_CATEGORIES.find((cat) => cat.key === classifyMeal(meal))?.title || 'Öğün';
+          return `${category}: ${stripCategoryPrefix(meal.name)} (${Math.round(Number(meal.calories) || 0)} kcal, P:${Math.round(Number(meal.protein) || 0)}g, K:${Math.round(Number(meal.carbs) || 0)}g, Y:${Math.round(Number(meal.fats) || 0)}g)`;
+        }).join('\n')
+        : '';
+      const workoutsText = d.workouts.length
+        ? d.workouts.map((workout) => {
+          const title = workout.title || workout.exercises?.map((exercise) => exercise.name).join(', ') || WORKOUT_TYPE_LABELS[workout.type] || 'Antrenman';
+          const exerciseText = workout.exercises?.map((exercise) => {
+            const sets = (exercise.sets || []).map((set) => `${set.reps || '-'} tekrar x ${set.weight || '-'} kg`).join(', ');
+            return sets ? `${exercise.name}: ${sets}` : exercise.name;
+          }).join(' | ');
+          const parts = [
+            title,
+            workout.duration_min ? `${workout.duration_min} dk` : null,
+            workout.distance_km ? `${workout.distance_km} km` : null,
+            exerciseText || null
+          ].filter(Boolean);
+          return parts.join(' · ');
+        }).join('\n')
+        : '';
+      return {
+        date: d.date,
+        day: parseDateKey(d.date).toLocaleDateString('tr-TR', { weekday: 'long' }),
+        nutritionTotals: `${Math.round(d.calories || 0)} kcal · P:${Math.round(d.protein || 0)}g · K:${Math.round(d.carbs || 0)}g · Y:${Math.round(d.fats || 0)}g`,
+        meals: mealsText || 'Öğün kaydı yok',
+        workoutTotals: activitySummary(activity) || 'Aktivite/antrenman kaydı yok',
+        workouts: workoutsText || 'Antrenman detayı yok',
+        water: d.water ? `${Math.round(d.water)} ml` : '',
+        sleep: d.sleepHours ? `${d.sleepHours} saat${d.sleepScore ? ` · skor ${d.sleepScore}` : ''}` : '',
+        notes: d.notes || ''
+      };
+    });
+
+    const bodyRows = exportWeights.map((entry) => ({
+      date: entry.date,
+      type: 'Kilo',
+      weight: entry.weight,
+      waist: '',
+      chest: '',
+      hips: '',
+      arm: '',
+      thigh: '',
+      note: ''
+    })).concat(rangeMeasurements.map((entry) => ({
+      date: entry.date,
+      type: 'Ölçü',
+      weight: '',
+      waist: entry.waist || '',
+      chest: entry.chest || '',
+      hips: entry.hips || '',
+      arm: entry.arm || '',
+      thigh: entry.thigh || '',
+      note: entry.notes || entry.note || ''
+    })));
+
+    const html = `<!doctype html>
+      <html>
+        <head>
+          <meta charset="UTF-8" />
+          <style>
+            body { font-family: Arial, sans-serif; color: #111827; }
+            h1 { font-size: 20px; margin: 0 0 6px; }
+            h2 { font-size: 16px; margin: 22px 0 8px; }
+            p { margin: 0 0 12px; color: #4b5563; }
+            table { border-collapse: collapse; width: 100%; margin-bottom: 16px; }
+            th { background: #102033; color: #ffffff; font-weight: 700; }
+            th, td { border: 1px solid #d1d5db; padding: 7px 8px; font-size: 12px; vertical-align: top; }
+            td { mso-number-format:"\\@"; white-space: pre-wrap; }
+          </style>
+        </head>
+        <body>
+          <h1>30 Gün Fit İlerleme Export</h1>
+          <p>${escapeHtml(`${rangeTitle} · ${startDate} - ${endDate}`)}</p>
+          ${buildExportTable('Özet', [
+            { key: 'metric', label: 'Metrik' },
+            { key: 'value', label: 'Değer' }
+          ], summaryRows)}
+          ${buildExportTable('Günlük Takip', [
+            { key: 'date', label: 'Tarih' },
+            { key: 'day', label: 'Gün' },
+            { key: 'calories', label: 'Kalori' },
+            { key: 'protein', label: 'Protein (g)' },
+            { key: 'carbs', label: 'Karbonhidrat (g)' },
+            { key: 'fats', label: 'Yağ (g)' },
+            { key: 'water', label: 'Su (ml)' },
+            { key: 'sleepHours', label: 'Uyku (saat)' },
+            { key: 'sleepScore', label: 'Uyku skoru' },
+            { key: 'steps', label: 'Adım' },
+            { key: 'activeCalories', label: 'Aktif kcal' },
+            { key: 'activityMinutes', label: 'Aktivite dk' },
+            { key: 'distanceKm', label: 'Mesafe km' },
+            { key: 'workouts', label: 'Antrenman sayısı' },
+            { key: 'supplements', label: 'Takviyeler' },
+            { key: 'score', label: 'Gün skoru' },
+            { key: 'notes', label: 'Not' }
+          ], dailyRows)}
+          ${buildExportTable('Gün Gün Beslenme ve Antrenman', [
+            { key: 'date', label: 'Tarih' },
+            { key: 'day', label: 'Gün' },
+            { key: 'nutritionTotals', label: 'Beslenme toplamı' },
+            { key: 'meals', label: 'Öğün detayları' },
+            { key: 'workoutTotals', label: 'Aktivite toplamı' },
+            { key: 'workouts', label: 'Antrenman detayları' },
+            { key: 'water', label: 'Su' },
+            { key: 'sleep', label: 'Uyku' },
+            { key: 'notes', label: 'Not' }
+          ], dayDetailRows)}
+          ${buildExportTable('Öğünler', [
+            { key: 'date', label: 'Tarih' },
+            { key: 'category', label: 'Kategori' },
+            { key: 'name', label: 'İçerik' },
+            { key: 'calories', label: 'Kalori' },
+            { key: 'protein', label: 'Protein (g)' },
+            { key: 'carbs', label: 'Karbonhidrat (g)' },
+            { key: 'fats', label: 'Yağ (g)' }
+          ], mealRows)}
+          ${buildExportTable('Antrenmanlar', [
+            { key: 'date', label: 'Tarih' },
+            { key: 'type', label: 'Tür' },
+            { key: 'title', label: 'Başlık' },
+            { key: 'durationMin', label: 'Süre dk' },
+            { key: 'distanceKm', label: 'Mesafe km' },
+            { key: 'calories', label: 'Kalori' },
+            { key: 'exercises', label: 'Egzersizler' }
+          ], workoutRows)}
+          ${buildExportTable('Kilo ve Ölçüler', [
+            { key: 'date', label: 'Tarih' },
+            { key: 'type', label: 'Kayıt türü' },
+            { key: 'weight', label: 'Kilo' },
+            { key: 'waist', label: 'Bel' },
+            { key: 'chest', label: 'Göğüs' },
+            { key: 'hips', label: 'Kalça' },
+            { key: 'arm', label: 'Kol' },
+            { key: 'thigh', label: 'Bacak' },
+            { key: 'note', label: 'Not' }
+          ], bodyRows)}
+        </body>
+      </html>`;
+
+    const blob = new Blob(['\ufeff', html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+    downloadBlob(blob, `30gunfit-ilerleme-${startDate}-${endDate}.xls`);
+  };
+
+  const handleChatGptFullExport = async () => {
+    if (!user) return;
+    try {
+      const exportDates = getExportDatesFromAccountStart(user);
+      const [
+        allLogs,
+        allCalories,
+        waterResult,
+        weightResult,
+        measurementsResult,
+        goalsResult,
+        profileResult
+      ] = await Promise.all([
+        getDailyLogsRange(user.uid, exportDates),
+        getCalorieTrackingRange(user.uid, exportDates),
+        getWaterTracker(user.uid),
+        getWeightTracker(user.uid, user.email),
+        getBodyMeasurements(user.uid),
+        getNutritionGoals(user.uid),
+        getUserProfile(user.uid)
+      ]);
+
+      const allDates = Array.from(new Set([
+        ...Object.keys(allLogs || {}),
+        ...Object.keys(allCalories || {}),
+        ...(waterResult.success ? (waterResult.data.entries || []).map((entry) => entry.date).filter(Boolean) : []),
+        ...(weightResult.success ? (weightResult.data.entries || []).map((entry) => entry.date).filter(Boolean) : []),
+        ...(measurementsResult.success ? (measurementsResult.data.entries || []).map((entry) => entry.date).filter(Boolean) : [])
+      ])).sort();
+
+      const numberOrZero = (value) => Number(value) || 0;
+      const formatMacro = (value, unit = 'g') => `${Math.round(numberOrZero(value))}${unit}`;
+      const waterByExportDate = {};
+      if (waterResult.success) {
+        (waterResult.data.entries || []).forEach((entry) => {
+          if (!entry.date) return;
+          waterByExportDate[entry.date] = (waterByExportDate[entry.date] || 0) + numberOrZero(entry.amount);
+        });
+      }
+      const weightsByDate = {};
+      if (weightResult.success) {
+        (weightResult.data.entries || []).forEach((entry) => {
+          if (entry.date && entry.weight) weightsByDate[entry.date] = entry.weight;
+        });
+      }
+      const measurementsByDate = {};
+      if (measurementsResult.success) {
+        (measurementsResult.data.entries || []).forEach((entry) => {
+          if (entry.date) measurementsByDate[entry.date] = entry;
+        });
+      }
+      const mealText = (meal) => {
+        const category = MEAL_CATEGORIES.find((cat) => cat.key === classifyMeal(meal))?.title || meal.mealType || 'Öğün';
+        const lines = [
+          `- ${category}: ${stripCategoryPrefix(meal.name) || 'Adsız öğün'}${meal.portion ? ` (${meal.portion})` : ''}`,
+          `  Besin değerleri: ${Math.round(numberOrZero(meal.calories))} kcal | Protein ${formatMacro(meal.protein)} | Karbonhidrat ${formatMacro(meal.carbs)} | Yağ ${formatMacro(meal.fats)}`
+        ];
+        if (Array.isArray(meal.items) && meal.items.length > 0) {
+          lines.push(`  İçerikler: ${meal.items.map((item) => {
+            if (typeof item === 'string') return item;
+            const name = item.name || item.food || item.foodName || item.title || 'ürün';
+            const amount = item.amount || item.quantity || item.portion || item.serving || '';
+            const calories = item.calories ? `, ${Math.round(numberOrZero(item.calories))} kcal` : '';
+            const protein = item.protein ? `, P ${formatMacro(item.protein)}` : '';
+            return `${name}${amount ? ` ${amount}` : ''}${calories}${protein}`;
+          }).join('; ')}`);
+        }
+        if (meal.micronutrients && typeof meal.micronutrients === 'object') {
+          const micros = Object.entries(meal.micronutrients)
+            .filter(([, value]) => value != null && value !== '')
+            .map(([key, value]) => `${key}: ${value}`)
+            .slice(0, 12);
+          if (micros.length) lines.push(`  Mikro besinler: ${micros.join(', ')}`);
+        }
+        if (meal.source) lines.push(`  Kaynak: ${meal.source}`);
+        return lines.join('\n');
+      };
+      const workoutText = (workout) => {
+        const title = workout.title || workout.exercises?.map((exercise) => exercise.name).join(', ') || WORKOUT_TYPE_LABELS[workout.type] || 'Antrenman';
+        const header = [
+          `- ${title}`,
+          workout.duration_min ? `${workout.duration_min} dk` : null,
+          workout.distance_km ? `${workout.distance_km} km` : null,
+          workout.calories ? `${Math.round(numberOrZero(workout.calories))} kcal` : null
+        ].filter(Boolean).join(' | ');
+        const exerciseLines = (workout.exercises || []).map((exercise) => {
+          const sets = (exercise.sets || []).map((set, index) => {
+            const weight = set.weight_kg ?? set.weight ?? set.kg;
+            const reps = set.reps ?? set.repeat ?? set.count;
+            const warmup = set.isWarmup ? 'ısınma, ' : '';
+            if (weight != null && reps != null) return `${index + 1}. set: ${warmup}${weight} kg x ${reps} tekrar`;
+            if (reps != null) return `${index + 1}. set: ${warmup}${reps} tekrar`;
+            if (weight != null) return `${index + 1}. set: ${warmup}${weight} kg`;
+            return `${index + 1}. set`;
+          }).join('; ');
+          return `  ${exercise.name || 'Egzersiz'}${sets ? ` -> ${sets}` : ''}`;
+        });
+        return [header, ...exerciseLines].join('\n');
+      };
+
+      const lines = [
+        '30 Gün Fit - ChatGPT Analiz Dosyası',
+        `Oluşturma zamanı: ${new Date().toLocaleString('tr-TR')}`,
+        `Veri aralığı: ${allDates[0] || '-'} - ${allDates[allDates.length - 1] || '-'}`,
+        '',
+        'ChatGPT için talimat:',
+        'Bu dosyada gün gün beslenme, antrenman, aktivite, su, uyku, kilo ve ölçü kayıtları var. Lütfen sadece ortalama özetlere bakma; gün bazında örüntüleri, eksik kayıtları, kalori/protein/su uyumunu, antrenman yoğunluğu ile kilo-bel trendini birlikte değerlendir. Sağlık/medikal tanı koymadan uygulanabilir öneriler ver.',
+        '',
+        'Kullanıcı hedefleri:',
+        goalsResult.success
+          ? `- Kalori: ${goalsResult.data.calories || '-'} kcal | Protein: ${goalsResult.data.protein || '-'}g | Karbonhidrat: ${goalsResult.data.carbs || '-'}g | Yağ: ${goalsResult.data.fats || '-'}g | Su: ${goalsResult.data.water || '-'} ml`
+          : '- Hedef kaydı yok',
+        '',
+        'Profil özeti:',
+        profileResult.success
+          ? `- Yaş: ${profileResult.data.age || '-'} | Boy: ${profileResult.data.height || '-'} cm | Kilo: ${profileResult.data.weight || '-'} kg | Cinsiyet: ${profileResult.data.gender || '-'} | Hedef: ${profileResult.data.goal || '-'}`
+          : '- Profil kaydı yok',
+        '',
+        'GÜN GÜN KAYITLAR'
+      ];
+
+      allDates.forEach((date) => {
+        const log = allLogs[date] || {};
+        const meals = allCalories[date]?.meals || [];
+        const water = waterByExportDate[date] || 0;
+        const sleep = log.sleep || {};
+        const vitals = log.vitals || {};
+        const measurements = measurementsByDate[date] || {};
+        const totals = meals.reduce((acc, meal) => ({
+          calories: acc.calories + numberOrZero(meal.calories),
+          protein: acc.protein + numberOrZero(meal.protein),
+          carbs: acc.carbs + numberOrZero(meal.carbs),
+          fats: acc.fats + numberOrZero(meal.fats)
+        }), { calories: 0, protein: 0, carbs: 0, fats: 0 });
+
+        lines.push('');
+        lines.push(`## ${date} - ${parseDateKey(date).toLocaleDateString('tr-TR', { weekday: 'long' })}`);
+        lines.push(`Beslenme toplamı: ${Math.round(totals.calories)} kcal | Protein ${formatMacro(totals.protein)} | Karbonhidrat ${formatMacro(totals.carbs)} | Yağ ${formatMacro(totals.fats)}`);
+        lines.push('Öğünler:');
+        lines.push(meals.length ? meals.map(mealText).join('\n') : '- Öğün kaydı yok');
+        lines.push('Antrenmanlar:');
+        lines.push((log.workouts || []).length ? (log.workouts || []).map(workoutText).join('\n') : '- Antrenman kaydı yok');
+        lines.push(`Aktivite: ${vitals.steps ? `${vitals.steps} adım` : '-'} | Aktif kalori: ${vitals.active_calories || '-'} | Egzersiz: ${vitals.exercise_minutes || '-'} dk | Mesafe: ${vitals.distance_km || '-'} km`);
+        lines.push(`Su: ${water || '-'} ml`);
+        lines.push(`Uyku: ${sleep.duration_hours || '-'} saat${sleep.score ? ` | Skor: ${sleep.score}` : ''}`);
+        lines.push(`Kilo/ölçü: Kilo ${weightsByDate[date] || '-'} kg | Bel ${measurements.waist || '-'} cm | Göğüs ${measurements.chest || '-'} cm | Kalça ${measurements.hips || '-'} cm | Kol ${measurements.arm || '-'} cm | Bacak ${measurements.thigh || '-'} cm`);
+        if (log.notes) lines.push(`Not: ${log.notes}`);
+      });
+
+      const blob = new Blob(['\ufeff', lines.join('\n')], { type: 'text/plain;charset=utf-8;' });
+      const start = allDates[0] || todayKey();
+      const end = allDates[allDates.length - 1] || todayKey();
+      downloadBlob(blob, `30gunfit-chatgpt-analiz-dosyasi-${start}-${end}.txt`);
+    } catch (error) {
+      alert(`ChatGPT veri export alınamadı: ${error.message}`);
+    }
   };
 
   const handleCopyExport = async () => {
@@ -646,7 +1523,7 @@ const TrendView = ({ user }) => {
         water: parseInt(editForm.water, 10) || 0
       };
       await saveNutritionGoals(user.uid, newGoals);
-      localStorage.setItem('nutrition_goals', JSON.stringify(newGoals));
+      setScopedJson('nutrition_goals', user.uid, newGoals);
       setGoals(newGoals);
       closeEdit();
     } finally {
@@ -706,6 +1583,31 @@ const TrendView = ({ user }) => {
     alert(`Temizlendi: ${mealsToRemove.length} tekrar öğün, ${suppsToRemove.length} tekrar takviye silindi.`);
   };
 
+  const handleTargetDateChange = async (value) => {
+    if (!user) return;
+    if (value && !isValidTargetDate(value)) {
+      const cleanedProfile = { ...(progressProfile || {}), targetDate: null };
+      setProgressProfile(cleanedProfile);
+      setScopedJson('userProfile', user.uid, cleanedProfile);
+      setIsSavingTargetDate(true);
+      try {
+        await saveUserProfile(user.uid, cleanedProfile);
+      } finally {
+        setIsSavingTargetDate(false);
+      }
+      return;
+    }
+    const nextProfile = { ...(progressProfile || {}), targetDate: value || null };
+    setProgressProfile(nextProfile);
+    setScopedJson('userProfile', user.uid, nextProfile);
+    setIsSavingTargetDate(true);
+    try {
+      await saveUserProfile(user.uid, nextProfile);
+    } finally {
+      setIsSavingTargetDate(false);
+    }
+  };
+
   // Öğün ekleme/düzenleme formu (kategoriler arasında ortak, kategori de değiştirilebilir)
   const renderMealForm = (mealId) => (
     <div className="trend-edit-form">
@@ -736,40 +1638,330 @@ const TrendView = ({ user }) => {
     </div>
   );
 
+  const chartTabs = [
+    { key: 'nutrition', label: 'Beslenme' },
+    { key: 'activity', label: 'Aktivite' },
+    { key: 'recovery', label: 'Uyku & Su' }
+  ];
+
+  const chartSeries = {
+    nutrition: [
+      { key: 'calories', label: 'Kalori', dot: 'lg-cal', fill: 'calories', max: Math.max(maxCalories, goals?.calories || 1), value: (d) => d.calories, unit: 'kcal' },
+      { key: 'protein', label: 'Protein', dot: 'lg-protein', fill: 'protein', max: maxProtein, value: (d) => d.protein, unit: 'g' },
+      { key: 'carbs', label: 'Karb.', dot: 'lg-carbs', fill: 'carbs', max: maxCarbs, value: (d) => d.carbs, unit: 'g' },
+      { key: 'fats', label: 'Yağ', dot: 'lg-fats', fill: 'fats', max: maxFats, value: (d) => d.fats, unit: 'g' }
+    ],
+    activity: [
+      { key: 'steps', label: 'Adım', dot: 'lg-steps', fill: 'steps', max: maxSteps, value: (d) => activityTotals(d).steps || 0, unit: 'adım' },
+      { key: 'activeCalories', label: 'Aktif kalori', dot: 'lg-active', fill: 'active', max: maxActiveCalories, value: (d) => activityTotals(d).activeCalories || 0, unit: 'kcal' },
+      { key: 'durationMin', label: 'Egzersiz', dot: 'lg-duration', fill: 'duration', max: maxActivityMin, value: (d) => activityTotals(d).durationMin || 0, unit: 'dk' }
+    ],
+    recovery: [
+      { key: 'water', label: 'Su', dot: 'lg-water', fill: 'water', max: Math.max(maxWater, goals?.water || 1), value: (d) => d.water, unit: 'ml' },
+      { key: 'sleep', label: 'Uyku', dot: 'lg-sleep', fill: 'sleep', max: maxSleep, value: (d) => d.sleepHours || 0, unit: 'saat' }
+    ]
+  };
+
+  const activeSeries = chartSeries[chartTab] || chartSeries.nutrition;
+  const chartValueLabel = (d) => {
+    if (chartTab === 'nutrition') return d.calories ? `${Math.round(d.calories)} kcal` : '–';
+    if (chartTab === 'activity') {
+      const activity = activityTotals(d);
+      return activity.steps ? `${Math.round(activity.steps)}` : activity.durationMin ? `${Math.round(activity.durationMin)} dk` : '–';
+    }
+    return d.water ? `${Math.round(d.water)} ml` : d.sleepHours ? `${d.sleepHours}s` : '–';
+  };
+
+  const toggleDaySection = (sectionKey) => {
+    setOpenDaySections((prev) => ({ ...prev, [sectionKey]: !prev[sectionKey] }));
+  };
+
+  const isEditingDaySection = (sectionKey) => {
+    if (!editingSection) return false;
+    if (sectionKey === 'goals') return editingSection === 'goals';
+    if (sectionKey === 'water') return editingSection === 'water';
+    if (sectionKey === 'sleep') return editingSection === 'sleep';
+    if (sectionKey === 'activity') return editingSection === 'vitals';
+    if (sectionKey === 'supplements') return editingSection.startsWith('supplement-');
+    if (sectionKey.startsWith('meal-')) {
+      const catKey = sectionKey.replace('meal-', '');
+      if (editingSection === `meal-new-${catKey}`) return true;
+      if (!editingSection.startsWith('meal-')) return false;
+      const editingMealId = editingSection.replace('meal-', '');
+      const meal = dailyTotals[0]?.meals?.find((m) => m.id === editingMealId);
+      return meal ? classifyMeal(meal) === catKey : false;
+    }
+    return false;
+  };
+
+  const renderDaySection = (sectionKey, title, summary, children, className = '') => {
+    const sectionClass = `trend-day-section ${className}`.trim();
+    if (!embedded) {
+      return (
+        <div className={sectionClass} key={sectionKey}>
+          <h5>{title}</h5>
+          {children}
+        </div>
+      );
+    }
+
+    const isOpen = Boolean(openDaySections[sectionKey] || isEditingDaySection(sectionKey));
+    return (
+      <div
+        className={`${sectionClass} trend-day-accordion ${isOpen ? 'open' : ''}`}
+        key={sectionKey}
+      >
+        <button
+          type="button"
+          className="trend-day-accordion-head"
+          onClick={() => toggleDaySection(sectionKey)}
+          aria-expanded={isOpen}
+        >
+          <span>{title}</span>
+          <small>{summary || 'boş'}</small>
+          <strong>{isOpen ? 'Kapat' : 'Aç'}</strong>
+        </button>
+        {isOpen && (
+          <div className="trend-day-accordion-body">
+            {children}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const formatMacroSummary = (d) => {
+    if (!d) return 'boş';
+    const parts = [];
+    if (d.calories) parts.push(`${Math.round(d.calories)} kcal`);
+    if (d.protein) parts.push(`P${Math.round(d.protein)}`);
+    if (d.carbs) parts.push(`K${Math.round(d.carbs)}`);
+    if (d.fats) parts.push(`Y${Math.round(d.fats)}`);
+    return parts.join(' · ') || 'boş';
+  };
+
+  const renderExportActions = (placement = '') => (
+    <div className={`trend-actions ${placement ? `trend-actions-${placement}` : ''}`.trim()}>
+      <button onClick={handleCopyExport}>📋 Dışa Aktar (Kopyala)</button>
+      <button onClick={handleExcelExport}>📊 Excel Export</button>
+      <button onClick={handleChatGptFullExport}>🧠 ChatGPT Analiz Dosyası</button>
+      <button onClick={handleGeminiComment} disabled={isCommenting}>
+        {isCommenting ? '🤖 Yorumlanıyor...' : '🤖 Gemini ile Yorumla'}
+      </button>
+    </div>
+  );
+
   if (!user) {
     return <div className="trend-view"><p>Trendleri görmek için giriş yapmanız gerekiyor.</p></div>;
   }
 
   return (
-    <div className="trend-view">
+    <div className={`trend-view ${embedded ? 'trend-view-embedded' : ''}`}>
+      {!embedded && (
       <div className="trend-header">
         <h3>📈 Trend & Özet</h3>
         <div className="trend-range-buttons">
-          {Object.keys(RANGE_DAYS).map((key) => (
+          {Object.keys(RANGE_LABELS).map((key) => (
             <button
               key={key}
-              className={rangeKey === key ? 'active' : ''}
+              className={effectiveRangeKey === key ? 'active' : ''}
               onClick={() => setRangeKey(key)}
             >
-              {key === 'day' ? 'Gün' : key === 'week' ? 'Hafta' : 'Ay'}
+              {RANGE_LABELS[key]}
             </button>
           ))}
         </div>
       </div>
+      )}
+
+      {effectiveRangeKey === 'custom' && (
+        <div className="trend-custom-range">
+          <label>
+            Başlangıç
+            <input
+              type="date"
+              value={customRange.start}
+              max={customRange.end || todayKey()}
+              onChange={(e) => e.target.value && setCustomRange({ ...customRange, start: e.target.value })}
+            />
+          </label>
+          <label>
+            Bitiş
+            <input
+              type="date"
+              value={customRange.end}
+              min={customRange.start}
+              max={todayKey()}
+              onChange={(e) => e.target.value && setCustomRange({ ...customRange, end: e.target.value })}
+            />
+          </label>
+          <div className="trend-custom-presets">
+            {[7, 14, 30, 90].map((days) => (
+              <button
+                key={days}
+                type="button"
+                onClick={() => setCustomRange({ start: shiftKey(todayKey(), -(days - 1)), end: todayKey() })}
+              >
+                Son {days} gün
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="trend-date-nav">
         <button onClick={() => shiftAnchor(-1)}>◀</button>
-        <span>{formatShort(dates[0])} - {formatShort(dates[dates.length - 1])}</span>
-        <button onClick={() => shiftAnchor(1)} disabled={anchorDate === new Date().toISOString().split('T')[0]}>▶</button>
+        <span>
+          {formatShort(dates[0])} - {formatShort(dates[dates.length - 1])}
+          <small>{dates.length} gün</small>
+        </span>
+        <button
+          onClick={() => shiftAnchor(1)}
+          disabled={effectiveRangeKey === 'custom' ? customRange.end === todayKey() : anchorDate === todayKey()}
+        >▶</button>
       </div>
 
-      <GeminiQuotaBadge retryStatus={retryStatus} />
+      {customTooLong && (
+        <div className="trend-range-warning">
+          Seçilen aralık {MAX_CUSTOM_DAYS} günden uzun; ilk {MAX_CUSTOM_DAYS} gün gösteriliyor.
+        </div>
+      )}
+
+      {!embedded && <GeminiQuotaBadge retryStatus={retryStatus} />}
+
+      {!embedded && renderExportActions('top')}
 
       {loading ? (
         <p>Yükleniyor...</p>
       ) : (
         <>
-          <div className="trend-summary-cards">
+          {!embedded && effectiveRangeKey !== 'day' && <section className="trend-status-panel">
+            <div className="trend-status-main">
+              <span className="trend-status-eyebrow">Genel Durum</span>
+              <strong>{progressSignal}</strong>
+              <p>{dates.length} günün {meaningfulDays.length} gününde kayıt var · veri doluluğu %{dataCoverage}</p>
+              {trendEvidenceItems.length > 0 && (
+                <div className="trend-evidence-list">
+                  {trendEvidenceItems.map((item) => <span key={item}>{item}</span>)}
+                </div>
+              )}
+              <div className="trend-action-list">
+                {actionItems.slice(0, 3).map((item) => <span key={item}>{item}</span>)}
+              </div>
+            </div>
+            <div className="trend-status-score">
+              <span>Uyum Skoru</span>
+              <strong>{complianceScore == null ? '-' : `%${complianceScore}`}</strong>
+              <small>Kalori, protein, su ve aktiviteye göre</small>
+            </div>
+            <div className="trend-status-breakdown">
+              <span>Kalori: <strong>{goals ? `${calorieGoalDays}/${Math.max(calorieDays.length, 1)}` : '-'}</strong></span>
+              <span>Protein: <strong>{goals ? `${proteinGoalDays}/${Math.max(macroDays.length, 1)}` : '-'}</strong></span>
+              <span>Su: <strong>{goals ? `${waterGoalDays}/${dates.length}` : '-'}</strong></span>
+              <span>Aktivite: <strong>{activityGoalDays}/{dates.length}</strong></span>
+              <span>Makro Ort.: <strong>P{avgProtein || 0} K{avgCarbs || 0} Y{avgFats || 0}</strong></span>
+              <span>Uyku Ort.: <strong>{avgSleep || '-'}</strong></span>
+              <span>Bel: <strong>{waistChange == null ? '-' : `${waistChange > 0 ? '+' : ''}${waistChange.toFixed(1)} cm`}</strong></span>
+            </div>
+          </section>}
+
+          {!embedded && effectiveRangeKey !== 'day' && (insightItems.length > 0 || bestWorstItems.length > 0) && (
+            <section className="trend-intelligence-grid">
+              {insightItems.length > 0 && (
+                <div className="trend-intelligence-card">
+                  <h4>Vücut Sinyali</h4>
+                  <p className="trend-card-explainer">Gerçek ölçümlerin özeti: kilo trendi, 7 kayıt ortalaması, hedefe kalan kilo ve varsa bel değişimi. Bu kart “vücuttan gelen veri ne söylüyor?” sorusunu cevaplar.</p>
+                  <div className="trend-mini-metrics">
+                    {insightItems.map((item) => (
+                      <span key={item.label} className={item.tone}>
+                        <small>{item.label}</small>
+                        <strong>{item.value}</strong>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {(targetDate || etaDate || planDelta != null || scaleNoiseNote) && (
+                <div className="trend-intelligence-card">
+                  <h4>Hedef Rotası</h4>
+                  <p className="trend-route-help">Bu kart iki şeyi ayırır: hedef tarih çizgisine göre bugün nerede olman gerektiği ve son kilo trendi korunursa tahmini varışın ne olduğu.</p>
+                  <div className={`trend-route-summary ${routeSummary.tone}`}>
+                    <small>Şu anki yorum</small>
+                    <strong>{routeSummary.title}</strong>
+                    <p>{routeSummary.text}</p>
+                    <span>{routeSummary.next}</span>
+                  </div>
+                  <div className="trend-route-card">
+                    <label className="trend-route-date">
+                      <small>Hedef tarih</small>
+                      <input
+                        type="date"
+                        value={targetDate || ''}
+                        min={todayKey()}
+                        max="2035-12-31"
+                        onChange={(e) => handleTargetDateChange(e.target.value)}
+                        disabled={isSavingTargetDate}
+                      />
+                    </label>
+                    <span>
+                      <small>Tahmini varış</small>
+                      <strong>{etaDate ? formatLongDate(etaDate) : movingTowardTarget ? 'Daha fazla kayıt lazım' : 'Trend ters/kararsız'}</strong>
+                    </span>
+                    <span>
+                      <small>Bugün beklenen</small>
+                      <strong>{plannedWeightToday != null ? `${plannedWeightToday.toFixed(1)} kg` : targetDate ? 'Kilo hedefi gerekli' : 'Hedef tarihi gerekli'}</strong>
+                    </span>
+                    <span>
+                      <small>Gerçek fark</small>
+                      <strong>{planDelta == null ? 'Hedef tarihi gerekli' : `${planDelta > 0 ? '+' : ''}${planDelta.toFixed(1)} kg`}</strong>
+                    </span>
+                  </div>
+                  {routeDetails.length > 0 && (
+                    <div className="trend-route-details">
+                      {routeDetails.map((item) => <p key={item}>{item}</p>)}
+                    </div>
+                  )}
+                  {targetDateIssue && <p className="trend-route-warning">{targetDateIssue}</p>}
+                  {scaleNoiseNote && <p className="trend-scale-note">{scaleNoiseNote}</p>}
+                </div>
+              )}
+              {bestWorstItems.length > 0 && (
+                <div className="trend-intelligence-card">
+                  <h4>Aralık İçinden</h4>
+                  <div className="trend-best-worst">
+                    {bestWorstItems.map((item) => (
+                      <span key={item.label}>
+                        <small>{item.label}</small>
+                        <strong>{item.value}</strong>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </section>
+          )}
+
+          {!embedded && effectiveRangeKey !== 'day' && (
+            <section className="trend-calendar-card">
+              <div className="trend-calendar-head">
+                <div>
+                  <h4>İlerleme Takvimi</h4>
+                  <p>Renkler o gün kayıtlı olan kriterlere göre hesaplanır: kalori hedef aralığı, protein min. %80, su hedefi ve aktivite girişi.</p>
+                </div>
+                <span><i className="good" /> iyi <i className="ok" /> orta <i className="low" /> zayıf <i className="empty" /> boş</span>
+              </div>
+              <div className="trend-quality-calendar">
+                {progressCalendarDays.map((day) => (
+                  <span key={day.date} className={day.quality} title={`${formatShort(day.date)} · ${day.scoreText} · ${day.detail}`}>
+                    <strong>{parseDateKey(day.date).getDate()}</strong>
+                    <small>{day.scoreText}</small>
+                  </span>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {!embedded && effectiveRangeKey !== 'day' && <div className="trend-summary-cards">
             <div className="trend-card">
               <span className="trend-card-icon">🔥</span>
               <span className="trend-card-value">{avgCalories}</span>
@@ -782,6 +1974,13 @@ const TrendView = ({ user }) => {
                 <span className="trend-card-label">Ort. Kalori {avgRealDeficit >= 0 ? 'Açığı' : 'Fazlası'}</span>
               </div>
             )}
+            {avgTargetCalorieBalance != null && (
+              <div className="trend-card" title="Günlük kalori hedefi - alınan kalori">
+                <span className="trend-card-icon">🎯</span>
+                <span className="trend-card-value" style={{ color: avgTargetCalorieBalance >= 0 ? '#16a34a' : '#dc2626' }}>{Math.abs(avgTargetCalorieBalance)}</span>
+                <span className="trend-card-label">Ort. Hedefe {avgTargetCalorieBalance >= 0 ? 'Kalan' : 'Üstü'} kcal</span>
+              </div>
+            )}
             {avgRealDeficit == null && calorieDays.length > 0 && (
               <div className="trend-card" title={bmrIssue || 'Kalori açığı için geçerli profil bilgisi gerekir'}>
                 <span className="trend-card-icon">⚠️</span>
@@ -789,71 +1988,68 @@ const TrendView = ({ user }) => {
                 <span className="trend-card-label">Profil Değeri Geçersiz</span>
               </div>
             )}
-            {avgBurned != null && (
-              <div className="trend-card">
-                <span className="trend-card-icon">🔥</span>
-                <span className="trend-card-value">{avgBurned}</span>
-                <span className="trend-card-label">Ort. Harcama (BMR+aktif)</span>
-              </div>
-            )}
             <div className="trend-card">
               <span className="trend-card-icon">💧</span>
               <span className="trend-card-value">{avgWater}</span>
               <span className="trend-card-label">Ort. Su (ml)</span>
             </div>
-            <div className="trend-card">
-              <span className="trend-card-icon">😴</span>
-              <span className="trend-card-value">{avgSleep || '-'}</span>
-              <span className="trend-card-label">Ort. Uyku (saat)</span>
+            <div className="trend-card" title={goals ? `Hedef: ${goals.protein}g` : undefined}>
+              <span className="trend-card-icon">🥩</span>
+              <span className="trend-card-value">{avgProtein || '-'}</span>
+              <span className="trend-card-label">Ort. Protein (g)</span>
             </div>
             <div className="trend-card">
               <span className="trend-card-icon">👟</span>
-              <span className="trend-card-value">{avgSteps || '-'}</span>
-              <span className="trend-card-label">Ort. Adım</span>
+              <span className="trend-card-value">{avgSteps || avgWorkoutMin || '-'}</span>
+              <span className="trend-card-label">{avgSteps ? 'Ort. Adım' : 'Ort. Aktivite (dk)'}</span>
             </div>
-            <div className="trend-card">
-              <span className="trend-card-icon">🏋️</span>
-              <span className="trend-card-value">{avgWorkoutMin || '-'}</span>
-              <span className="trend-card-label">Ort. Aktivite (dk)</span>
-            </div>
-            <div className="trend-card">
-              <span className="trend-card-icon">⚡</span>
-              <span className="trend-card-value">{avgActiveCal || '-'}</span>
-              <span className="trend-card-label">Ort. Aktif Kalori</span>
-            </div>
-          </div>
+          </div>}
 
-          {rangeKey !== 'day' && (
+          {!embedded && effectiveRangeKey !== 'day' && (
             <div className="trend-chart">
+              <div className="trend-chart-tabs">
+                {chartTabs.map((tab) => (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    className={chartTab === tab.key ? 'active' : ''}
+                    onClick={() => setChartTab(tab.key)}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
               <div className="trend-legend">
-                <span className="trend-legend-item"><i className="lg-dot lg-cal" />🔥 Kalori</span>
-                <span className="trend-legend-item"><i className="lg-dot lg-water" />💧 Su</span>
-                <span className="trend-legend-item"><i className="lg-dot lg-sleep" />😴 Uyku</span>
+                {activeSeries.map((series) => (
+                  <span key={series.key} className="trend-legend-item"><i className={`lg-dot ${series.dot}`} />{series.label}</span>
+                ))}
               </div>
               <div className="trend-bars">
                 {dailyTotals.map((d) => (
                   <div key={d.date} className="trend-bar-day">
                     <div className="trend-bar-group">
-                      <div className="trend-bar-track" title={`🔥 ${Math.round(d.calories)} kcal`}>
-                        <div className="trend-bar-fill calories" style={{ height: `${(d.calories / maxCalories) * 100}%` }} />
-                      </div>
-                      <div className="trend-bar-track water-track" title={`💧 ${Math.round(d.water)} ml`}>
-                        <div className="trend-bar-fill water" style={{ height: `${(d.water / maxWater) * 100}%` }} />
-                      </div>
-                      <div className="trend-bar-track sleep-track" title={`😴 ${d.sleepHours || 0} saat`}>
-                        <div className="trend-bar-fill sleep" style={{ height: `${((d.sleepHours || 0) / maxSleep) * 100}%` }} />
-                      </div>
+                      {activeSeries.map((series) => {
+                        const value = series.value(d);
+                        return (
+                          <div key={series.key} className="trend-bar-track" title={`${series.label}: ${Math.round(value)} ${series.unit}`}>
+                            <div className={`trend-bar-fill ${series.fill}`} style={{ height: `${Math.min((value / series.max) * 100, 100)}%` }} />
+                          </div>
+                        );
+                      })}
                     </div>
-                    <span className="trend-bar-value">{d.calories ? Math.round(d.calories) : '–'}</span>
+                    <span className="trend-bar-value">
+                      {chartValueLabel(d)}
+                      {chartTab === 'nutrition' && (d.protein || d.carbs || d.fats) ? <small>P{Math.round(d.protein)} K{Math.round(d.carbs)} Y{Math.round(d.fats)}</small> : null}
+                    </span>
                     <span className="trend-bar-label">{formatShort(d.date)}</span>
                   </div>
                 ))}
               </div>
-              <p className="trend-chart-hint">Çubukların üstüne gelince tam değer görünür · alttaki sayı o günün kalorisi</p>
+              <p className="trend-chart-hint">Çubukların üstüne gelince tam değer görünür · sekmeler grafiği sade tutar</p>
             </div>
           )}
 
-          {rangeKey === 'day' && (
+          {effectiveRangeKey === 'day' && (
             <div className="trend-day-detail">
               {/* Tarih */}
               <div className="trend-day-section trend-day-date">
@@ -864,13 +2060,11 @@ const TrendView = ({ user }) => {
               </div>
 
               {/* Hedefler - SABİT, elle belirlenir ve düzenlenebilir */}
-              <div className="trend-day-section trend-day-goals">
-                <h5>
-                  🎯 Hedefler
-                  {editingSection !== 'goals' && (
-                    <button className="trend-goals-edit" onClick={startEditGoals} title="Hedefleri düzenle">✏️</button>
-                  )}
-                </h5>
+              {renderDaySection('goals', '🎯 Hedefler', goals ? `${goals.calories} kcal · P${goals.protein}` : 'hedef yok', (
+                <>
+                {editingSection !== 'goals' && (
+                  <button className="trend-goals-edit trend-goals-edit-inline" onClick={startEditGoals} title="Hedefleri düzenle">✏️ Hedefleri düzenle</button>
+                )}
                 {editingSection === 'goals' ? (
                   <div className="trend-edit-form">
                     <div className="trend-edit-grid">
@@ -896,14 +2090,16 @@ const TrendView = ({ user }) => {
                 ) : (
                   <button className="trend-add-btn" onClick={startEditGoals}>➕ Hedef Belirle</button>
                 )}
-              </div>
+                </>
+              ), 'trend-day-goals')}
 
               {/* Öğün kategorileri - her birinde ekle/düzenle/sil */}
               {MEAL_CATEGORIES.map((cat) => {
                 const catMeals = dailyTotals[0].meals.filter((m) => classifyMeal(m) === cat.key);
-                return (
-                  <div className="trend-day-section" key={cat.key}>
-                    <h5>{cat.title}</h5>
+                const mealCalories = catMeals.reduce((sum, meal) => sum + (Number(meal.calories) || 0), 0);
+                const mealSummary = catMeals.length ? `${catMeals.length} kayıt · ${Math.round(mealCalories)} kcal` : 'boş';
+                return renderDaySection(`meal-${cat.key}`, cat.title, mealSummary, (
+                  <>
                     {catMeals.map((m) => (
                       editingSection === `meal-${m.id}` ? (
                         <React.Fragment key={m.id}>{renderMealForm(m.id)}</React.Fragment>
@@ -927,13 +2123,13 @@ const TrendView = ({ user }) => {
                     ) : (
                       <button className="trend-add-btn" onClick={() => startAddMeal(cat)}>➕ Ekle</button>
                     )}
-                  </div>
-                );
+                  </>
+                ));
               })}
 
               {/* Su - toplam düzenlenebilir, hedef ve tamamlanma otomatik */}
-              <div className="trend-day-section">
-                <h5>💧 Su</h5>
+              {renderDaySection('water', '💧 Su', dailyTotals[0].water > 0 ? `${dailyTotals[0].water} ml · hedef ${waterGoal}` : 'boş', (
+                <>
                 {editingSection === 'water' ? (
                   <div className="trend-edit-form">
                     <input
@@ -960,11 +2156,12 @@ const TrendView = ({ user }) => {
                 ) : (
                   <button className="trend-add-btn" onClick={startEditWater}>➕ Su Ekle</button>
                 )}
-              </div>
+                </>
+              ))}
 
               {/* Uyku */}
-              <div className="trend-day-section">
-                <h5>😴 Uyku</h5>
+              {renderDaySection('sleep', '😴 Uyku', dailyTotals[0].sleepHours ? `${dailyTotals[0].sleepHours} saat${dailyTotals[0].sleepScore ? ` · skor ${dailyTotals[0].sleepScore}` : ''}` : 'boş', (
+                <>
                 {editingSection === 'sleep' ? (
                   <div className="trend-edit-form">
                     <div className="trend-edit-grid">
@@ -995,11 +2192,12 @@ const TrendView = ({ user }) => {
                 ) : (
                   <button className="trend-add-btn" onClick={startEditSleep}>➕ Uyku Ekle</button>
                 )}
-              </div>
+                </>
+              ))}
 
               {/* Aktivite - Apple Watch varsa o esas alınır; eski workout alanları sadece yedek veridir. */}
-              <div className="trend-day-section">
-                <h5>⌚ Aktivite</h5>
+              {renderDaySection('activity', '⌚ Aktivite', activitySummary(activityTotals(dailyTotals[0])) || 'boş', (
+                <>
                 {editingSection === 'vitals' ? (
                   <div className="trend-edit-form">
                     <div className="trend-edit-grid">
@@ -1030,11 +2228,12 @@ const TrendView = ({ user }) => {
                 })() || (
                   <button className="trend-add-btn" onClick={startEditVitals}>➕ Aktivite Verisi Ekle</button>
                 )}
-              </div>
+                </>
+              ))}
 
               {/* Takviyeler */}
-              <div className="trend-day-section">
-                <h5>💊 Takviyeler</h5>
+              {renderDaySection('supplements', '💊 Takviyeler', dailyTotals[0].supplements.length ? `${dailyTotals[0].supplements.length} kayıt` : 'boş', (
+                <>
                 <div className="trend-quick-chips">
                   {QUICK_SUPPLEMENTS.map((quick) => {
                     const alreadyTaken = dailyTotals[0].supplements.some(
@@ -1085,13 +2284,17 @@ const TrendView = ({ user }) => {
                 ) : (
                   <button className="trend-add-btn" onClick={startAddSupplement}>➕ Takviye Ekle</button>
                 )}
-              </div>
+                </>
+              ))}
 
               {/* Günlük Toplam - öğünlerden otomatik hesaplanır */}
-              <div className="trend-day-section trend-day-totals">
-                <h5>📊 Günlük Toplam (otomatik)</h5>
+              {renderDaySection('totals', '📊 Günlük Toplam (otomatik)', formatMacroSummary(dailyTotals[0]), (
+                <>
                 <div className="trend-goals-grid">
                   <span>Kalori: <strong>{Math.round(dailyTotals[0].calories)} kcal</strong>{goals ? ` / ${goals.calories}` : ''}</span>
+                  {todayTargetCalorieBalance != null && (
+                    <span>Hedefe göre: <strong>{Math.abs(todayTargetCalorieBalance)} kcal {todayTargetCalorieBalance >= 0 ? 'kalan' : 'üstü'}</strong></span>
+                  )}
                   <span>Protein: <strong>{Math.round(dailyTotals[0].protein)}g</strong>{goals ? ` / ${goals.protein}g` : ''}</span>
                   <span>Karbonhidrat: <strong>{Math.round(dailyTotals[0].carbs)}g</strong>{goals ? ` / ${goals.carbs}g` : ''}</span>
                   <span>Yağ: <strong>{Math.round(dailyTotals[0].fats)}g</strong>{goals ? ` / ${goals.fats}g` : ''}</span>
@@ -1119,9 +2322,11 @@ const TrendView = ({ user }) => {
                     ⚠️ Kalori açığı hesaplanamadı: <strong>{bmrIssue || 'profil değerleri geçersiz.'}</strong>
                   </div>
                 )}
-              </div>
+                </>
+              ), 'trend-day-totals')}
 
-              <div className="trend-note-editor">
+              {renderDaySection('note', '📝 Not', noteDraft?.trim() ? 'not var' : 'boş', (
+                <div className="trend-note-editor">
                 <label>📝 Not (ChatGPT analizini buraya yapıştırabilirsin)</label>
                 <textarea
                   value={noteDraft}
@@ -1132,16 +2337,12 @@ const TrendView = ({ user }) => {
                 <button onClick={handleSaveNote} disabled={isSavingNote}>
                   {isSavingNote ? 'Kaydediliyor...' : 'Notu Kaydet'}
                 </button>
-              </div>
+                </div>
+              ))}
             </div>
           )}
 
-          <div className="trend-actions">
-            <button onClick={handleCopyExport}>📋 Dışa Aktar (Kopyala)</button>
-            <button onClick={handleGeminiComment} disabled={isCommenting}>
-              {isCommenting ? '🤖 Yorumlanıyor...' : '🤖 Gemini ile Yorumla'}
-            </button>
-          </div>
+          {renderExportActions('bottom')}
 
           {geminiComment && (
             <div className="trend-gemini-comment">

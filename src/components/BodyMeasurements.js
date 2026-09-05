@@ -4,7 +4,7 @@ import { getBodyMeasurements, saveBodyMeasurements } from '../firebase/dataServi
 
 /**
  * BodyMeasurements - Vücut ölçüleri takibi
- * - Kol, bacak, göğüs, bel, kalça, boyun, omuz ölçüleri
+ * - Göğüs, bel, kalça, kol, baldır ve omuz ölçüleri
  * - Grafik ile trend gösterimi
  * - Ölçü karşılaştırma
  * - Firestore (giriş yapılınca) + localStorage (offline yedek) ile kalıcı veri
@@ -14,6 +14,7 @@ const BodyMeasurements = ({ user }) => {
   const [measurements, setMeasurements] = useState([]);
   const isLoadedRef = useRef(false);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [notes, setNotes] = useState('');
 
@@ -24,13 +25,9 @@ const BodyMeasurements = ({ user }) => {
     { key: 'hips', label: '🍑 Kalça', icon: '🍑', unit: 'cm' },
     { key: 'rightArm', label: '💪 Sağ Kol', icon: '💪', unit: 'cm' },
     { key: 'leftArm', label: '💪 Sol Kol', icon: '💪', unit: 'cm' },
-    { key: 'rightThigh', label: '🦵 Sağ Uyluk', icon: '🦵', unit: 'cm' },
-    { key: 'leftThigh', label: '🦵 Sol Uyluk', icon: '🦵', unit: 'cm' },
     { key: 'rightCalf', label: '🦵 Sağ Baldır', icon: '🦵', unit: 'cm' },
     { key: 'leftCalf', label: '🦵 Sol Baldır', icon: '🦵', unit: 'cm' },
-    { key: 'neck', label: '👔 Boyun', icon: '👔', unit: 'cm' },
-    { key: 'shoulders', label: '💪 Omuz', icon: '💪', unit: 'cm' },
-    { key: 'forearm', label: '💪 Ön Kol', icon: '💪', unit: 'cm' }
+    { key: 'shoulders', label: '💪 Omuz', icon: '💪', unit: 'cm' }
   ];
 
   const [formData, setFormData] = useState(
@@ -169,8 +166,8 @@ const BodyMeasurements = ({ user }) => {
     });
   };
 
-  // İstatistik kartları için ana ölçümler
-  const mainMeasurements = ['chest', 'waist', 'hips', 'rightArm'];
+  // İstatistik kartları için görünür tüm ölçümler
+  const mainMeasurements = measurementFields.map((field) => field.key);
 
   return (
     <div className="body-measurements">
@@ -266,7 +263,14 @@ const BodyMeasurements = ({ user }) => {
 
       {/* Ölçüm geçmişi */}
       <div className="measurements-history">
-        <h3>Ölçüm Geçmişi ({measurements.length})</h3>
+        <div className="measurements-history-header">
+          <h3>Ölçüm Geçmişi ({measurements.length})</h3>
+          {measurements.length > 0 && (
+            <button className="btn-toggle-measurements-history" onClick={() => setShowHistory((value) => !value)}>
+              {showHistory ? 'Geçmişi Gizle' : 'Geçmişi Göster'}
+            </button>
+          )}
+        </div>
 
         {measurements.length === 0 ? (
           <div className="body-measurements-empty-state">
@@ -274,7 +278,7 @@ const BodyMeasurements = ({ user }) => {
             <p>Henüz ölçüm kaydı yok</p>
             <p className="empty-hint">Vücut ölçülerinizi takip etmeye başlayın</p>
           </div>
-        ) : (
+        ) : showHistory ? (
           <div className="measurements-list">
             {measurements.map((measurement) => (
               <div key={measurement.id} className="measurement-card">
@@ -310,51 +314,13 @@ const BodyMeasurements = ({ user }) => {
               </div>
             ))}
           </div>
+        ) : (
+          <div className="body-measurements-empty-state compact">
+            <p>Son ölçüm: {formatDate(measurements[0].date)}</p>
+            <p className="empty-hint">Tüm ölçümleri görmek için Geçmişi Göster’e bas.</p>
+          </div>
         )}
       </div>
-
-      {/* Karşılaştırma bölümü */}
-      {measurements.length >= 2 && (
-        <div className="comparison-section">
-          <h3>📊 İlerleme Karşılaştırması</h3>
-          <p className="comparison-subtitle">
-            İlk ölçüm: {formatDate(measurements[measurements.length - 1].date)} →
-            Son ölçüm: {formatDate(measurements[0].date)}
-          </p>
-
-          <div className="comparison-grid">
-            {measurementFields.map((field) => {
-              const comparison = getComparison(field.key);
-              if (!comparison) return null;
-
-              return (
-                <div key={field.key} className="comparison-card">
-                  <div className="comparison-header">
-                    <span className="comparison-icon">{field.icon}</span>
-                    <span className="comparison-label">{field.label.split(' ')[1]}</span>
-                  </div>
-                  <div className="comparison-values">
-                    <div className="comparison-value-item">
-                      <span className="comparison-value-label">Başlangıç</span>
-                      <span className="comparison-value">{comparison.first.toFixed(1)} cm</span>
-                    </div>
-                    <div className="comparison-arrow">→</div>
-                    <div className="comparison-value-item">
-                      <span className="comparison-value-label">Şimdi</span>
-                      <span className="comparison-value">{comparison.last.toFixed(1)} cm</span>
-                    </div>
-                  </div>
-                  <div className={`comparison-diff ${comparison.diff > 0 ? 'positive' : comparison.diff < 0 ? 'negative' : 'neutral'}`}>
-                    {comparison.diff > 0 ? '↑' : comparison.diff < 0 ? '↓' : '→'}
-                    {Math.abs(comparison.diff).toFixed(1)} cm
-                    ({comparison.diff > 0 ? '+' : ''}{comparison.percent}%)
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
 
       {/* İpuçları */}
       {measurements.length === 0 && (

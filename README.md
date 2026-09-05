@@ -1,70 +1,64 @@
-# Getting Started with Create React App
+# 30 Gün Fit
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+Kişisel sağlık ve fitness takip uygulaması. React/Vite frontend, Firebase Auth/Firestore/Hosting ve Gemini API entegrasyonu kullanır.
 
-## Available Scripts
+## Özellikler
 
-In the project directory, you can run:
+- Öğün, kalori, makro ve mikro besin takibi
+- Open Food Facts ürün/barkod arama
+- Öğün şablonları ve sık kullanılan öğünler
+- AI fotoğraf/metin analizi
+- Su, uyku, kilo, vücut ölçüsü, vücut kompozisyonu ve ilerleme fotoğrafları
+- Antrenman kaydı, trend ekranı ve haftalık/aylık raporlar
+- PWA/service worker desteği
 
-### `npm start`
+## Geliştirme
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+```bash
+npm install
+npm start
+```
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+Yerel uygulama varsayılan olarak `http://localhost:3000` adresinde açılır.
 
-### `npm test`
+## Ortam Değişkenleri
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+Ücretsiz Firebase Spark planında Functions kullanmıyoruz. Gemini anahtarı Vite build sırasında frontend'e eklenir; bu yüzden anahtarı Git'e koymayın ve Google AI Studio'da HTTP referrer kısıtı ekleyin.
 
-### `npm run build`
+```bash
+cp .env.example .env
+```
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+`.env` içine:
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+```bash
+VITE_GEMINI_API_KEY=...
+```
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+Önerilen API key kısıtları:
 
-### `npm run eject`
+- `https://gunfit-c0243.web.app/*`
+- `http://localhost:3000/*`
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+## Test ve Build
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+```bash
+npm test -- --watchAll=false
+npm run build
+```
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+Vite build çıktısı Firebase Hosting ile uyumlu olacak şekilde `build/` klasörüne yazılır.
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+Deploy:
 
-## Learn More
+```bash
+firebase deploy --only firestore:rules,hosting
+```
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+Önemli: Daha önce frontend bundle içinde görünen Gemini anahtarı rotate edilmelidir. Yeni anahtar yalnızca `.env` içinde tutulmalı ve referrer kısıtlı olmalıdır.
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+## Veri Güvenliği
 
-### Code Splitting
+Uygulamaya Google hesabıyla giriş yapılabilir. Firestore kuralları her kullanıcının yalnızca kendi `uid` kapsamındaki verilerini okuyup yazmasına izin verir.
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
-
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+`.env` dosyaları Git'e eklenmemelidir.

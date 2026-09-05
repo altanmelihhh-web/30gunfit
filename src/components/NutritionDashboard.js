@@ -1,17 +1,18 @@
-import React, { useState, useEffect } from 'react';
-import NutritionCalculator from './NutritionCalculator';
-import FoodPhotoAnalyzer from './FoodPhotoAnalyzer';
-import CalorieTracker from './CalorieTracker';
-import WaterTracker from './WaterTracker';
-import ShoppingList from './ShoppingList';
-import TrendView from './TrendView';
-import DailyLogForm from './DailyLogForm';
-import ManualQuickEntry from './ManualQuickEntry';
-import MealPhotoGallery from './MealPhotoGallery';
+import React, { Suspense, lazy, useState, useEffect } from 'react';
 import GoalsCard, { DEFAULT_GOALS } from './GoalsCard';
 import { addMeal } from '../firebase/mealsService';
 import { getNutritionGoals, saveNutritionGoals } from '../firebase/dataService';
+import { getScopedJson, setScopedJson } from '../utils/userScopedStorage';
 import './NutritionDashboard.css';
+
+const NutritionCalculator = lazy(() => import('./NutritionCalculator'));
+const FoodPhotoAnalyzer = lazy(() => import('./FoodPhotoAnalyzer'));
+const CalorieTracker = lazy(() => import('./CalorieTracker'));
+const WaterTracker = lazy(() => import('./WaterTracker'));
+const ShoppingList = lazy(() => import('./ShoppingList'));
+const TrendView = lazy(() => import('./TrendView'));
+const ManualQuickEntry = lazy(() => import('./ManualQuickEntry'));
+const MealPhotoGallery = lazy(() => import('./MealPhotoGallery'));
 
 // Beslenme merkezindeki tüm sekmeler (kaydırmalı olarak hepsi görünür)
 const NUTRITION_TABS = [
@@ -19,7 +20,6 @@ const NUTRITION_TABS = [
   { key: 'quick-entry', icon: '⌨️', label: 'Toplu Giriş' },
   { key: 'ai-analyzer', icon: '🤖', label: 'AI Foto' },
   { key: 'water', icon: '💧', label: 'Su' },
-  { key: 'trends', icon: '📈', label: 'Trend' },
   { key: 'tools', icon: '🧰', label: 'Araçlar' }
 ];
 
@@ -39,12 +39,13 @@ const NutritionDashboard = ({ userProfile, user, driveAccessToken, onRequestDriv
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [trackerRefreshKey, setTrackerRefreshKey] = useState(0);
+  const [dailyFormRefreshKey, setDailyFormRefreshKey] = useState(0);
   const [showDailyForm, setShowDailyForm] = useState(true);
 
   // Hesaplayıcıdan gelen sonuçları kaydet
   const handleNutritionResults = (results) => {
     setNutritionResults(results);
-    localStorage.setItem('nutrition_plan', JSON.stringify(results));
+    setScopedJson('nutrition_plan', user?.uid, results);
   };
 
   const applyCalculatorResultsToGoals = async () => {
@@ -57,7 +58,7 @@ const NutritionDashboard = ({ userProfile, user, driveAccessToken, onRequestDriv
       water: Math.round((nutritionResults.waterIntake || 4) * 1000)
     };
     if (user) await saveNutritionGoals(user.uid, newGoals);
-    localStorage.setItem('nutrition_goals', JSON.stringify(newGoals));
+    setScopedJson('nutrition_goals', user?.uid, newGoals);
     setGoals(newGoals);
     setSuccessMessage('Hesaplayıcı sonucu günlük hedeflerine uygulandı.');
     setShowSuccessMessage(true);
@@ -69,9 +70,9 @@ const NutritionDashboard = ({ userProfile, user, driveAccessToken, onRequestDriv
 
   // localStorage'dan hesaplayıcı planını yükle (opsiyonel)
   useEffect(() => {
-    const savedPlan = localStorage.getItem('nutrition_plan');
-    if (savedPlan) setNutritionResults(JSON.parse(savedPlan));
-  }, []);
+    const savedPlan = user ? getScopedJson('nutrition_plan', user.uid, null) : null;
+    if (savedPlan) setNutritionResults(savedPlan);
+  }, [user]);
 
   // SABİT hedefleri yükle: önce Firestore, yoksa localStorage, yoksa varsayılan
   useEffect(() => {
@@ -80,11 +81,11 @@ const NutritionDashboard = ({ userProfile, user, driveAccessToken, onRequestDriv
       const result = await getNutritionGoals(user.uid);
       if (result.success) {
         setGoals(result.data);
-        localStorage.setItem('nutrition_goals', JSON.stringify(result.data));
+        setScopedJson('nutrition_goals', user.uid, result.data);
         return;
       }
-      const saved = localStorage.getItem('nutrition_goals');
-      setGoals(saved ? JSON.parse(saved) : DEFAULT_GOALS);
+      const saved = getScopedJson('nutrition_goals', user.uid, null);
+      setGoals(saved || DEFAULT_GOALS);
     })();
   }, [user]);
 
@@ -107,18 +108,16 @@ const NutritionDashboard = ({ userProfile, user, driveAccessToken, onRequestDriv
       carbs: foodData.carbs,
       fats: foodData.fats,
       portion: foodData.portion_size,
-      mealType: 'snack',
+      mealType: foodData.mealType || 'snack',
       source: 'AI Analiz'
     });
 
     setShowSuccessMessage(true);
-    setSuccessMessage('Yemek başarıyla günlük takibinize eklendi. Bugün sekmesine yönlendiriliyorsunuz.');
-
-    // 2 saniye sonra mesajı gizle ve tracker'a geç
+    setSuccessMessage('Yemek bugünkü takibinize eklendi.');
+    setTrackerRefreshKey(prev => prev + 1);
+    setDailyFormRefreshKey(prev => prev + 1);
     setTimeout(() => {
       setShowSuccessMessage(false);
-      setTrackerRefreshKey(prev => prev + 1); // Force refresh
-      setActiveSection('tracker');
     }, 2000);
   };
 
@@ -154,6 +153,7 @@ const NutritionDashboard = ({ userProfile, user, driveAccessToken, onRequestDriv
       )}
 
       {/* İçerik bölümleri */}
+      <Suspense fallback={<div className="nutrition-lazy-loading">Yükleniyor...</div>}>
       <div className="dashboard-content">
         {activeSection === 'tracker' && (
           <div className="section-content">
@@ -165,6 +165,7 @@ const NutritionDashboard = ({ userProfile, user, driveAccessToken, onRequestDriv
                   targetCalories={targetCalories}
                   targetMacros={targetMacros}
                   user={user}
+                  onDataChange={() => setDailyFormRefreshKey((prev) => prev + 1)}
                 />
               </div>
               <div className="nutrition-today-side">
@@ -177,15 +178,15 @@ const NutritionDashboard = ({ userProfile, user, driveAccessToken, onRequestDriv
                     {showDailyForm ? 'Formu Gizle' : 'Formu Göster'}
                   </button>
                 </div>
-                {showDailyForm && (
-                  <DailyLogForm
+                <div className={`nutrition-daily-form-body ${showDailyForm ? 'open' : ''}`} aria-hidden={!showDailyForm}>
+                  <TrendView
                     user={user}
-                    nutritionResults={{ targetCalories, macros: targetMacros }}
-                    onSaved={() => {
-                      setTrackerRefreshKey((prev) => prev + 1);
-                    }}
+                    initialRangeKey="day"
+                    lockRangeKey="day"
+                    embedded
+                    key={`today-trend-${dailyFormRefreshKey}`}
                   />
-                )}
+                </div>
               </div>
             </div>
           </div>
@@ -205,7 +206,13 @@ const NutritionDashboard = ({ userProfile, user, driveAccessToken, onRequestDriv
 
         {activeSection === 'quick-entry' && (
           <div className="section-content">
-            <ManualQuickEntry user={user} onSaved={() => setTrackerRefreshKey((prev) => prev + 1)} />
+          <ManualQuickEntry
+            user={user}
+            onSaved={() => {
+              setTrackerRefreshKey((prev) => prev + 1);
+              setDailyFormRefreshKey((prev) => prev + 1);
+            }}
+          />
           </div>
         )}
 
@@ -251,19 +258,12 @@ const NutritionDashboard = ({ userProfile, user, driveAccessToken, onRequestDriv
           </div>
         )}
 
-        {activeSection === 'trends' && (
-          <div className="section-content">
-            <TrendView user={user} />
-          </div>
-        )}
-
         {activeSection === 'photo-gallery' && (
           <div className="section-content">
             <button className="tool-back-btn" onClick={() => setActiveSection('tools')}>← Araçlar</button>
             <MealPhotoGallery
               user={user}
               driveAccessToken={driveAccessToken}
-              onRequestDriveAccess={onRequestDriveAccess}
             />
           </div>
         )}
@@ -271,14 +271,17 @@ const NutritionDashboard = ({ userProfile, user, driveAccessToken, onRequestDriv
         {activeSection === 'daily-log-form' && (
           <div className="section-content">
             <button className="tool-back-btn" onClick={() => setActiveSection('tools')}>← Araçlar</button>
-            <DailyLogForm
+            <TrendView
               user={user}
-              nutritionResults={{ targetCalories, macros: targetMacros }}
-              onSaved={() => setTrackerRefreshKey((prev) => prev + 1)}
+              initialRangeKey="day"
+              lockRangeKey="day"
+              embedded
+              key={`advanced-trend-${dailyFormRefreshKey}`}
             />
           </div>
         )}
       </div>
+      </Suspense>
 
     </div>
   );

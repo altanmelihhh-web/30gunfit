@@ -184,8 +184,15 @@ const ManualQuickEntry = ({ user, onSaved }) => {
         <div className="manual-preview">
           <div className="manual-preview-list">
             {parsedItems.map((it, i) => (
-              <div key={i} className="manual-preview-item">
-                <span>{it.preview}</span>
+              <div key={i} className={`manual-preview-item ${it.validation && it.validation.level !== 'ok' ? `has-${it.validation.level}` : ''}`}>
+                <span>
+                  {it.preview}
+                  {it.validation && it.validation.level !== 'ok' && (
+                    <small className={`manual-preview-warning ${it.validation.level}`}>
+                      {it.validation.level === 'error' ? '⛔' : '⚠️'} {it.validation.message}
+                    </small>
+                  )}
+                </span>
                 <button onClick={() => removeItem(i)}>🗑️</button>
               </div>
             ))}

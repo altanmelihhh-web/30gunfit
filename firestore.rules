@@ -2,14 +2,8 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Bu kişisel uygulama sadece bu iki hesaba açık
-    function isAllowedEmail() {
-      return request.auth != null &&
-        request.auth.token.email in ['altanmelihhh@gmail.com', 'emineay12@gmail.com'];
-    }
-
     function isOwner(uid) {
-      return request.auth != null && request.auth.uid == uid && isAllowedEmail();
+      return request.auth != null && request.auth.uid == uid;
     }
 
     // Kullanıcı hesap belgesi
@@ -38,7 +32,7 @@ service cloud.firestore {
       allow read, write: if isOwner(uid);
     }
     match /calorieTracking/{docId} {
-      allow read, write: if request.auth != null && isAllowedEmail() &&
+      allow read, write: if request.auth != null &&
         docId.matches(request.auth.uid + '_.*');
     }
     match /waterTracking/{uid} {
@@ -48,11 +42,11 @@ service cloud.firestore {
       allow read, write: if isOwner(uid);
     }
     match /weightTrackingByEmail/{email} {
-      allow read, write: if request.auth != null && isAllowedEmail() &&
+      allow read, write: if request.auth != null &&
         request.auth.token.email == email;
     }
     match /dailyLogs/{docId} {
-      allow read, write: if request.auth != null && isAllowedEmail() &&
+      allow read, write: if request.auth != null &&
         docId.matches(request.auth.uid + '_.*');
     }
     match /exerciseHistory/{uid} {
@@ -64,10 +58,25 @@ service cloud.firestore {
     match /bodyComposition/{uid} {
       allow read, write: if isOwner(uid);
     }
+    match /scaleMetrics/{uid} {
+      allow read, write: if isOwner(uid);
+    }
     match /progressPhotos/{uid} {
       allow read, write: if isOwner(uid);
     }
     match /nutritionGoals/{uid} {
+      allow read, write: if isOwner(uid);
+    }
+    match /mealTemplates/{uid} {
+      allow read, write: if isOwner(uid);
+    }
+    match /weeklyWorkoutPlans/{uid} {
+      allow read, write: if isOwner(uid);
+    }
+    match /weeklyWorkoutChecklists/{uid} {
+      allow read, write: if isOwner(uid);
+    }
+    match /periodTrackers/{uid} {
       allow read, write: if isOwner(uid);
     }
   }

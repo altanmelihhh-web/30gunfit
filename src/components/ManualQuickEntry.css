@@ -272,3 +272,20 @@
     font-size: 16px;
   }
 }
+
+/* Önizlemede mantık uyarıları */
+.manual-preview-item.has-warning { border-left: 3px solid rgba(245, 158, 11, 0.6); }
+.manual-preview-item.has-error { border-left: 3px solid rgba(239, 68, 68, 0.6); }
+
+.manual-preview-warning {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.manual-preview-warning.warning { color: #b45309; }
+.manual-preview-warning.error { color: #b91c1c; }
+
+[data-theme='dark'] .manual-preview-warning.warning { color: #fbbf24; }
+[data-theme='dark'] .manual-preview-warning.error { color: #fca5a5; }

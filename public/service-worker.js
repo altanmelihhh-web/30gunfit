@@ -1,7 +1,7 @@
 /* eslint-disable no-restricted-globals */
 
 // Cache adını her önemli değişiklikte artır - eskisi activate sırasında otomatik silinir
-const CACHE_NAME = '30gunfit-v3';
+const CACHE_NAME = '30gunfit-v4';
 
 // Sadece adı hiç değişmeyen, stabil dosyalar - hashlenmiş JS/CSS burada YOK,
 // onlar runtime'da kendi kuralıyla (isStaticAsset) cache'leniyor

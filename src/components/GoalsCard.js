@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import './GoalsCard.css';
 import { saveNutritionGoals } from '../firebase/dataService';
+import { setScopedJson } from '../utils/userScopedStorage';
 
 /**
  * GoalsCard - kullanıcının SABİT beslenme/su hedeflerini gösterir ve düzenlemeye izin verir.
@@ -8,11 +9,17 @@ import { saveNutritionGoals } from '../firebase/dataService';
  */
 
 export const DEFAULT_GOALS = { calories: 2400, protein: 180, carbs: 210, fats: 80, water: 4000 };
+const EMINE_EMAIL = 'emineay12@gmail.com';
+const EMINE_GOALS = { calories: 1100, protein: 100, carbs: 80, fats: 35, water: 2850 };
+
+const isSameGoals = (a, b) =>
+  !!a && ['calories', 'protein', 'carbs', 'fats', 'water'].every((key) => parseInt(a[key], 10) === b[key]);
 
 const GoalsCard = ({ user, goals, onSave }) => {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState(goals || DEFAULT_GOALS);
   const [isSaving, setIsSaving] = useState(false);
+  const isEmine = (user?.email || '').toLowerCase() === EMINE_EMAIL;
 
   const startEdit = () => {
     setForm(goals || DEFAULT_GOALS);
@@ -30,7 +37,7 @@ const GoalsCard = ({ user, goals, onSave }) => {
         water: parseInt(form.water, 10) || 0
       };
       if (user) await saveNutritionGoals(user.uid, newGoals);
-      localStorage.setItem('nutrition_goals', JSON.stringify(newGoals));
+      setScopedJson('nutrition_goals', user?.uid, newGoals);
       if (onSave) onSave(newGoals);
       setEditing(false);
     } finally {
@@ -38,7 +45,20 @@ const GoalsCard = ({ user, goals, onSave }) => {
     }
   };
 
+  const handleApplyEmineGoals = async () => {
+    setIsSaving(true);
+    try {
+      if (user) await saveNutritionGoals(user.uid, EMINE_GOALS);
+      setScopedJson('nutrition_goals', user?.uid, EMINE_GOALS);
+      setForm(EMINE_GOALS);
+      if (onSave) onSave(EMINE_GOALS);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const g = goals || DEFAULT_GOALS;
+  const emineGoalsActive = isSameGoals(g, EMINE_GOALS);
 
   return (
     <div className="goals-card">
@@ -66,13 +86,27 @@ const GoalsCard = ({ user, goals, onSave }) => {
           </div>
         </div>
       ) : (
-        <div className="goals-grid">
-          <div className="goals-item"><span>🔥</span><strong>{g.calories}</strong><small>kcal</small></div>
-          <div className="goals-item"><span>🥩</span><strong>{g.protein}g</strong><small>protein</small></div>
-          <div className="goals-item"><span>🍞</span><strong>{g.carbs}g</strong><small>karb.</small></div>
-          <div className="goals-item"><span>🥑</span><strong>{g.fats}g</strong><small>yağ</small></div>
-          <div className="goals-item"><span>💧</span><strong>{g.water}</strong><small>ml su</small></div>
-        </div>
+        <>
+          <div className="goals-grid">
+            <div className="goals-item"><span>🔥</span><strong>{g.calories}</strong><small>kcal</small></div>
+            <div className="goals-item"><span>🥩</span><strong>{g.protein}g</strong><small>protein</small></div>
+            <div className="goals-item"><span>🍞</span><strong>{g.carbs}g</strong><small>karb.</small></div>
+            <div className="goals-item"><span>🥑</span><strong>{g.fats}g</strong><small>yağ</small></div>
+            <div className="goals-item"><span>💧</span><strong>{g.water}</strong><small>ml su</small></div>
+          </div>
+
+          {isEmine && (
+            <div className="emine-goal-plan">
+              <div>
+                <strong>Emine 1 Ocak 2027 Ana Planı</strong>
+                <span>29 yaş · 154 cm · 63 kg başlangıç · 50 kg hedef · 2 Reformer + 2-3 yürüyüş</span>
+              </div>
+              <button onClick={handleApplyEmineGoals} disabled={isSaving || emineGoalsActive}>
+                {emineGoalsActive ? 'Aktif' : 'Hedefleri Uygula'}
+              </button>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

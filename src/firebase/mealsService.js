@@ -1,3 +1,5 @@
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { db } from './config';
 import { getDailyCalories, saveDailyCalories, getCalorieTrackingRange } from './dataService';
 
 /**
@@ -24,7 +26,31 @@ const normalizeMeal = (mealData) => ({
   portion: mealData.portion || mealData.portion_size || '',
   mealType: mealData.mealType || mealData.meal_type || 'snack',
   mealLabel: mealData.mealLabel || mealData.meal_label || '',
-  source: mealData.source || null
+  source: mealData.source || null,
+  sourceDetails: mealData.sourceDetails || null,
+  micronutrients: mealData.micronutrients || null,
+  items: Array.isArray(mealData.items) ? mealData.items : null,
+  photoDataUrl: mealData.photoDataUrl || null,
+  photoMeta: mealData.photoMeta || null,
+  photoDriveId: mealData.photoDriveId || null
+});
+
+const normalizeTemplate = (templateData) => ({
+  id: templateData.id ?? genId(),
+  createdAt: templateData.createdAt ?? new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+  name: templateData.name || templateData.food_name || 'Öğün Şablonu',
+  calories: parseFloat(templateData.calories) || 0,
+  protein: parseFloat(templateData.protein) || 0,
+  carbs: parseFloat(templateData.carbs) || 0,
+  fats: parseFloat(templateData.fats) || 0,
+  portion: templateData.portion || templateData.portion_size || '',
+  mealType: templateData.mealType || templateData.meal_type || 'snack',
+  mealLabel: templateData.mealLabel || templateData.meal_label || '',
+  source: templateData.source || 'Şablon',
+  sourceDetails: templateData.sourceDetails || null,
+  micronutrients: templateData.micronutrients || null,
+  items: Array.isArray(templateData.items) ? templateData.items : null
 });
 
 const readLocalMeals = (date) => {
@@ -66,6 +92,58 @@ export const addMeal = async (userId, date, mealData) => {
   await persist(userId, date, updatedMeals);
   return { meal: newMeal, meals: updatedMeals };
 };
+
+export const getMealTemplates = async (userId) => {
+  if (!userId) {
+    const templates = JSON.parse(localStorage.getItem('meal_templates') || '[]');
+    return templates.map(normalizeTemplate).sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+  }
+  const snap = await getDoc(doc(db, 'mealTemplates', userId));
+  const templates = snap.exists() ? (snap.data().templates || []) : [];
+  localStorage.setItem('meal_templates', JSON.stringify(templates));
+  return templates.map(normalizeTemplate).sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+};
+
+const saveMealTemplates = async (userId, templates) => {
+  localStorage.setItem('meal_templates', JSON.stringify(templates));
+  if (userId) {
+    await setDoc(doc(db, 'mealTemplates', userId), {
+      templates,
+      updatedAt: new Date().toISOString()
+    }, { merge: true });
+  }
+};
+
+export const saveMealTemplate = async (userId, templateData) => {
+  const template = normalizeTemplate(templateData);
+  const current = await getMealTemplates(userId);
+  const withoutSameId = current.filter((t) => t.id !== template.id);
+  const templates = [template, ...withoutSameId].slice(0, 30);
+  await saveMealTemplates(userId, templates);
+  return { template, templates };
+};
+
+export const deleteMealTemplate = async (userId, templateId) => {
+  const current = await getMealTemplates(userId);
+  const templates = current.filter((t) => t.id !== templateId);
+  await saveMealTemplates(userId, templates);
+  return templates;
+};
+
+export const replaceMealTemplates = async (userId, templates) => {
+  const normalized = templates.map(normalizeTemplate).slice(0, 30);
+  await saveMealTemplates(userId, normalized);
+  return normalized;
+};
+
+export const addMealFromTemplate = async (userId, date, template, overrides = {}) =>
+  addMeal(userId, date, {
+    ...template,
+    ...overrides,
+    id: undefined,
+    timestamp: undefined,
+    source: 'Öğün Şablonu'
+  });
 
 /** Birden fazla öğünü tek seferde ekler (AI Günlük Giriş / Hızlı Giriş için) */
 export const addMeals = async (userId, date, mealDataList) => {

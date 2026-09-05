@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import './TodaySummary.css';
 import { getDailyCalories, getDailyLog, getWaterTracker, getNutritionGoals, getUserProfile, getWeightTracker } from '../firebase/dataService';
 import { computeBMR, energyBalance, getActiveEnergy, getBMRProfileIssue, profileWithLatestWeight } from '../utils/calorieMath';
+import { getScopedJson } from '../utils/userScopedStorage';
 
 /**
  * TodaySummary - Ana "Bugün" sekmesinin üstündeki günlük özet panosu.
@@ -55,9 +56,9 @@ const TodaySummary = ({ user, refreshKey }) => {
     const protein = meals.reduce((s, m) => s + (parseFloat(m.protein) || 0), 0);
 
     let waterTotal = 0;
-    let waterGoal = 2500;
+    let waterTrackerGoal = 2500;
     if (water.success) {
-      waterGoal = water.data.dailyGoal || 2500;
+      waterTrackerGoal = water.data.dailyGoal || 2500;
       waterTotal = (water.data.entries || [])
         .filter((e) => e.date === today)
         .reduce((s, e) => s + (e.amount || 0), 0);
@@ -66,11 +67,11 @@ const TodaySummary = ({ user, refreshKey }) => {
     const logData = log.success ? log.data : {};
     let targetCalories = goals.success ? goals.data?.calories : 0;
     let targetProtein = goals.success ? goals.data?.protein : 0;
+    const waterGoal = goals.success && goals.data?.water ? goals.data.water : waterTrackerGoal;
     if (!targetCalories || !targetProtein) {
       try {
-        const saved = localStorage.getItem('nutrition_plan');
-        if (saved) {
-          const plan = JSON.parse(saved);
+        const plan = getScopedJson('nutrition_plan', user.uid, null);
+        if (plan) {
           targetCalories = targetCalories || plan?.targetCalories || 0;
           targetProtein = targetProtein || plan?.macros?.protein?.grams || 0;
         }
@@ -80,7 +81,7 @@ const TodaySummary = ({ user, refreshKey }) => {
     let bmr = computeBMR(profileData);
     if (bmr == null) {
       try {
-        const savedProfile = JSON.parse(localStorage.getItem('userProfile') || 'null');
+        const savedProfile = getScopedJson('userProfile', user.uid, null);
         profileData = savedProfile;
         bmr = computeBMR(savedProfile);
       } catch { /* yoksay */ }
@@ -92,6 +93,7 @@ const TodaySummary = ({ user, refreshKey }) => {
     const currentBalance = energyBalance({ bmr, vitals, consumed: calories, workoutActiveCalories: workoutCalories, mode: 'full-day' });
     const totalBurned = currentBalance.totalExpenditure;
     const caloriePct = targetCalories > 0 ? Math.round((calories / targetCalories) * 100) : null;
+    const targetCalorieBalance = targetCalories > 0 ? Math.round(targetCalories - calories) : null;
 
     setData({
       calories, protein, meals: meals.length,
@@ -107,7 +109,8 @@ const TodaySummary = ({ user, refreshKey }) => {
       currentBalance,
       realDeficit: currentBalance.deficit,
       totalBurned,
-      caloriePct
+      caloriePct,
+      targetCalorieBalance
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, refreshKey]);
@@ -152,6 +155,12 @@ const TodaySummary = ({ user, refreshKey }) => {
           <MetricCard icon="⚡" value={`${Math.round(data.activeCalories || 0).toLocaleString('tr-TR')} kcal`} label="Aktif Enerji" />
           <MetricCard icon="Σ" value={data.currentBalance.totalExpenditure ? `${data.currentBalance.totalExpenditure.toLocaleString('tr-TR')} kcal` : '—'} label="Toplam Harcama" note="dinlenme + aktif" />
           <MetricCard icon="📉" value={data.currentBalance.deficit != null ? `${Math.abs(data.currentBalance.deficit).toLocaleString('tr-TR')} kcal` : '—'} label="Kalori Açığı" note={data.currentBalance.deficit != null && data.currentBalance.deficit < 0 ? 'fazla' : 'açık'} />
+          <MetricCard
+            icon="🎯"
+            value={data.targetCalorieBalance != null ? `${Math.abs(data.targetCalorieBalance).toLocaleString('tr-TR')} kcal` : '—'}
+            label={data.targetCalorieBalance == null ? 'Hedef Farkı' : data.targetCalorieBalance >= 0 ? 'Hedefe Kalan' : 'Hedef Üstü'}
+            note={data.targetCalories ? `${data.targetCalories.toLocaleString('tr-TR')} kcal hedefe göre` : null}
+          />
         </div>
       </div>
 

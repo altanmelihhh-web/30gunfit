@@ -1,12 +1,14 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import './ProfileSettings.css';
-import { FITNESS_GOALS, DIFFICULTY_LEVELS } from '../data/exerciseLibrary';
-import { getSoundSettings, saveSoundSettings } from '../utils/soundSettings';
 
 function ProfileSettings({ profile, onSave }) {
   const [editedProfile, setEditedProfile] = useState({ ...profile });
   const [hasChanges, setHasChanges] = useState(false);
-  const [soundSettings, setSoundSettings] = useState(getSoundSettings());
+
+  useEffect(() => {
+    setEditedProfile({ ...profile });
+    setHasChanges(false);
+  }, [profile]);
 
   const handleChange = (field, value) => {
     setEditedProfile(prev => ({ ...prev, [field]: value }));
@@ -28,26 +30,6 @@ function ProfileSettings({ profile, onSave }) {
   const handleCancel = () => {
     setEditedProfile({ ...profile });
     setHasChanges(false);
-  };
-
-  const handleSoundSettingChange = (key, value) => {
-    const newSettings = { ...soundSettings, [key]: value };
-    setSoundSettings(newSettings);
-    saveSoundSettings(newSettings);
-  };
-
-  const goalNames = {
-    [FITNESS_GOALS.WEIGHT_LOSS]: 'Kilo Vermek',
-    [FITNESS_GOALS.MUSCLE_GAIN]: 'Kas Yapmak',
-    [FITNESS_GOALS.HIIT_FOCUS]: 'HIIT Antrenmanı',
-    [FITNESS_GOALS.GENERAL_FITNESS]: 'Genel Fitness',
-    [FITNESS_GOALS.BEGINNER_FRIENDLY]: 'Başlangıç Dostu'
-  };
-
-  const difficultyNames = {
-    [DIFFICULTY_LEVELS.BEGINNER]: 'Başlangıç',
-    [DIFFICULTY_LEVELS.INTERMEDIATE]: 'Orta Seviye',
-    [DIFFICULTY_LEVELS.ADVANCED]: 'İleri Seviye'
   };
 
   return (
@@ -84,12 +66,12 @@ function ProfileSettings({ profile, onSave }) {
             <div className="profile-field">
               <label>Cinsiyet</label>
               <select
-                value={editedProfile.gender || 'male'}
+                value={editedProfile.gender || ''}
                 onChange={(e) => handleChange('gender', e.target.value)}
               >
+                <option value="">Seçiniz</option>
                 <option value="male">Erkek</option>
                 <option value="female">Kadın</option>
-                <option value="other">Diğer</option>
               </select>
             </div>
 
@@ -128,119 +110,6 @@ function ProfileSettings({ profile, onSave }) {
           </div>
         </div>
 
-        <div className="profile-section">
-          <h3>Antrenman Tercihleri</h3>
-          <div className="profile-grid">
-            <div className="profile-field full-width">
-              <label>Hedef</label>
-              <select
-                value={editedProfile.goal || FITNESS_GOALS.GENERAL_FITNESS}
-                onChange={(e) => handleChange('goal', e.target.value)}
-              >
-                {Object.entries(goalNames).map(([key, name]) => (
-                  <option key={key} value={key}>{name}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="profile-field full-width">
-              <label>Deneyim Seviyesi</label>
-              <select
-                value={editedProfile.difficulty || DIFFICULTY_LEVELS.BEGINNER}
-                onChange={(e) => handleChange('difficulty', e.target.value)}
-              >
-                {Object.entries(difficultyNames).map(([key, name]) => (
-                  <option key={key} value={key}>{name}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="profile-field">
-              <label>Günlük Süre (dakika)</label>
-              <select
-                value={editedProfile.dailyDuration || 30}
-                onChange={(e) => handleChange('dailyDuration', parseInt(e.target.value))}
-              >
-                <option value={15}>15 dakika</option>
-                <option value={30}>30 dakika</option>
-                <option value={45}>45 dakika</option>
-                <option value={60}>60 dakika</option>
-              </select>
-            </div>
-
-            <div className="profile-field">
-              <label>Haftalık Antrenman</label>
-              <select
-                value={editedProfile.weeklyDays || 5}
-                onChange={(e) => handleChange('weeklyDays', parseInt(e.target.value))}
-              >
-                <option value={3}>3 gün/hafta</option>
-                <option value={4}>4 gün/hafta</option>
-                <option value={5}>5 gün/hafta</option>
-                <option value={6}>6 gün/hafta</option>
-                <option value={7}>7 gün/hafta</option>
-              </select>
-            </div>
-          </div>
-        </div>
-
-        {/* Ses & Motivasyon Ayarları */}
-        <div className="profile-section">
-          <h3>🔊 Ses & Motivasyon Ayarları</h3>
-          <p className="section-description">Timer sırasında ses ve konuşma ayarları</p>
-
-          <div className="sound-settings-grid">
-            <div className="sound-setting-item">
-              <div className="setting-info">
-                <label className="setting-label">🔔 Ses Efektleri</label>
-                <span className="setting-desc">Başlama, bitiş ve önemli anlar için bip sesleri</span>
-              </div>
-              <label className="toggle-switch">
-                <input
-                  type="checkbox"
-                  checked={soundSettings.soundEffects}
-                  onChange={(e) => handleSoundSettingChange('soundEffects', e.target.checked)}
-                />
-                <span className="toggle-slider"></span>
-              </label>
-            </div>
-
-            <div className="sound-setting-item">
-              <div className="setting-info">
-                <label className="setting-label">🗣️ Konuşma (Türkçe)</label>
-                <span className="setting-desc">Tekrar sayma ve son 5 saniye geri sayımı</span>
-              </div>
-              <label className="toggle-switch">
-                <input
-                  type="checkbox"
-                  checked={soundSettings.speech}
-                  onChange={(e) => handleSoundSettingChange('speech', e.target.checked)}
-                />
-                <span className="toggle-slider"></span>
-              </label>
-            </div>
-
-            <div className="sound-setting-item">
-              <div className="setting-info">
-                <label className="setting-label">💪 Motivasyon Mesajları</label>
-                <span className="setting-desc">"Harika gidiyorsun!", "Formunu koru!" gibi cesaretlendirmeler</span>
-              </div>
-              <label className="toggle-switch">
-                <input
-                  type="checkbox"
-                  checked={soundSettings.motivationMessages}
-                  onChange={(e) => handleSoundSettingChange('motivationMessages', e.target.checked)}
-                  disabled={!soundSettings.speech}
-                />
-                <span className="toggle-slider"></span>
-              </label>
-            </div>
-          </div>
-
-          <div className="sound-settings-note">
-            💡 <strong>Not:</strong> Ses ayarları anında kaydedilir ve bir sonraki egzersizde geçerli olur.
-          </div>
-        </div>
       </div>
 
       <div className="profile-actions">

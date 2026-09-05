@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import './FoodPhotoAnalyzer.css';
+import { callGeminiForJSON, fileToBase64Image } from '../utils/geminiClient';
+import { validateMealNutrition, isBlocking } from '../utils/entryValidation';
 
 /**
  * FoodPhotoAnalyzer - Google Gemini AI ile yemek analizi
@@ -14,8 +16,27 @@ const ANALYSIS_MODES = {
   TEXT_INPUT: 'text_input'  // YENİ: Metin ile analiz
 };
 
-// Google Gemini API Key (güvenli şekilde saklanıyor)
-const GEMINI_API_KEY = 'AIzaSyD_dcOAyVSRYx9N3fzHkbZ3AamrJAC3klg';
+const MEAL_TYPE_OPTIONS = [
+  { value: 'breakfast', label: 'Kahvaltı' },
+  { value: 'lunch', label: 'Öğle' },
+  { value: 'dinner', label: 'Akşam' },
+  { value: 'snack', label: 'Ara öğün' }
+];
+
+const FOOD_ANALYSIS_SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    food_name: { type: 'STRING' },
+    description: { type: 'STRING' },
+    calories: { type: 'NUMBER' },
+    protein: { type: 'NUMBER' },
+    carbs: { type: 'NUMBER' },
+    fats: { type: 'NUMBER' },
+    portion_size: { type: 'STRING' },
+    confidence: { type: 'STRING', enum: ['high', 'medium', 'low'] }
+  },
+  required: ['food_name', 'calories']
+};
 
 const FoodPhotoAnalyzer = ({ onFoodAnalyzed }) => {
   const [selectedImage, setSelectedImage] = useState(null);
@@ -25,6 +46,9 @@ const FoodPhotoAnalyzer = ({ onFoodAnalyzed }) => {
   const [error, setError] = useState(null);
   const [analysisMode, setAnalysisMode] = useState(ANALYSIS_MODES.FOOD_PHOTO);
   const [textInput, setTextInput] = useState('');  // YENİ: Metin girişi için
+  const [selectedMealType, setSelectedMealType] = useState('snack');
+  const [isAddingToDay, setIsAddingToDay] = useState(false);
+  const [addMessage, setAddMessage] = useState('');
 
   // Fotoğraf seçimi
   const handleImageSelect = (e) => {
@@ -46,6 +70,7 @@ const FoodPhotoAnalyzer = ({ onFoodAnalyzed }) => {
     setSelectedImage(file);
     setError(null);
     setAnalysisResult(null);
+    setAddMessage('');
 
     // Preview oluştur
     const reader = new FileReader();
@@ -55,7 +80,6 @@ const FoodPhotoAnalyzer = ({ onFoodAnalyzed }) => {
     reader.readAsDataURL(file);
   };
 
-  // Google Gemini ile metin analizi (fotoğrafsız)
   const analyzeTextWithGemini = async (ingredients) => {
     const prompt = `Analyze these ingredients and calculate total nutrition. User wrote:
 "${ingredients}"
@@ -63,200 +87,16 @@ const FoodPhotoAnalyzer = ({ onFoodAnalyzed }) => {
 Parse all ingredients, calculate TOTAL nutrition for the entire meal.
 Return ONLY this JSON (no explanations):
 {"food_name":"Meal name in Turkish","description":"Brief description","calories":total_calories_number,"protein":total_protein_grams,"carbs":total_carbs_grams,"fats":total_fats_grams,"portion_size":"total portion","confidence":"high"}`;
-
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [{ text: prompt }]
-            }
-          ],
-          generationConfig: {
-            temperature: 0.2,
-            maxOutputTokens: 4096
-          }
-        })
-      }
-    );
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error?.message || 'Gemini API isteği başarısız oldu');
-    }
-
-    const data = await response.json();
-
-    // Güvenli API yanıt kontrolü (aynı parse logic)
-    if (!data.candidates || data.candidates.length === 0) {
-      console.error('API yanıtı:', data);
-      throw new Error('AI yanıt üretemedi. Lütfen malzemeleri daha net yazın.');
-    }
-
-    const candidate = data.candidates[0];
-
-    if (!candidate.content || !candidate.content.parts || candidate.content.parts.length === 0) {
-      console.error('Candidate:', candidate);
-      throw new Error('AI yanıtı eksik. Malzemeleri değiştirip tekrar deneyin.');
-    }
-
-    const aiResponse = candidate.content.parts[0].text;
-
-    if (candidate.finishReason === 'MAX_TOKENS') {
-      console.warn('⚠️ MAX_TOKENS: Yanıt kesildi ama JSON parse deneniyor...');
-    }
-
-    if (!aiResponse || aiResponse.trim() === '') {
-      throw new Error('AI boş yanıt döndü. Lütfen malzemeleri değiştirin.');
-    }
-
-    // JSON parse et (aynı logic)
-    let jsonString = aiResponse.trim();
-    console.log('📝 Ham AI yanıtı (ilk 500 karakter):', aiResponse.substring(0, 500));
-
-    const codeBlockMatch = jsonString.match(/```json\s*([\s\S]*?)\s*```/);
-    if (codeBlockMatch) {
-      console.log('📦 Code block bulundu, içindeki JSON çıkarılıyor...');
-      jsonString = codeBlockMatch[1].trim();
-    }
-
-    try {
-      const parsed = JSON.parse(jsonString);
-      console.log('✅ JSON başarıyla parse edildi:', parsed);
-      return parsed;
-    } catch (parseError) {
-      console.warn('⚠️ Direkt JSON parse başarısız, regex ile deneniyor...');
-      const jsonMatch = jsonString.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        console.error('❌ AI yanıtı:', aiResponse);
-        throw new Error('AI yanıtı JSON formatında değil. Yanıt: ' + aiResponse.substring(0, 200));
-      }
-
-      try {
-        const parsed = JSON.parse(jsonMatch[0]);
-        console.log('✅ Regex ile JSON parse edildi:', parsed);
-        return parsed;
-      } catch (secondError) {
-        console.error('❌ JSON parse hatası:', secondError);
-        throw new Error('JSON parse edilemedi. Lütfen daha açıklayıcı yazın.');
-      }
-    }
+    return callGeminiForJSON(prompt, [], FOOD_ANALYSIS_SCHEMA);
   };
 
-  // Google Gemini ile fotoğraf analizi
-  const analyzeWithGemini = async (base64Image) => {
-    // Base64'ten data:image/jpeg;base64, prefix'ini kaldır
-    const base64Data = base64Image.split(',')[1];
-    const mimeType = base64Image.split(';')[0].split(':')[1];
-
-    // Mod'a göre prompt - Çok kısa ve net
+  const analyzeWithGemini = async (image) => {
     const prompt = analysisMode === ANALYSIS_MODES.FOOD_PHOTO
       ? `Analyze food photo. Return ONLY this JSON (no explanations):
 {"food_name":"Turkish name","description":"Brief","calories":500,"protein":30,"carbs":45,"fats":15,"portion_size":"1 portion","confidence":"high"}`
       : `Read nutrition label. Return ONLY this JSON (no explanations):
 {"food_name":"Product name","description":"Brief","calories":250,"protein":20,"carbs":30,"fats":10,"portion_size":"100g","confidence":"high"}`;
-
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                { text: prompt },
-                {
-                  inline_data: {
-                    mime_type: mimeType,
-                    data: base64Data
-                  }
-                }
-              ]
-            }
-          ],
-          generationConfig: {
-            temperature: 0.1,
-            maxOutputTokens: 4096
-          }
-        })
-      }
-    );
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error?.message || 'Gemini API isteği başarısız oldu');
-    }
-
-    const data = await response.json();
-
-    // Güvenli API yanıt kontrolü
-    if (!data.candidates || data.candidates.length === 0) {
-      console.error('API yanıtı:', data);
-      throw new Error('AI yanıt üretemedi. Lütfen daha net bir fotoğraf deneyin.');
-    }
-
-    const candidate = data.candidates[0];
-
-    if (!candidate.content || !candidate.content.parts || candidate.content.parts.length === 0) {
-      console.error('Candidate:', candidate);
-      throw new Error('AI yanıtı eksik. Fotoğrafı değiştirip tekrar deneyin.');
-    }
-
-    const aiResponse = candidate.content.parts[0].text;
-
-    // MAX_TOKENS durumunda uyar ama yanıtı parse etmeyi dene
-    if (candidate.finishReason === 'MAX_TOKENS') {
-      console.warn('⚠️ MAX_TOKENS: Yanıt kesildi ama JSON parse deneniyor...', aiResponse.substring(0, 200));
-      // Devam et, belki JSON başta tamamlandı
-    }
-
-    if (!aiResponse || aiResponse.trim() === '') {
-      throw new Error('AI boş yanıt döndü. Lütfen fotoğrafı değiştirin.');
-    }
-
-    // JSON parse et - Çoklu yöntem
-    let jsonString = aiResponse.trim();
-    console.log('📝 Ham AI yanıtı (ilk 500 karakter):', aiResponse.substring(0, 500));
-
-    // 1. Önce ```json bloğu ara
-    const codeBlockMatch = jsonString.match(/```json\s*([\s\S]*?)\s*```/);
-    if (codeBlockMatch) {
-      console.log('📦 Code block bulundu, içindeki JSON çıkarılıyor...');
-      jsonString = codeBlockMatch[1].trim();
-    }
-
-    // 2. Direkt parse dene
-    try {
-      const parsed = JSON.parse(jsonString);
-      console.log('✅ JSON başarıyla parse edildi:', parsed);
-      return parsed;
-    } catch (parseError) {
-      // 3. Regex ile JSON objesini bul
-      console.warn('⚠️ Direkt JSON parse başarısız, regex ile deneniyor...');
-      const jsonMatch = jsonString.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        console.error('❌ AI yanıtı:', aiResponse);
-        throw new Error('AI yanıtı JSON formatında değil. Yanıt: ' + aiResponse.substring(0, 200));
-      }
-
-      try {
-        const parsed = JSON.parse(jsonMatch[0]);
-        console.log('✅ Regex ile JSON parse edildi:', parsed);
-        return parsed;
-      } catch (secondError) {
-        console.error('❌ JSON parse hatası:', secondError);
-        console.error('❌ Bulunan JSON:', jsonMatch[0].substring(0, 200));
-        throw new Error('JSON parse edilemedi. Lütfen daha net bir fotoğraf deneyin.');
-      }
-    }
+    return callGeminiForJSON(prompt, [image], FOOD_ANALYSIS_SCHEMA);
   };
 
   // Ana analiz fonksiyonu (hem fotoğraf hem metin)
@@ -277,6 +117,7 @@ Return ONLY this JSON (no explanations):
     setIsAnalyzing(true);
     setError(null);
     setAnalysisResult(null);
+    setAddMessage('');
 
     try {
       let foodData;
@@ -286,37 +127,17 @@ Return ONLY this JSON (no explanations):
         foodData = await analyzeTextWithGemini(textInput);
       } else {
         // Fotoğraf analizi
-        const base64Image = await convertToBase64(selectedImage);
-        foodData = await analyzeWithGemini(base64Image);
+        const image = await fileToBase64Image(selectedImage);
+        foodData = await analyzeWithGemini(image);
       }
-
-      console.log('✅ AI Analiz Sonucu:', foodData);
-      console.log('Kalori:', foodData.calories, 'Tip:', typeof foodData.calories);
 
       setAnalysisResult(foodData);
 
-      // Parent component'e bildir
-      if (onFoodAnalyzed) {
-        console.log('🔄 onFoodAnalyzed çağrılıyor...');
-        onFoodAnalyzed(foodData);
-      }
-
     } catch (err) {
-      console.error('❌ Analiz hatası:', err);
       setError(err.message || 'Analiz sırasında bir hata oluştu');
     } finally {
       setIsAnalyzing(false);
     }
-  };
-
-  // Base64'e çevirme helper
-  const convertToBase64 = (file) => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result);
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
   };
 
   // Yeni analiz
@@ -326,12 +147,39 @@ Return ONLY this JSON (no explanations):
     setAnalysisResult(null);
     setError(null);
     setTextInput('');  // Metin girişini de temizle
+    setAddMessage('');
+  };
+
+  // AI'nin verdiği değerler de denetlenir - modelin uydurduğu tutarsız makrolar güne yazılmasın.
+  const resultValidation = analysisResult ? validateMealNutrition({ ...analysisResult, name: analysisResult.food_name }) : null;
+
+  const handleAddToDay = async () => {
+    if (!analysisResult || !onFoodAnalyzed) return;
+    if (resultValidation && isBlocking(resultValidation)) {
+      setError(resultValidation.message);
+      return;
+    }
+    setIsAddingToDay(true);
+    setError(null);
+    setAddMessage('');
+
+    try {
+      await onFoodAnalyzed({
+        ...analysisResult,
+        mealType: selectedMealType
+      });
+      setAddMessage('Bugünkü takibine eklendi. AI analiz sayfasında kalıyorsun.');
+    } catch (err) {
+      setError(err.message || 'Güne eklenirken bir hata oluştu');
+    } finally {
+      setIsAddingToDay(false);
+    }
   };
 
   return (
     <div className="food-photo-analyzer">
       <div className="analyzer-header">
-        <h3>🤖 Google Gemini 2.5 Flash AI</h3>
+        <h3>🤖 Google Gemini Flash AI</h3>
         <p className="free-badge">✨ TAMAMEN ÜCRETSIZ - En Güncel Model</p>
       </div>
 
@@ -491,6 +339,12 @@ Return ONLY this JSON (no explanations):
         </div>
       )}
 
+      {addMessage && (
+        <div className="analyzer-success">
+          ✅ {addMessage}
+        </div>
+      )}
+
       {/* Analiz sonucu */}
       {analysisResult && (
         <div className="analysis-result">
@@ -542,11 +396,51 @@ Return ONLY this JSON (no explanations):
             </div>
           </div>
 
+          {resultValidation && resultValidation.level !== 'ok' && (
+            <div className={`analysis-validation ${resultValidation.level}`} role="alert">
+              {resultValidation.level === 'error' ? '⛔' : '⚠️'} {resultValidation.message}
+              {resultValidation.level === 'error' && ' Bu sonuç güne eklenemez, yeniden analiz et veya manuel gir.'}
+            </div>
+          )}
+
           <div className="result-disclaimer">
-            ℹ️ Bu tahminler Google Gemini 2.5 Flash AI tarafından üretilmiştir.
+            ℹ️ Bu tahminler Google Gemini Flash AI tarafından üretilmiştir.
             {analysisMode === ANALYSIS_MODES.NUTRITION_LABEL
               ? ' Etiket bilgileri okunarak hesaplanmıştır.'
               : ' Yaklaşık değerlerdir, kesin besin değerleri için ürün etiketlerini kontrol edin.'}
+          </div>
+
+          <div className="add-to-day-panel">
+            <div className="add-to-day-copy">
+              <strong>Bu sadece analiz sonucudur.</strong>
+              <span>Gerçekten yediysen öğün tipini seçip bugünkü takibe ekle.</span>
+            </div>
+            <div className="meal-type-choice" role="radiogroup" aria-label="Öğün tipi">
+              {MEAL_TYPE_OPTIONS.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  className={`meal-choice-btn ${selectedMealType === option.value ? 'active' : ''}`}
+                  onClick={() => setSelectedMealType(option.value)}
+                  disabled={isAddingToDay}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+            <div className="add-to-day-actions">
+              <button
+                type="button"
+                className="btn-add-to-day"
+                onClick={handleAddToDay}
+                disabled={isAddingToDay || !onFoodAnalyzed || (resultValidation ? isBlocking(resultValidation) : false)}
+              >
+                {isAddingToDay ? 'Ekleniyor...' : 'Bugünüme Ekle'}
+              </button>
+              <button type="button" className="btn-new-analysis secondary" onClick={resetAnalysis} disabled={isAddingToDay}>
+                Sadece Danıştım
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -571,7 +465,7 @@ Return ONLY this JSON (no explanations):
           </ol>
 
           <div className="info-highlight">
-            <strong>🤖 Google Gemini 2.5 Flash:</strong> En güncel yapay zeka modeli ile yemek analizi!
+            <strong>🤖 Google Gemini Flash:</strong> En güncel yapay zeka modeli ile yemek analizi!
             Sadece fotoğraf yükleyin, gerisini biz halledelim.
           </div>
         </div>

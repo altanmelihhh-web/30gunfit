@@ -53,6 +53,54 @@
 .goals-item strong { font-size: 0.95rem; color: var(--color-text-primary); }
 .goals-item small { font-size: 0.68rem; color: var(--color-text-muted); }
 
+.emine-goal-plan {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid rgba(15, 118, 110, 0.24);
+  border-radius: 8px;
+  background: rgba(20, 184, 166, 0.08);
+}
+
+.emine-goal-plan strong,
+.emine-goal-plan span {
+  display: block;
+}
+
+.emine-goal-plan strong {
+  color: var(--color-text-primary);
+  font-size: 0.9rem;
+}
+
+.emine-goal-plan span {
+  margin-top: 3px;
+  color: var(--color-text-secondary);
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.emine-goal-plan button {
+  min-height: 36px;
+  padding: 8px 12px;
+  border: 1px solid #0f766e;
+  border-radius: 8px;
+  background: #0f766e;
+  color: white;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.emine-goal-plan button:disabled {
+  border-color: var(--color-border);
+  background: var(--color-surface-muted);
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+}
+
 .goals-edit-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
@@ -110,5 +158,9 @@
 @media (max-width: 480px) {
   .goals-grid {
     grid-template-columns: repeat(3, 1fr);
+  }
+
+  .emine-goal-plan {
+    grid-template-columns: 1fr;
   }
 }

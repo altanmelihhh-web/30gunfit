@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import './CalorieTracker.css';
-import { getMeals, addMeal, updateMeal, deleteMeal, getRecentMeals } from '../firebase/mealsService';
+import { getMeals, addMeal, updateMeal, deleteMeal, getRecentMeals, addMealFromTemplate } from '../firebase/mealsService';
+import MealTemplates from './MealTemplates';
+import { MICRONUTRIENTS, formatMicronutrient, sumMicronutrients } from '../utils/micronutrients';
+import { shiftKey, todayKey } from '../utils/cycleMath';
+import { validateMealNutrition, isBlocking } from '../utils/entryValidation';
 
 /**
  * CalorieTracker - Günlük kalori ve makro takibi
@@ -25,13 +29,19 @@ const EMPTY_MEAL = {
 };
 
 const CalorieTracker = ({ targetCalories, targetMacros, onDataChange, user }) => {
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState(todayKey());
   const [meals, setMeals] = useState([]);
   const [isAddingMeal, setIsAddingMeal] = useState(false);
   const [editingMealId, setEditingMealId] = useState(null);
   const [newMeal, setNewMeal] = useState(EMPTY_MEAL);
   const [isSaving, setIsSaving] = useState(false);
   const [recentMeals, setRecentMeals] = useState([]);
+  const [openNutritionPanels, setOpenNutritionPanels] = useState({
+    meals: true,
+    recent: false,
+    templates: false,
+    addMeal: false
+  });
 
   const MEAL_TYPES = {
     breakfast: { label: 'Kahvaltı', icon: '🌅' },
@@ -44,6 +54,36 @@ const CalorieTracker = ({ targetCalories, targetMacros, onDataChange, user }) =>
     const freshMeals = await getMeals(user?.uid, selectedDate);
     setMeals(freshMeals);
     if (onDataChange) onDataChange(freshMeals);
+  };
+
+  const toggleNutritionPanel = (key) => {
+    setOpenNutritionPanels((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const renderNutritionPanel = (key, title, subtitle, children) => {
+    const isOpen = Boolean(openNutritionPanels[key]);
+    return (
+      <section className={`nutrition-accordion ${isOpen ? 'open' : ''}`}>
+        <button
+          type="button"
+          className="nutrition-accordion-head"
+          onClick={(event) => {
+            event.preventDefault();
+            toggleNutritionPanel(key);
+          }}
+          aria-expanded={isOpen}
+        >
+          <span>
+            <strong>{title}</strong>
+            <small>{subtitle}</small>
+          </span>
+          <b>{isOpen ? 'Kapat' : 'Aç'}</b>
+        </button>
+        <div className="nutrition-accordion-body" aria-hidden={!isOpen}>
+          {children}
+        </div>
+      </section>
+    );
   };
 
   useEffect(() => {
@@ -78,6 +118,12 @@ const CalorieTracker = ({ targetCalories, targetMacros, onDataChange, user }) =>
   const biggestMeal = meals.length
     ? [...meals].sort((a, b) => (parseFloat(b.calories) || 0) - (parseFloat(a.calories) || 0))[0]
     : null;
+  const microTotals = sumMicronutrients(meals);
+
+  // Formdaki değerler için canlı denetim: hata kaydı engeller, uyarı sadece bilgilendirir.
+  const draftValidation = newMeal.calories === '' && !newMeal.protein && !newMeal.carbs && !newMeal.fats
+    ? null
+    : validateMealNutrition(newMeal);
 
   const resetForm = () => {
     setNewMeal(EMPTY_MEAL);
@@ -86,8 +132,13 @@ const CalorieTracker = ({ targetCalories, targetMacros, onDataChange, user }) =>
   };
 
   const handleSaveMeal = async () => {
-    if (!newMeal.name || !newMeal.calories) {
+    if (!newMeal.name || newMeal.calories === '') {
       alert('Lütfen en az yemek adı ve kalori bilgisi girin');
+      return;
+    }
+    const validation = validateMealNutrition(newMeal);
+    if (isBlocking(validation)) {
+      alert(validation.message);
       return;
     }
     setIsSaving(true);
@@ -135,6 +186,18 @@ const CalorieTracker = ({ targetCalories, targetMacros, onDataChange, user }) =>
     }
   };
 
+  const handleUseTemplate = async (template) => {
+    setIsSaving(true);
+    try {
+      await addMealFromTemplate(user?.uid, selectedDate, template);
+      await refreshMeals();
+    } catch (error) {
+      alert('Şablon eklenirken hata oluştu: ' + error.message);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const handleDeleteMeal = async (mealId) => {
     if (!window.confirm('Bu yemeği silmek istediğinize emin misiniz?')) return;
     try {
@@ -152,23 +215,228 @@ const CalorieTracker = ({ targetCalories, targetMacros, onDataChange, user }) =>
   };
 
   const changeDate = (direction) => {
-    const currentDate = new Date(selectedDate);
-    currentDate.setDate(currentDate.getDate() + direction);
-    setSelectedDate(currentDate.toISOString().split('T')[0]);
+    setSelectedDate(shiftKey(selectedDate, direction));
   };
 
   const goToToday = () => {
-    setSelectedDate(new Date().toISOString().split('T')[0]);
+    setSelectedDate(todayKey());
   };
 
   const formatDate = (dateString) => {
     const date = new Date(dateString);
-    const today = new Date().toISOString().split('T')[0];
+    const today = todayKey();
     if (dateString === today) return 'Bugün';
 
     const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
     return date.toLocaleDateString('tr-TR', options);
   };
+
+  // Aynı form hem yeni ekleme (listenin altında) hem düzenleme (düzenlenen öğünün
+  // hemen altında) için kullanılır. Eskiden form her zaman sayfanın en altında
+  // açıldığı için ✏️'ye basınca ekranda hiçbir şey olmuyor gibi görünüyordu.
+  const renderMealForm = () => (
+    <div className="add-meal-form">
+      <h4>{editingMealId ? '✏️ Yemeği Düzenle' : 'Yeni Yemek Ekle'}</h4>
+
+      <div className="form-row">
+        <div className="calorie-tracker-form-group">
+          <label>Yemek Adı *</label>
+          <input
+            type="text"
+            placeholder="Örn: Tavuk Göğsü Izgara"
+            value={newMeal.name}
+            onChange={(e) => setNewMeal({ ...newMeal, name: e.target.value })}
+          />
+        </div>
+
+        <div className="calorie-tracker-form-group">
+          <label>Öğün Tipi</label>
+          <select
+            value={newMeal.mealType}
+            onChange={(e) => setNewMeal({ ...newMeal, mealType: e.target.value })}
+          >
+            {Object.entries(MEAL_TYPES).map(([key, type]) => (
+              <option key={key} value={key}>
+                {type.icon} {type.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <div className="form-row">
+        <div className="calorie-tracker-form-group">
+          <label>Kalori (kcal) *</label>
+          <input
+            type="number"
+            placeholder="250"
+            value={newMeal.calories}
+            onChange={(e) => setNewMeal({ ...newMeal, calories: e.target.value })}
+          />
+        </div>
+
+        <div className="calorie-tracker-form-group">
+          <label>Porsiyon</label>
+          <input
+            type="text"
+            placeholder="1 porsiyon, 200g"
+            value={newMeal.portion}
+            onChange={(e) => setNewMeal({ ...newMeal, portion: e.target.value })}
+          />
+        </div>
+      </div>
+
+      <div className="form-row">
+        <div className="calorie-tracker-form-group">
+          <label>Protein (g)</label>
+          <input
+            type="number"
+            placeholder="30"
+            value={newMeal.protein}
+            onChange={(e) => setNewMeal({ ...newMeal, protein: e.target.value })}
+          />
+        </div>
+
+        <div className="calorie-tracker-form-group">
+          <label>Karbonhidrat (g)</label>
+          <input
+            type="number"
+            placeholder="40"
+            value={newMeal.carbs}
+            onChange={(e) => setNewMeal({ ...newMeal, carbs: e.target.value })}
+          />
+        </div>
+
+        <div className="calorie-tracker-form-group">
+          <label>Yağ (g)</label>
+          <input
+            type="number"
+            placeholder="10"
+            value={newMeal.fats}
+            onChange={(e) => setNewMeal({ ...newMeal, fats: e.target.value })}
+          />
+        </div>
+      </div>
+
+      {draftValidation && draftValidation.level !== 'ok' && (
+        <div className={`meal-validation ${draftValidation.level}`} role="alert">
+          {draftValidation.level === 'error' ? '⛔' : '⚠️'} {draftValidation.message}
+        </div>
+      )}
+
+      <div className="meal-form-actions">
+        <button
+          className="btn-save-meal"
+          onClick={handleSaveMeal}
+          disabled={isSaving || (draftValidation ? isBlocking(draftValidation) : false)}
+        >
+          {isSaving ? '💾 Kaydediliyor...' : editingMealId ? '💾 Güncelle' : '💾 Kaydet'}
+        </button>
+        <button className="btn-cancel-meal" onClick={resetForm} disabled={isSaving}>
+          İptal
+        </button>
+      </div>
+    </div>
+  );
+
+  const renderMealsList = () => (
+    <div className="meals-list">
+      <div className="meals-list-head">
+        <div>
+          <span className="meals-list-eyebrow">{selectedDate === todayKey() ? 'Bugün' : formatDate(selectedDate)}</span>
+          <h4>Girilmiş Öğünler ({meals.length})</h4>
+        </div>
+        {biggestMeal && <span>En yüksek: {biggestMeal.name} · {Math.round(biggestMeal.calories)} kcal</span>}
+      </div>
+
+      {meals.length === 0 ? (
+        <div className="empty-meals compact">
+          <span className="empty-icon">🍽️</span>
+          <p>Bu güne henüz yemek eklenmemiş</p>
+          <p className="empty-hint">Aşağıdan şablon veya manuel girişle ekleyebilirsin.</p>
+        </div>
+      ) : (
+        Object.entries(MEAL_TYPES).map(([mealType, typeData]) => {
+          const mealsByType = meals.filter(m => m.mealType === mealType);
+          if (mealsByType.length === 0) return null;
+
+          return (
+            <div key={mealType} className="meal-type-group">
+              <h5 className="meal-type-header">
+                <span>{typeData.icon}</span>
+                <span>{typeData.label}</span>
+                <span className="meal-count">({mealsByType.length})</span>
+              </h5>
+
+              {mealsByType.map((meal) => {
+                // Kayıtlı veride de gösteriyoruz: eski hatalı girişler listede görünür olsun.
+                const mealCheck = validateMealNutrition(meal);
+                return (
+                <React.Fragment key={meal.id}>
+                <div className={`meal-item ${editingMealId === meal.id ? 'editing' : ''} ${mealCheck.level !== 'ok' ? `has-${mealCheck.level}` : ''}`}>
+                  <div className="meal-info">
+                    <div className="meal-name">{meal.mealLabel || meal.name}</div>
+                    {meal.mealLabel && <div className="meal-portion">{meal.name}</div>}
+                    {meal.portion && (
+                      <div className="meal-portion">{meal.portion}</div>
+                    )}
+                    {meal.source && (
+                      <div className="meal-source">{meal.source === 'Open Food Facts' ? 'OFF' : 'AI'} {meal.source}</div>
+                    )}
+                  </div>
+
+                  <div className="meal-nutrition">
+                    <div className="nutrition-badge calories-badge">
+                      🔥 {Math.round(meal.calories)} kcal
+                    </div>
+                    {meal.protein > 0 && (
+                      <div className="nutrition-badge">Protein: {Math.round(meal.protein)}g</div>
+                    )}
+                    {meal.carbs > 0 && (
+                      <div className="nutrition-badge">Karbonhidrat: {Math.round(meal.carbs)}g</div>
+                    )}
+                    {meal.fats > 0 && (
+                      <div className="nutrition-badge">Yağ: {Math.round(meal.fats)}g</div>
+                    )}
+                    {mealCheck.level !== 'ok' && (
+                      <div className={`nutrition-badge validation-badge ${mealCheck.level}`} title={mealCheck.message}>
+                        {mealCheck.level === 'error' ? '⛔ Hatalı veri' : '⚠️ Doğrula'}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="meal-actions">
+                    <button
+                      className="btn-edit-meal"
+                      onClick={() => handleStartEdit(meal)}
+                      title="Düzenle"
+                    >
+                      ✏️
+                    </button>
+                    <button
+                      className="btn-delete-meal"
+                      onClick={() => handleDeleteMeal(meal.id)}
+                      title="Sil"
+                    >
+                      🗑️
+                    </button>
+                  </div>
+                </div>
+                {mealCheck.level !== 'ok' && editingMealId !== meal.id && (
+                  <div className={`meal-validation ${mealCheck.level}`} role="alert">
+                    {mealCheck.level === 'error' ? '⛔' : '⚠️'} {mealCheck.message}
+                  </div>
+                )}
+                {editingMealId === meal.id && renderMealForm()}
+                </React.Fragment>
+                );
+              })}
+            </div>
+          );
+        })
+      )}
+    </div>
+  );
 
   return (
     <div className="calorie-tracker">
@@ -179,7 +447,7 @@ const CalorieTracker = ({ targetCalories, targetMacros, onDataChange, user }) =>
         </button>
         <div className="date-display">
           <span className="date-text">{formatDate(selectedDate)}</span>
-          {selectedDate !== new Date().toISOString().split('T')[0] && (
+          {selectedDate !== todayKey() && (
             <button onClick={goToToday} className="today-btn">
               📅 Bugüne Dön
             </button>
@@ -216,7 +484,7 @@ const CalorieTracker = ({ targetCalories, targetMacros, onDataChange, user }) =>
             </div>
             <div className="nutrition-kpi-grid">
               <div className={targetBalance >= 0 ? 'nutrition-kpi good' : 'nutrition-kpi over'}>
-                <span>{targetBalance >= 0 ? 'Kalan' : 'Fazla'}</span>
+                <span>{targetBalance >= 0 ? 'Hedefe Kalan' : 'Hedef Üstü'}</span>
                 <strong>{Math.abs(targetBalance).toLocaleString('tr-TR')} kcal</strong>
               </div>
               <div className="nutrition-kpi">
@@ -286,204 +554,85 @@ const CalorieTracker = ({ targetCalories, targetMacros, onDataChange, user }) =>
               </div>
             </div>
           )}
-        </div>
-      )}
 
-      {recentMeals.length > 0 && (
-        <div className="recent-meals-panel">
-          <div className="recent-meals-head">
-            <h4>Sık Kullanılanlar</h4>
-            <span>Son 30 gün</span>
-          </div>
-          <div className="recent-meal-chips">
-            {recentMeals.map((meal) => (
-              <button key={`${meal.name}-${meal.timestamp}`} onClick={() => handleQuickRepeat(meal)} disabled={isSaving}>
-                <strong>{meal.name}</strong>
-                <span>{Math.round(meal.calories)} kcal · {meal.count}x</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Yemek ekleme butonu */}
-      <div className="add-meal-section">
-        <button
-          className="btn-add-meal"
-          onClick={() => (isAddingMeal ? resetForm() : setIsAddingMeal(true))}
-        >
-          {isAddingMeal ? '❌ İptal' : '➕ Yemek Ekle'}
-        </button>
-      </div>
-
-      {/* Manuel yemek ekleme/düzenleme formu */}
-      {isAddingMeal && (
-        <div className="add-meal-form">
-          <h4>{editingMealId ? 'Yemeği Düzenle' : 'Yeni Yemek Ekle'}</h4>
-
-          <div className="form-row">
-            <div className="calorie-tracker-form-group">
-              <label>Yemek Adı *</label>
-              <input
-                type="text"
-                placeholder="Örn: Tavuk Göğsü Izgara"
-                value={newMeal.name}
-                onChange={(e) => setNewMeal({ ...newMeal, name: e.target.value })}
-              />
-            </div>
-
-            <div className="calorie-tracker-form-group">
-              <label>Öğün Tipi</label>
-              <select
-                value={newMeal.mealType}
-                onChange={(e) => setNewMeal({ ...newMeal, mealType: e.target.value })}
-              >
-                {Object.entries(MEAL_TYPES).map(([key, type]) => (
-                  <option key={key} value={key}>
-                    {type.icon} {type.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div className="form-row">
-            <div className="calorie-tracker-form-group">
-              <label>Kalori (kcal) *</label>
-              <input
-                type="number"
-                placeholder="250"
-                value={newMeal.calories}
-                onChange={(e) => setNewMeal({ ...newMeal, calories: e.target.value })}
-              />
-            </div>
-
-            <div className="calorie-tracker-form-group">
-              <label>Porsiyon</label>
-              <input
-                type="text"
-                placeholder="1 porsiyon, 200g"
-                value={newMeal.portion}
-                onChange={(e) => setNewMeal({ ...newMeal, portion: e.target.value })}
-              />
-            </div>
-          </div>
-
-          <div className="form-row">
-            <div className="calorie-tracker-form-group">
-              <label>Protein (g)</label>
-              <input
-                type="number"
-                placeholder="30"
-                value={newMeal.protein}
-                onChange={(e) => setNewMeal({ ...newMeal, protein: e.target.value })}
-              />
-            </div>
-
-            <div className="calorie-tracker-form-group">
-              <label>Karbonhidrat (g)</label>
-              <input
-                type="number"
-                placeholder="40"
-                value={newMeal.carbs}
-                onChange={(e) => setNewMeal({ ...newMeal, carbs: e.target.value })}
-              />
-            </div>
-
-            <div className="calorie-tracker-form-group">
-              <label>Yağ (g)</label>
-              <input
-                type="number"
-                placeholder="10"
-                value={newMeal.fats}
-                onChange={(e) => setNewMeal({ ...newMeal, fats: e.target.value })}
-              />
-            </div>
-          </div>
-
-          <button className="btn-save-meal" onClick={handleSaveMeal} disabled={isSaving}>
-            {isSaving ? '💾 Kaydediliyor...' : editingMealId ? '💾 Güncelle' : '💾 Kaydet'}
-          </button>
-        </div>
-      )}
-
-      {/* Yemek listesi */}
-      <div className="meals-list">
-        <div className="meals-list-head">
-          <h4>Öğünler ({meals.length})</h4>
-          {biggestMeal && <span>En yüksek: {biggestMeal.name} · {Math.round(biggestMeal.calories)} kcal</span>}
-        </div>
-
-        {meals.length === 0 ? (
-          <div className="empty-meals">
-            <span className="empty-icon">🍽️</span>
-            <p>Henüz yemek eklenmemiş</p>
-            <p className="empty-hint">Yukarıdaki butonu kullanarak yemek ekleyin</p>
-          </div>
-        ) : (
-          Object.entries(MEAL_TYPES).map(([mealType, typeData]) => {
-            const mealsByType = meals.filter(m => m.mealType === mealType);
-            if (mealsByType.length === 0) return null;
-
-            return (
-              <div key={mealType} className="meal-type-group">
-                <h5 className="meal-type-header">
-                  <span>{typeData.icon}</span>
-                  <span>{typeData.label}</span>
-                  <span className="meal-count">({mealsByType.length})</span>
-                </h5>
-
-                {mealsByType.map((meal) => (
-                  <div key={meal.id} className="meal-item">
-                    <div className="meal-info">
-                      <div className="meal-name">{meal.mealLabel || meal.name}</div>
-                      {meal.mealLabel && <div className="meal-portion">{meal.name}</div>}
-                      {meal.portion && (
-                        <div className="meal-portion">{meal.portion}</div>
-                      )}
-                      {meal.source && (
-                        <div className="meal-source">🤖 {meal.source}</div>
-                      )}
-                    </div>
-
-                    <div className="meal-nutrition">
-                      <div className="nutrition-badge calories-badge">
-                        🔥 {Math.round(meal.calories)} kcal
-                      </div>
-                      {meal.protein > 0 && (
-                        <div className="nutrition-badge">Protein: {Math.round(meal.protein)}g</div>
-                      )}
-                      {meal.carbs > 0 && (
-                        <div className="nutrition-badge">Karbonhidrat: {Math.round(meal.carbs)}g</div>
-                      )}
-                      {meal.fats > 0 && (
-                        <div className="nutrition-badge">Yağ: {Math.round(meal.fats)}g</div>
-                      )}
-                    </div>
-
-                    <div className="meal-actions">
-                      <button
-                        className="btn-edit-meal"
-                        onClick={() => handleStartEdit(meal)}
-                        title="Düzenle"
-                      >
-                        ✏️
-                      </button>
-                      <button
-                        className="btn-delete-meal"
-                        onClick={() => handleDeleteMeal(meal.id)}
-                        title="Sil"
-                      >
-                        🗑️
-                      </button>
-                    </div>
+          {microTotals.sourceMealCount > 0 && (
+            <div className="micros-summary">
+              <div className="micros-summary-head">
+                <strong>Mikro Besinler</strong>
+                <span>{microTotals.sourceMealCount} öğünden</span>
+              </div>
+              <div className="micros-grid">
+                {MICRONUTRIENTS.map((item) => (
+                  <div key={item.key} className="micro-chip">
+                    <span>{item.label}</span>
+                    <strong>{formatMicronutrient(microTotals[item.key], item)}</strong>
                   </div>
                 ))}
               </div>
-            );
-          })
-        )}
-      </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {renderNutritionPanel(
+        'meals',
+        `Girilmiş Öğünler (${meals.length})`,
+        selectedDate === todayKey() ? 'Bugünkü kayıtlı öğünler' : formatDate(selectedDate),
+        renderMealsList()
+      )}
+
+      {recentMeals.length > 0 && (
+        renderNutritionPanel(
+          'recent',
+          'Sık Kullanılanlar',
+          'Son 30 günden hızlı tekrar',
+          <div className="recent-meals-panel">
+            <div className="recent-meals-head">
+              <h4>Sık Kullanılanlar</h4>
+              <span>Son 30 gün</span>
+            </div>
+            <div className="recent-meal-chips">
+              {recentMeals.map((meal) => (
+                <button key={`${meal.name}-${meal.timestamp}`} onClick={() => handleQuickRepeat(meal)} disabled={isSaving}>
+                  <strong>{meal.name}</strong>
+                  <span>{Math.round(meal.calories)} kcal · {meal.count}x</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )
+      )}
+
+      {renderNutritionPanel(
+        'templates',
+        'Öğün Şablonları',
+        'Hazır öğünleri ekle, düzenle veya yeni şablon oluştur',
+        <MealTemplates
+          user={user}
+          meals={meals}
+          onUseTemplate={handleUseTemplate}
+          disabled={isSaving}
+        />
+      )}
+
+      {renderNutritionPanel(
+        'addMeal',
+        'Yemek Ekle',
+        'Tek öğünü manuel kalori ve makro ile gir',
+        <>
+          <div className="add-meal-section">
+            <button
+              className="btn-add-meal"
+              onClick={() => (isAddingMeal ? resetForm() : setIsAddingMeal(true))}
+            >
+              {isAddingMeal ? '❌ İptal' : '➕ Yemek Ekle'}
+            </button>
+          </div>
+
+          {isAddingMeal && !editingMealId && renderMealForm()}
+        </>
+      )}
+
     </div>
   );
 };
