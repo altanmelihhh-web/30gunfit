@@ -123,9 +123,14 @@ const fetchGeminiWithRetry = async (body, onRetry) => {
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     trackRequest();
     try {
-      const response = await fetch(`${GEMINI_ENDPOINT}?key=${GEMINI_API_KEY}`, {
+      // Anahtar query string'de değil başlıkta gidiyor: URL'ler proxy, CDN ve
+      // tarayıcı geçmişi loglarına düz metin olarak düşebiliyor, başlıklar düşmüyor.
+      const response = await fetch(GEMINI_ENDPOINT, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'X-goog-api-key': GEMINI_API_KEY
+        },
         body: JSON.stringify(buildGeminiRequest(body))
       });
       const data = await response.json().catch(() => ({}));
