@@ -271,3 +271,20 @@
     padding: 14px;
   }
 }
+
+/* Taslak mantık denetimi */
+.draft-item.has-warning { border-left: 3px solid rgba(245, 158, 11, 0.6); }
+.draft-item.has-error { border-left: 3px solid rgba(239, 68, 68, 0.6); }
+
+.draft-validation {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.draft-validation.warning { color: #b45309; }
+.draft-validation.error { color: #b91c1c; }
+
+[data-theme='dark'] .draft-validation.warning { color: #fbbf24; }
+[data-theme='dark'] .draft-validation.error { color: #fca5a5; }

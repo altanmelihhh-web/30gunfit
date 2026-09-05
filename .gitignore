@@ -2,6 +2,7 @@
 
 # dependencies
 /node_modules
+node_modules/
 /.pnp
 .pnp.js
 
@@ -31,3 +32,7 @@ yarn-error.log*
 
 # Haftalık rapor şablonu önizlemesi (yerel)
 scripts/weekly-report/preview-*.html
+scripts/weekly-report/preview-*.txt
+
+# Yerel build arşivi
+30gunfit-build.zip

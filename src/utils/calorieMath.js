@@ -43,7 +43,7 @@ export const getBMRProfileIssue = (profile) => {
   if (!inRange(weight, 30, 300)) return 'Kilo 30-300 kg aralığında olmalı.';
   if (!inRange(height, 100, 250)) return 'Boy 100-250 cm aralığında olmalı.';
   if (!inRange(age, 13, 100)) return 'Yaş 13-100 aralığında olmalı.';
-  if (!profile.gender) return 'Cinsiyet seçili olmalı.';
+  if (!['male', 'female'].includes(profile.gender)) return 'Cinsiyet erkek veya kadın olarak seçilmeli.';
   return null;
 };
 

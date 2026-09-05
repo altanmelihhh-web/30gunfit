@@ -38,7 +38,7 @@ const NutritionCalculator = ({ userProfile, onSaveResults }) => {
     weight: userProfile?.weight || 70,
     height: userProfile?.height || 170,
     age: userProfile?.age || 25,
-    gender: userProfile?.gender || 'male',
+    gender: userProfile?.gender || '',
     activityLevel: 'MODERATE',
     goal: userProfile?.goal || 'maintenance'
   });
@@ -47,6 +47,7 @@ const NutritionCalculator = ({ userProfile, onSaveResults }) => {
 
   // BMR hesaplama (Mifflin-St Jeor formülü - 2024 standart)
   const calculateBMR = (weight, height, age, gender) => {
+    if (!weight || !height || !age || !['male', 'female'].includes(gender)) return null;
     // BMR = (10 × kilo) + (6.25 × boy cm) - (5 × yaş) + c
     // c = +5 erkek, -161 kadın
     const base = (10 * weight) + (6.25 * height) - (5 * age);
@@ -86,12 +87,14 @@ const NutritionCalculator = ({ userProfile, onSaveResults }) => {
     };
   };
 
-  // Ana hesaplama fonksiyonu
-  const handleCalculate = () => {
-    const { weight, height, age, gender, activityLevel, goal } = formData;
+  const calculateFromData = (data) => {
+    const { weight, height, age, gender, activityLevel, goal } = data;
 
     // BMR hesapla
     const bmr = calculateBMR(weight, height, age, gender);
+    if (bmr == null) {
+      return null;
+    }
 
     // TDEE hesapla
     const tdee = calculateTDEE(bmr, activityLevel);
@@ -116,6 +119,17 @@ const NutritionCalculator = ({ userProfile, onSaveResults }) => {
       activityLevel: ACTIVITY_LEVELS[activityLevel].label
     };
 
+    return calculatedResults;
+  };
+
+  // Ana hesaplama fonksiyonu
+  const handleCalculate = () => {
+    const calculatedResults = calculateFromData(formData);
+    if (!calculatedResults) {
+      setResults(null);
+      return;
+    }
+
     setResults(calculatedResults);
 
     // Parent component'e kaydet (optional)
@@ -132,10 +146,25 @@ const NutritionCalculator = ({ userProfile, onSaveResults }) => {
   // Component mount olduğunda otomatik hesapla
   useEffect(() => {
     if (userProfile) {
-      handleCalculate();
+      const nextFormData = {
+        ...formData,
+        weight: userProfile?.weight || 70,
+        height: userProfile?.height || 170,
+        age: userProfile?.age || 25,
+        gender: userProfile?.gender || '',
+        goal: userProfile?.goal || 'maintenance'
+      };
+      setFormData(nextFormData);
+      const calculatedResults = calculateFromData(nextFormData);
+      if (calculatedResults) {
+        setResults(calculatedResults);
+        if (onSaveResults) onSaveResults(calculatedResults);
+      } else {
+        setResults(null);
+      }
     }
     // eslint-disable-next-line
-  }, []);
+  }, [userProfile]);
 
   return (
     <div className="nutrition-calculator">
@@ -205,6 +234,7 @@ const NutritionCalculator = ({ userProfile, onSaveResults }) => {
                 Kadın
               </label>
             </div>
+            {!formData.gender && <small>Cinsiyet seçilmeden BMR hesaplanmaz.</small>}
           </div>
         </div>
 

@@ -80,8 +80,17 @@
   cursor: pointer;
 }
 
+/* Doğrulama hatası varken buton kilitli - kilitli olduğu net görünmeli. */
 .sleep-save-btn:disabled {
-  opacity: 0.6;
+  background: #d1d5db;
+  color: #4b5563;
+  cursor: not-allowed;
+  opacity: 1;
+}
+
+[data-theme='dark'] .sleep-save-btn:disabled {
+  background: rgba(148, 163, 184, 0.22);
+  color: #cbd5e1;
 }
 
 .sleep-stats {
@@ -168,3 +177,59 @@
   padding: 20px 0;
   margin: 0;
 }
+
+/* Uyku süresi mantık denetimi */
+.sleep-validation {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 10px 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  border: 1px solid transparent;
+}
+
+.sleep-validation.warning {
+  background: rgba(245, 158, 11, 0.12);
+  border-color: rgba(245, 158, 11, 0.45);
+  color: #b45309;
+}
+
+.sleep-validation.error {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.45);
+  color: #b91c1c;
+}
+
+.sleep-validation-fix {
+  border: 1px solid currentColor;
+  background: transparent;
+  color: inherit;
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.sleep-validation-fix:hover { opacity: 0.8; }
+
+[data-theme='dark'] .sleep-validation.warning { color: #fbbf24; }
+[data-theme='dark'] .sleep-validation.error { color: #fca5a5; }
+
+.sleep-history-item.has-warning { border-left: 3px solid rgba(245, 158, 11, 0.6); }
+.sleep-history-item.has-error { border-left: 3px solid rgba(239, 68, 68, 0.6); }
+
+.sleep-history-flag {
+  display: inline-block;
+  margin-left: 8px;
+  font-size: 0.75rem;
+}
+
+.sleep-history-flag.warning { color: #b45309; }
+.sleep-history-flag.error { color: #b91c1c; }
+
+[data-theme='dark'] .sleep-history-flag.warning { color: #fbbf24; }
+[data-theme='dark'] .sleep-history-flag.error { color: #fca5a5; }

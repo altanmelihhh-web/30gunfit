@@ -21,7 +21,7 @@ const formatDate = (dateStr) => {
   return d.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short', year: 'numeric' });
 };
 
-const MealPhotoGallery = ({ user, driveAccessToken, onRequestDriveAccess }) => {
+const MealPhotoGallery = ({ user, driveAccessToken }) => {
   const [loading, setLoading] = useState(false);
   const [mealsWithPhotos, setMealsWithPhotos] = useState([]);
   const [imageUrls, setImageUrls] = useState({});
@@ -36,7 +36,7 @@ const MealPhotoGallery = ({ user, driveAccessToken, onRequestDriveAccess }) => {
       const found = [];
       dates.forEach((date) => {
         (data[date]?.meals || []).forEach((meal) => {
-          if (meal.photoDriveId) {
+          if (meal.photoDataUrl || meal.photoDriveId) {
             found.push({ ...meal, date });
           }
         });
@@ -71,13 +71,12 @@ const MealPhotoGallery = ({ user, driveAccessToken, onRequestDriveAccess }) => {
     <div className="meal-gallery">
       <div className="meal-gallery-header">
         <h3>📷 Yemek Galerisi</h3>
-        <p>Son {DAYS_TO_LOAD} günde fotoğrafla eklediğin öğünler (Google Drive'ında saklanıyor)</p>
+        <p>Son {DAYS_TO_LOAD} günde fotoğrafla kaydettiğin öğünler</p>
       </div>
 
-      {!driveAccessToken && (
+      {!driveAccessToken && mealsWithPhotos.some((meal) => meal.photoDriveId && !meal.photoDataUrl) && (
         <div className="meal-gallery-drive-warning">
-          ⚠️ Drive bağlantın yok veya süresi dolmuş, fotoğraflar yüklenemiyor.
-          <button onClick={onRequestDriveAccess}>Drive'a bağlan</button>
+          ⚠️ Eski Drive kayıtların var; yeni fotoğraflar artık uygulama içinde saklanıyor.
         </div>
       )}
 
@@ -90,7 +89,9 @@ const MealPhotoGallery = ({ user, driveAccessToken, onRequestDriveAccess }) => {
           {mealsWithPhotos.map((meal) => (
             <div key={meal.id} className="meal-gallery-card">
               <div className="meal-gallery-image">
-                {imageUrls[meal.photoDriveId] ? (
+                {meal.photoDataUrl ? (
+                  <img src={meal.photoDataUrl} alt={meal.name} />
+                ) : imageUrls[meal.photoDriveId] ? (
                   <img src={imageUrls[meal.photoDriveId]} alt={meal.name} />
                 ) : failedIds[meal.photoDriveId] ? (
                   <div className="meal-gallery-placeholder">🔒 Görüntülenemedi</div>

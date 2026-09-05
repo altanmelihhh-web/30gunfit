@@ -4,6 +4,9 @@ import { getDailyLogsRange, getCalorieTrackingRange, getWaterTracker, getWeightT
 import { analyzeRegions, REGION_LABELS } from '../utils/muscleMap';
 import { workoutStats } from '../utils/hevyParser';
 import { computeBMR, profileWithLatestWeight, avgDeficit as avgDeficitFn } from '../utils/calorieMath';
+import { MICRONUTRIENTS, averageMicronutrients, formatMicronutrient, sumMicronutrients } from '../utils/micronutrients';
+import { getWeeklyWorkoutChecklist, getWeeklyWorkoutPlan } from '../firebase/checklistService';
+import { isWeekChecked, toDateKey, weekStartKeyFor } from '../utils/weekKeys';
 
 /**
  * ReportView - Haftalık/Aylık sağlık raporu.
@@ -19,7 +22,7 @@ const dateList = (days) => {
   for (let i = days - 1; i >= 0; i--) {
     const d = new Date(today);
     d.setDate(d.getDate() - i);
-    out.push(d.toISOString().split('T')[0]);
+    out.push(toDateKey(d));
   }
   return out;
 };
@@ -36,17 +39,19 @@ const ReportView = ({ user }) => {
     setLoading(true);
     try {
       const dates = dateList(RANGES[rangeKey]);
-      const [logs, calories, water, weight, goalsRes, profileRes] = await Promise.all([
+      const [logs, calories, water, weight, goalsRes, profileRes, weeklyPlan, weeklyChecklist] = await Promise.all([
         getDailyLogsRange(user.uid, dates),
         getCalorieTrackingRange(user.uid, dates),
         getWaterTracker(user.uid),
         getWeightTracker(user.uid, user.email),
         getNutritionGoals(user.uid),
-        getUserProfile(user.uid)
+        getUserProfile(user.uid),
+        getWeeklyWorkoutPlan(user.uid),
+        getWeeklyWorkoutChecklist(user.uid)
       ]);
 
       // Beslenme
-      const dayCals = [], dayProt = [], dayCarb = [], dayFat = [];
+      const dayCals = [], dayProt = [], dayCarb = [], dayFat = [], microDays = [];
       dates.forEach((d) => {
         const meals = calories[d]?.meals || [];
         if (meals.length === 0) return;
@@ -54,7 +59,9 @@ const ReportView = ({ user }) => {
         dayProt.push(meals.reduce((s, m) => s + (parseFloat(m.protein) || 0), 0));
         dayCarb.push(meals.reduce((s, m) => s + (parseFloat(m.carbs) || 0), 0));
         dayFat.push(meals.reduce((s, m) => s + (parseFloat(m.fats) || 0), 0));
+        microDays.push({ micros: sumMicronutrients(meals) });
       });
+      const microAvg = averageMicronutrients(microDays);
 
       // Su (tarih bazlı toplam)
       const waterByDate = {};
@@ -131,18 +138,30 @@ const ReportView = ({ user }) => {
       }).filter((d) => d.consumed > 0);
       const avgDeficit = avgDeficitFn(bmr, calorieDays);
       const totalDeficit = avgDeficit != null ? Math.round(avgDeficit * calorieDays.length) : null;
+      const weekKeys = new Set(dates.map(weekStartKeyFor));
+      const checklistPlanned = weeklyPlan.length * weekKeys.size;
+      const checklistCompleted = weeklyPlan.reduce((count, item) => (
+        count + [...weekKeys].filter((weekKey) => isWeekChecked(weeklyChecklist, weekKey, item.id)).length
+      ), 0);
 
       setData({
         dates,
         nutrition: {
           avgCalories: avg(dayCals), avgProtein: avg(dayProt), avgCarbs: avg(dayCarb), avgFats: avg(dayFat),
-          loggedDays: dayCals.length, totalDeficit, avgDeficit
+          loggedDays: dayCals.length, totalDeficit, avgDeficit, micros: microAvg
         },
         goals,
         water: { avg: avg(waterVals), days: waterVals.length },
         sleep: { avg: sleepVals.length ? (sleepVals.reduce((s, x) => s + x, 0) / sleepVals.length).toFixed(1) : null, avgScore: avg(sleepScores) },
         steps: { avg: avg(stepVals), days: stepVals.length },
-        workout: { dayCount: workoutDayCount, totalSets, totalVolume: Math.round(totalVolume), totalDurationMin: Math.round(totalDurationMin), regions: regionList },
+        workout: {
+          dayCount: workoutDayCount,
+          totalSets,
+          totalVolume: Math.round(totalVolume),
+          totalDurationMin: Math.round(totalDurationMin),
+          regions: regionList,
+          checklist: { planned: checklistPlanned, completed: checklistCompleted }
+        },
         body: { weightChange, weightStart, weightEnd, weightInRange }
       });
     } finally {
@@ -174,6 +193,7 @@ const ReportView = ({ user }) => {
             <h3>🏋️ Antrenman</h3>
             <div className="report-stats">
               <div><strong>{data.workout.dayCount}</strong><span>gün</span></div>
+              <div><strong>{data.workout.checklist.planned ? `${data.workout.checklist.completed}/${data.workout.checklist.planned}` : '–'}</strong><span>checklist</span></div>
               <div><strong>{data.workout.totalSets}</strong><span>set</span></div>
               <div><strong>{data.workout.totalVolume}</strong><span>kg hacim</span></div>
               <div><strong>{data.workout.totalDurationMin || '–'}</strong><span>dk</span></div>
@@ -223,6 +243,21 @@ const ReportView = ({ user }) => {
                   <span>günlük ort. {data.nutrition.avgDeficit >= 0 ? 'açık' : 'fazla'}</span>
                 </div>
               </div>
+            )}
+            {data.nutrition.micros.loggedDays > 0 ? (
+              <div className="report-micros">
+                <div className="report-micros-title">Mikro besin ortalaması ({data.nutrition.micros.loggedDays} gün)</div>
+                <div className="report-micros-grid">
+                  {MICRONUTRIENTS.map((item) => (
+                    <div key={item.key} className="report-micro">
+                      <span>{item.label}</span>
+                      <strong>{formatMicronutrient(data.nutrition.micros[item.key], item)}</strong>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <p className="report-note">Mikro besin verisi yok. Open Food Facts ile eklenen ürünlerde otomatik görünür.</p>
             )}
             <p className="report-note">{data.nutrition.loggedDays} gün kayıt girildi</p>
           </div>

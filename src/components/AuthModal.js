@@ -77,6 +77,10 @@ function AuthModal({ isOpen, onClose, onAuthSuccess, hideCloseButton = false }) 
 
     // Google'a yönlenir - sayfa buradan ayrılır, sonuç App.js açılışta işlenir
     const result = await loginWithGoogle();
+    if (result.success && result.user) {
+      if (onAuthSuccess) onAuthSuccess(result.user);
+      return;
+    }
     if (!result.success) {
       setError(getErrorMessage(result.error));
       setLoading(false);

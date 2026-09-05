@@ -1,4 +1,4 @@
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { collection, doc, documentId, getDoc, getDocs, query, setDoc, where } from 'firebase/firestore';
 import { db } from './config';
 
 const normalizeEmailKey = (email) => (email || '').trim().toLowerCase();
@@ -368,6 +368,23 @@ export const getDailyLogsRange = async (userId, dates) => {
   return data;
 };
 
+const getUserDateKeyedCollection = async (collectionName, userId) => {
+  const prefix = `${userId}_`;
+  const snapshot = await getDocs(query(
+    collection(db, collectionName),
+    where(documentId(), '>=', prefix),
+    where(documentId(), '<=', `${prefix}\uf8ff`)
+  ));
+  const data = {};
+  snapshot.forEach((snap) => {
+    const date = snap.id.slice(prefix.length);
+    if (date) data[date] = snap.data();
+  });
+  return data;
+};
+
+export const getAllDailyLogs = async (userId) => getUserDateKeyedCollection('dailyLogs', userId);
+
 export const getCalorieTrackingRange = async (userId, dates) => {
   const results = await Promise.all(
     dates.map((date) => getDoc(doc(db, 'calorieTracking', `${userId}_${date}`)))
@@ -378,6 +395,8 @@ export const getCalorieTrackingRange = async (userId, dates) => {
   });
   return data;
 };
+
+export const getAllCalorieTracking = async (userId) => getUserDateKeyedCollection('calorieTracking', userId);
 
 /**
  * Kilo takibini kaydet (tüm kayıtlar tek dokümanda, WeightTracker'ın localStorage yapısıyla birebir aynı)
@@ -459,6 +478,35 @@ export const getBodyComposition = async (userId) => {
     return { success: false, error: 'Kompozisyon bulunamadı' };
   } catch (error) {
     console.error('Body composition fetch error:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Akıllı tartı verileri (OKOK vb.) - aynı gün birden fazla ölçüm tutulur.
+ */
+export const saveScaleMetrics = async (userId, entries) => {
+  try {
+    await setDoc(doc(db, 'scaleMetrics', userId), {
+      entries,
+      updatedAt: new Date().toISOString()
+    });
+    return { success: true };
+  } catch (error) {
+    console.error('Scale metrics save error:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+export const getScaleMetrics = async (userId) => {
+  try {
+    const docSnap = await getDoc(doc(db, 'scaleMetrics', userId));
+    if (docSnap.exists()) {
+      return { success: true, data: docSnap.data() };
+    }
+    return { success: false, error: 'Tartı verisi bulunamadı' };
+  } catch (error) {
+    console.error('Scale metrics fetch error:', error);
     return { success: false, error: error.message };
   }
 };
@@ -566,8 +614,12 @@ export default {
   getWaterTracker,
   saveWeightTracker,
   getWeightTracker,
+  saveScaleMetrics,
+  getScaleMetrics,
   saveDailyLog,
   getDailyLog,
+  getAllDailyLogs,
   getDailyLogsRange,
+  getAllCalorieTracking,
   getCalorieTrackingRange
 };

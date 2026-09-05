@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import './SleepTracker.css';
 import { getDailyLogsRange } from '../firebase/dataService';
 import { saveSleep, deleteSleep } from '../firebase/dailyLogService';
+import { validateSleepDuration, isBlocking } from '../utils/entryValidation';
 
 /**
  * SleepTracker - adanmış uyku takibi ekranı
@@ -57,9 +58,23 @@ const SleepTracker = ({ user }) => {
     loadEntries();
   }, [loadEntries]);
 
+  // Canlı denetim: 649 saat gibi ondalık atlanmış girişleri kaydetmeden yakalar.
+  const sleepValidation = form.duration_hours === '' ? null : validateSleepDuration(form.duration_hours);
+
+  const applySuggestion = () => {
+    if (sleepValidation?.suggestion) {
+      setForm({ ...form, duration_hours: String(sleepValidation.suggestion) });
+    }
+  };
+
   const handleSave = async () => {
     if (!user || !form.duration_hours) {
       alert('En az uyku süresini girin');
+      return;
+    }
+    const validation = validateSleepDuration(form.duration_hours);
+    if (isBlocking(validation)) {
+      alert(validation.message);
       return;
     }
     setIsSaving(true);
@@ -221,7 +236,21 @@ const SleepTracker = ({ user }) => {
               />
             </div>
           </div>
-          <button className="sleep-save-btn" onClick={handleSave} disabled={isSaving}>
+          {sleepValidation && sleepValidation.level !== 'ok' && (
+            <div className={`sleep-validation ${sleepValidation.level}`} role="alert">
+              <span>{sleepValidation.level === 'error' ? '⛔' : '⚠️'} {sleepValidation.message}</span>
+              {sleepValidation.suggestion && (
+                <button type="button" className="sleep-validation-fix" onClick={applySuggestion}>
+                  {sleepValidation.suggestion} saat yap
+                </button>
+              )}
+            </div>
+          )}
+          <button
+            className="sleep-save-btn"
+            onClick={handleSave}
+            disabled={isSaving || (sleepValidation ? isBlocking(sleepValidation) : false)}
+          >
             {isSaving ? '💾 Kaydediliyor...' : '💾 Kaydet'}
           </button>
         </div>
@@ -251,21 +280,30 @@ const SleepTracker = ({ user }) => {
           {renderChart()}
 
           <div className="sleep-history">
-            {[...entries].reverse().map((entry) => (
-              <div key={entry.date} className="sleep-history-item">
+            {[...entries].reverse().map((entry) => {
+              // Geçmişte kaydedilmiş hatalı değerler (649 saat gibi) listede işaretlenir.
+              const check = validateSleepDuration(entry.duration_hours);
+              return (
+              <div key={entry.date} className={`sleep-history-item ${check.level !== 'ok' ? `has-${check.level}` : ''}`}>
                 <span className="sleep-history-date">{formatShort(entry.date)}</span>
                 <span className="sleep-history-info">
                   {entry.duration_hours} saat
                   {entry.score ? ` · skor ${entry.score}` : ''}
                   {entry.night_wakes ? ` · ${entry.night_wakes}x uyanma${entry.wake_minutes ? ` (${entry.wake_minutes} dk)` : ''}` : ''}
                   {entry.bedtime ? ` · yatış ${entry.bedtime}` : ''}
+                  {check.level !== 'ok' && (
+                    <small className={`sleep-history-flag ${check.level}`} title={check.message}>
+                      {check.level === 'error' ? '⛔ Hatalı veri' : '⚠️ Doğrula'}
+                    </small>
+                  )}
                 </span>
                 <div className="sleep-history-actions">
                   <button onClick={() => handleEdit(entry)} title="Düzenle">✏️</button>
                   <button onClick={() => handleDelete(entry.date)} title="Sil">🗑️</button>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         </>
       )}

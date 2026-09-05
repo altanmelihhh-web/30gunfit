@@ -1,4 +1,6 @@
 // Anahtar kelime -> kategori eşlemesi. AI'ya hiç gitmez, saf metin ayrıştırma.
+import { validateMealNutrition, validateSleepDuration } from './entryValidation';
+
 const num = (s) => parseFloat(String(s).replace(',', '.'));
 
 const parseWater = (rest) => {
@@ -29,9 +31,14 @@ const parseSleep = (rest) => {
   if (scoreMatch) sleep.score = parseInt(scoreMatch[1], 10);
   if (bedtimeMatch) sleep.bedtime = bedtimeMatch[1].replace('.', ':');
 
+  // "uyku: 649 saat" gibi ondalık atlanmış girişler kaydedilmeden burada durur.
+  const validation = validateSleepDuration(sleep.duration_hours);
+  if (validation.level === 'error') return { error: validation.message };
+
   return {
     category: 'sleep',
     data: { sleep },
+    validation,
     preview: `😴 ${sleep.duration_hours} saat${sleep.score ? `, skor ${sleep.score}` : ''}${sleep.bedtime ? `, yatış ${sleep.bedtime}` : ''}`
   };
 };
@@ -143,9 +150,14 @@ const parseMeal = (rest) => {
     fats: fatMatch ? num(fatMatch[1]) : 0
   };
 
+  // Kalori/makro tutarsızlığı: hata satırı reddeder, uyarı önizlemede gösterilir.
+  const validation = validateMealNutrition({ ...meal, name });
+  if (validation.level === 'error') return { error: validation.message };
+
   return {
     category: 'meal',
     data: meal,
+    validation,
     preview: `🍽️ ${name} — ${calories} kcal${meal.protein ? `, P:${meal.protein}g` : ''}${meal.carbs ? `, C:${meal.carbs}g` : ''}${meal.fats ? `, F:${meal.fats}g` : ''}`
   };
 };

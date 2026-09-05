@@ -16,6 +16,20 @@
  */
 
 const num = (s) => parseFloat(String(s).replace(',', '.'));
+const MONTHS = {
+  oca: 0, ocak: 0,
+  şub: 1, sub: 1, şubat: 1, subat: 1,
+  mar: 2, mart: 2,
+  nis: 3, nisan: 3,
+  may: 4, mayıs: 4, mayis: 4,
+  haz: 5, haziran: 5,
+  tem: 6, temmuz: 6,
+  ağu: 7, agu: 7, ağustos: 7, agustos: 7,
+  eyl: 8, eylül: 8, eylul: 8,
+  eki: 9, ekim: 9,
+  kas: 10, kasım: 10, kasim: 10,
+  ara: 11, aralık: 11, aralik: 11
+};
 
 // "Set 1: 4.5 kg x 12 [Isınma]" veya "20kg x 10" / "20 x 10" gibi bir set satırı mı?
 const parseSetLine = (line) => {
@@ -46,21 +60,66 @@ const isIgnorableLine = (line) => {
 
 const startsWithSet = (line) => /^\s*set\s*\d+\s*[:.)]/i.test(line);
 
+const parseActivityLine = (line) => {
+  const durationMatch = line.match(/(\d+(?:[.,]\d+)?)\s*(?:dk|dakika|min|minute)/i);
+  const distanceMatch = line.match(/(\d+(?:[.,]\d+)?)\s*km/i);
+  const cleanedName = line
+    .replace(/[-–—·]?\s*\d+(?:[.,]\d+)?\s*(?:dk|dakika|min|minute)\b/gi, '')
+    .replace(/[-–—·]?\s*\d+(?:[.,]\d+)?\s*km\b/gi, '')
+    .trim();
+  if (!durationMatch && !distanceMatch) return { name: line, duration_min: null, distance_km: null };
+  return {
+    name: cleanedName || line,
+    duration_min: durationMatch ? num(durationMatch[1]) : null,
+    distance_km: distanceMatch ? num(distanceMatch[1]) : null
+  };
+};
+
+const parseWorkoutDateLine = (line) => {
+  const match = line.match(/,\s*([A-Za-zÇĞİÖŞÜçğıöşü]{3,})\s+(\d{1,2}),\s*(20\d{2}),\s*([0-9]{1,2}:[0-9]{2}\s*(?:am|pm)?)/i);
+  if (!match) return null;
+  const monthKey = match[1].toLocaleLowerCase('tr').replace(/\./g, '');
+  const month = MONTHS[monthKey];
+  if (month == null) return null;
+  const day = parseInt(match[2], 10);
+  const year = parseInt(match[3], 10);
+  if (!day || day < 1 || day > 31) return null;
+  return {
+    date: `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
+    time: match[4].replace(/\s+/g, '').toLowerCase()
+  };
+};
+
 export const parseHevyWorkout = (text) => {
   const rawLines = text.split('\n').map((l) => l.trim()).filter(Boolean);
-  if (rawLines.length === 0) return { title: '', exercises: [] };
+  if (rawLines.length === 0) return { title: '', date: null, time: null, exercises: [] };
 
   let title = '';
+  let workoutDate = null;
+  let workoutTime = null;
   const exercises = [];
   let current = null;
 
-  rawLines.forEach((line, idx) => {
+  rawLines.forEach((line, lineIndex) => {
+    const parsedDate = parseWorkoutDateLine(line);
+    if (parsedDate) {
+      workoutDate = parsedDate.date;
+      workoutTime = parsedDate.time;
+      return;
+    }
     if (isIgnorableLine(line)) return;
 
-    // İlk anlamlı satır ve henüz hareket yoksa: başlık
-    if (idx === 0 && !startsWithSet(line) && !parseSetLine(line)) {
-      title = line;
-      return;
+    const nextMeaningfulLine = rawLines.slice(lineIndex + 1).find((nextLine) => (
+      !isIgnorableLine(nextLine) && !parseWorkoutDateLine(nextLine)
+    ));
+
+    // İlk anlamlı satır ve henüz hareket yoksa: başlık.
+    // Ancak hemen ardından Set satırı geliyorsa bu satır başlık değil, ilk harekettir.
+    if (!title && exercises.length === 0 && !startsWithSet(line) && !parseSetLine(line)) {
+      if (!nextMeaningfulLine || !startsWithSet(nextMeaningfulLine)) {
+        title = line;
+        return;
+      }
     }
 
     if (startsWithSet(line)) {
@@ -85,14 +144,14 @@ export const parseHevyWorkout = (text) => {
     }
 
     // Aksi halde yeni bir hareket adı (Koşu Bandı, Chest Press (Makine), Yürüme...)
-    current = { name: line, sets: [] };
+    current = { ...parseActivityLine(line), sets: [] };
     exercises.push(current);
   });
 
   // Başlık bulunamadıysa ve ilk öğe aslında başlıksa düzelt
   if (!title && exercises.length === 0) title = rawLines[0];
 
-  return { title, exercises };
+  return { title, date: workoutDate, time: workoutTime, exercises };
 };
 
 // Bir antrenmanın toplam set ve hacim (kg) özetini hesapla

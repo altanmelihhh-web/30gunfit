@@ -19,6 +19,7 @@ const PeriodTracker = lazy(() => import('./components/PeriodTracker'));
 const NutritionDashboard = lazy(() => import('./components/NutritionDashboard'));
 const TrendView = lazy(() => import('./components/TrendView'));
 const WeightTracker = lazy(() => import('./components/WeightTracker'));
+const ScaleMetrics = lazy(() => import('./components/ScaleMetrics'));
 const SleepTracker = lazy(() => import('./components/SleepTracker'));
 const TodaySummary = lazy(() => import('./components/TodaySummary'));
 const ReportView = lazy(() => import('./components/ReportView'));
@@ -78,7 +79,25 @@ const getCurrentTimeString = () => {
 
 const LoadingPanel = () => <div className="lazy-loading-panel">Yükleniyor...</div>;
 
-// Son N günün dailyLogs'undan antrenman kaydedilen günleri bul
+const dateKey = (date) => date.toISOString().split('T')[0];
+
+const datesFromAccountStart = (user) => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const rawCreatedAt = user?.metadata?.creationTime;
+  const start = rawCreatedAt ? new Date(rawCreatedAt) : new Date(today.getFullYear(), 0, 1);
+  if (Number.isNaN(start.getTime())) start.setTime(new Date(today.getFullYear(), 0, 1).getTime());
+  start.setHours(0, 0, 0, 0);
+  const dates = [];
+  const cursor = new Date(start);
+  while (cursor <= today) {
+    dates.push(dateKey(cursor));
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return dates;
+};
+
+// Tüm dailyLogs içinden antrenman kaydedilen günleri bul
 const computeWorkoutStats = (logsByDate, dates) => {
   const workoutDates = dates.filter((d) => (logsByDate[d]?.workouts || []).some(
     (w) => (w.exercises && w.exercises.length > 0) || w.title || w.duration_min
@@ -152,6 +171,13 @@ function App() {
   const [driveAccessToken, setDriveAccessToken] = useState(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('home'); // 'home' | 'workout' | 'nutrition' | 'stats' | 'settings'
+  const [openStatsSections, setOpenStatsSections] = useState({
+    trend: true,
+    weight: false,
+    sleep: false,
+    scale: false,
+    measurements: false
+  });
 
   const [userProfile, setUserProfile] = useState(() => {
     return { ...DEFAULT_PROFILE };
@@ -197,24 +223,23 @@ function App() {
     }
   }, [userProfile, user, profileReady]);
 
-  // Antrenman streak/sayısı (son 60 gün)
+  // Antrenman ve kayıt streak/sayısı (tüm geçmiş)
   const loadWorkoutStats = useCallback(async () => {
     if (!user) return;
-    const dates = [];
-    const today = new Date();
-    for (let i = 0; i < 60; i++) {
-      const d = new Date(today);
-      d.setDate(d.getDate() - i);
-      dates.push(d.toISOString().split('T')[0]);
-    }
+    const dates = datesFromAccountStart(user);
     try {
       const [logs, calories, water] = await Promise.all([
         getDailyLogsRange(user.uid, dates),
         getCalorieTrackingRange(user.uid, dates),
         getWaterTracker(user.uid)
       ]);
-      const { count, streak } = computeWorkoutStats(logs, dates);
-      const dataStats = computeDailyDataStats(logs, calories, water.success ? water.data.entries || [] : [], dates);
+      const waterEntries = water.success ? water.data.entries || [] : [];
+      const allDates = Array.from(new Set([
+        ...dates,
+        ...waterEntries.map((entry) => entry.date).filter(Boolean)
+      ])).sort();
+      const { count, streak } = computeWorkoutStats(logs, allDates);
+      const dataStats = computeDailyDataStats(logs, calories, waterEntries, allDates);
       setWorkoutCount(count);
       setWorkoutStreak(streak);
       setDataDayCount(dataStats.count);
@@ -420,6 +445,36 @@ function App() {
     }
   };
 
+  const toggleStatsSection = (key) => {
+    setOpenStatsSections((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const renderStatsSection = (key, title, subtitle, children) => {
+    const isOpen = Boolean(openStatsSections[key]);
+    return (
+      <section className={`stats-accordion ${isOpen ? 'open' : ''}`}>
+        <button
+          type="button"
+          className="stats-accordion-head"
+          onClick={(event) => {
+            event.preventDefault();
+            toggleStatsSection(key);
+          }}
+          aria-expanded={isOpen}
+        >
+          <span>
+            <strong>{title}</strong>
+            <small>{subtitle}</small>
+          </span>
+          <b>{isOpen ? 'Kapat' : 'Aç'}</b>
+        </button>
+        <div className="stats-accordion-body" aria-hidden={!isOpen}>
+          {children}
+        </div>
+      </section>
+    );
+  };
+
   if (!authChecked) {
     return <div className="App" />;
   }
@@ -528,14 +583,42 @@ function App() {
 
         {/* İlerleme - vücut takibi veri girişi */}
           {activeTab === 'stats' && (
-            <div className="tab-content">
-              <TrendView user={user} />
-              <div className="dashboard-sections">
-                <WeightTracker user={user} initialWeight={userProfile?.weight} />
-                <SleepTracker user={user} />
-              </div>
-              <div className="dashboard-sections" style={{ marginTop: '28px' }}>
-                <BodyMeasurements user={user} />
+            <div className="tab-content stats-tab-content">
+              <div className="stats-accordion-list">
+                {renderStatsSection(
+                  'trend',
+                  '📈 Genel İlerleme',
+                  'Trend, uyum skoru, hedef rotası ve günlük eğilimler',
+                  <TrendView user={user} />
+                )}
+                <div className="stats-accordion-grid">
+                  {renderStatsSection(
+                    'weight',
+                    '⚖️ Kilo Takibi',
+                    'Kilo geçmişi, hedef kilo ve kilo grafiği',
+                    <WeightTracker user={user} initialWeight={userProfile?.weight} />
+                  )}
+                  {renderStatsSection(
+                    'sleep',
+                    '😴 Uyku Takibi',
+                    'Uyku kayıtları, ortalama ve toparlanma verileri',
+                    <SleepTracker user={user} />
+                  )}
+                </div>
+                <div className="stats-accordion-grid">
+                  {renderStatsSection(
+                    'scale',
+                    '⚖️ Tartı Verileri',
+                    'OKOK verileri, tüm ölçümler ve metrik grafikleri',
+                    <ScaleMetrics user={user} />
+                  )}
+                  {renderStatsSection(
+                    'measurements',
+                    '📏 Vücut Ölçüleri',
+                    'Vücut ölçüleri, ana kartlar ve geçmiş kayıtları',
+                    <BodyMeasurements user={user} />
+                  )}
+                </div>
               </div>
             </div>
           )}
