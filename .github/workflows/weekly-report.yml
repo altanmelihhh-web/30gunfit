@@ -2,14 +2,23 @@ name: Haftalık Rapor E-postası
 
 on:
   schedule:
-    # Pazar 09:00 UTC = 12:00 Europe/Istanbul (UTC+3, DST yok)
-    - cron: '0 9 * * 0'
+    # GitHub cron'u tam saat başlarında yoğunluktan geciktirir/atlar; bu yüzden :23.
+    # Pazar 09:23 UTC = 12:23 Europe/Istanbul (UTC+3, DST yok)
+    - cron: '23 9 * * 0'
+    # Yedek çalıştırma: ilk cron atlanırsa aynı gün tekrar dener.
+    # Pazar 13:23 UTC = 16:23 Europe/Istanbul. Aynı hafta zaten gönderildiyse atlanır.
+    - cron: '23 13 * * 0'
   workflow_dispatch:      # Elle test için "Run workflow" butonu
     inputs:
       only_email:
         description: 'Sadece bu adrese gönder (boş bırakılırsa tüm kullanıcılara)'
         required: false
         default: ''
+      mark_sent:
+        description: 'Mail atma, bu haftayı "gönderildi" olarak işaretle (yedek cron tekrar atmasın)'
+        type: boolean
+        required: false
+        default: false
 
 jobs:
   send-report:
@@ -32,4 +41,7 @@ jobs:
           GMAIL_USER: ${{ secrets.GMAIL_USER }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
           REPORT_ONLY_EMAIL: ${{ inputs.only_email }}
+          # Elle tetiklemede haftalık tekrar-gönderme kilidini yok say.
+          FORCE_SEND: ${{ github.event_name == 'workflow_dispatch' }}
+          MARK_SENT_ONLY: ${{ inputs.mark_sent }}
         run: node index.mjs

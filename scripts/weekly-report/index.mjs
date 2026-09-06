@@ -20,6 +20,10 @@ const ALL_USERS = ['altanmelihhh@gmail.com', 'emineay12@gmail.com'];
 // Elle tetiklenen test gönderiminde tek adrese sınırlamak için (workflow_dispatch input).
 const ONLY_EMAIL = (process.env.REPORT_ONLY_EMAIL || '').trim().toLowerCase();
 const USERS = ONLY_EMAIL ? ALL_USERS.filter((email) => email.toLowerCase() === ONLY_EMAIL) : ALL_USERS;
+// Elle tetiklemede haftalık gönderim kilidini yok say.
+const FORCE_SEND = String(process.env.FORCE_SEND || '').toLowerCase() === 'true';
+// Mail atmadan sadece bu haftayı "gönderildi" işaretle (yedek cron tekrar atmasın).
+const MARK_SENT_ONLY = String(process.env.MARK_SENT_ONLY || '').toLowerCase() === 'true';
 const GMAIL_USER = process.env.GMAIL_USER;
 const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD;
 const REPORT_FROM = `30 Gün Fit <${GMAIL_USER}>`;
@@ -55,6 +59,17 @@ if (!PREVIEW) {
 }
 
 // ---- yardımcılar ----
+// Rapor haftasının anahtari: Europe/Istanbul saatine göre en son Pazar (YYYY-MM-DD).
+// Yedek cron geciktiginde bile ayni haftaya ayni anahtar duser.
+const reportWeekKey = () => {
+  const istanbulToday = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Istanbul' }).format(new Date());
+  const d = new Date(`${istanbulToday}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - d.getUTCDay());
+  return d.toISOString().slice(0, 10);
+};
+
+const sentLogRef = (weekKey, email) => db.collection('weeklyReportLog').doc(`${weekKey}__${email}`);
+
 const lastNDates = (n) => {
   const out = [];
   const today = new Date();
@@ -1134,14 +1149,26 @@ const runPreview = async () => {
     await runPreview();
     process.exit(0);
   }
+  const weekKey = reportWeekKey();
   for (const email of USERS) {
     try {
+      const logRef = sentLogRef(weekKey, email);
+      if (MARK_SENT_ONLY) {
+        await logRef.set({ email, weekKey, sentAt: admin.firestore.FieldValue.serverTimestamp(), markedOnly: true });
+        console.log(`🔖 ${email}: ${weekKey} haftası gönderildi olarak işaretlendi (mail atılmadı).`);
+        continue;
+      }
+      if (!FORCE_SEND && (await logRef.get()).exists) {
+        console.log(`⏭️  ${email}: ${weekKey} haftası zaten gönderilmiş, atlandı.`);
+        continue;
+      }
       const userRecord = await auth.getUserByEmail(email);
       const name = userRecord.displayName || email.split('@')[0];
       const report = await buildReport(userRecord.uid, email);
       const html = renderHtml(name, report);
       const text = renderText(name, report);
       await sendEmail(email, buildSubject(report), html, text);
+      await logRef.set({ email, weekKey, sentAt: admin.firestore.FieldValue.serverTimestamp() });
       console.log(`✅ Rapor gönderildi: ${email}`);
     } catch (err) {
       console.error(`❌ ${email}: ${err.message}`);
