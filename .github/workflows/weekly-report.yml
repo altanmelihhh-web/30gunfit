@@ -5,15 +5,22 @@ on:
     # GitHub cron'u tam saat başlarında yoğunluktan geciktirir/atlar; bu yüzden :23.
     # Pazar 09:23 UTC = 12:23 Europe/Istanbul (UTC+3, DST yok)
     - cron: '23 9 * * 0'
-    # Yedek çalıştırma: ilk cron atlanırsa aynı gün tekrar dener.
-    # Pazar 13:23 UTC = 16:23 Europe/Istanbul. Aynı hafta zaten gönderildiyse atlanır.
-    - cron: '23 13 * * 0'
+    # Yedek çalıştırmalar: önceki cron atlanırsa tekrar dener.
+    # Aynı hafta zaten gönderildiyse Firestore kilidi sayesinde atlanır.
+    - cron: '23 13 * * 0'   # Pazar 16:23 Europe/Istanbul
+    - cron: '23 19 * * 0'   # Pazar 22:23 Europe/Istanbul
+    - cron: '23 7 * * 1'    # Pazartesi 10:23 Europe/Istanbul (son şans)
   workflow_dispatch:      # Elle test için "Run workflow" butonu
     inputs:
       only_email:
         description: 'Sadece bu adrese gönder (boş bırakılırsa tüm kullanıcılara)'
         required: false
         default: ''
+      force:
+        description: 'Hafta içinde zaten gönderilmiş olsa bile yine gönder (kilidi yok say)'
+        type: boolean
+        required: false
+        default: true
       mark_sent:
         description: 'Mail atma, bu haftayı "gönderildi" olarak işaretle (yedek cron tekrar atmasın)'
         type: boolean
@@ -41,7 +48,7 @@ jobs:
           GMAIL_USER: ${{ secrets.GMAIL_USER }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
           REPORT_ONLY_EMAIL: ${{ inputs.only_email }}
-          # Elle tetiklemede haftalık tekrar-gönderme kilidini yok say.
-          FORCE_SEND: ${{ github.event_name == 'workflow_dispatch' }}
+          # Elle tetiklemede kilidi yok say (force=false ile kilit test edilebilir).
+          FORCE_SEND: ${{ github.event_name == 'workflow_dispatch' && inputs.force }}
           MARK_SENT_ONLY: ${{ inputs.mark_sent }}
         run: node index.mjs
