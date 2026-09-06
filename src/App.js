@@ -26,14 +26,16 @@ const ReportView = lazy(() => import('./components/ReportView'));
 const BodyMeasurements = lazy(() => import('./components/BodyMeasurements'));
 const IOSInstallPrompt = lazy(() => import('./components/IOSInstallPrompt'));
 
+// Haftalık rapor e-postası GitHub Actions cron'u ile Pazar 12:00'de (Europe/Istanbul)
+// gönderilir; uygulama içi bildirim de aynı anı kullanır.
+const WEEKLY_REPORT_DAY = 0;
+const WEEKLY_REPORT_HOUR = 12;
+
 const DEFAULT_REMINDERS = {
   enabled: false,
   times: ['20:00'],
   soundType: 'phoneRing',
-  weeklyReportEnabled: true,
-  weeklyReportDay: 0,
-  weeklyReportHour: 12,
-  weeklyReportMinute: 0
+  weeklyReportEnabled: true
 };
 
 const DEFAULT_PROFILE = {
@@ -345,7 +347,8 @@ function App() {
     return () => clearInterval(intervalId);
   }, [reminderSettings, notificationsSupported]);
 
-  // Pazar 12:00 haftalık rapor hatırlatması (en iyi çaba - uygulama açıkken/açılışında)
+  // Pazar 12:00 haftalık rapor hatırlatması (en iyi çaba - uygulama açıkken/açılışında).
+  // Saat e-posta cron'u ile aynı tutulur; kullanıcıya seçtirilmez, çünkü mail sabit saatte gider.
   useEffect(() => {
     if (!user || !notificationsSupported) return undefined;
     if (reminderSettings.weeklyReportEnabled === false) return undefined;
@@ -353,11 +356,8 @@ function App() {
     const check = () => {
       if (Notification.permission !== 'granted') return;
       const now = new Date();
-      const targetDay = reminderSettings.weeklyReportDay ?? 0;
-      const targetHour = reminderSettings.weeklyReportHour ?? 12;
-      const targetMinute = reminderSettings.weeklyReportMinute ?? 0;
-      if (now.getDay() !== targetDay) return;
-      if (now.getHours() < targetHour || (now.getHours() === targetHour && now.getMinutes() < targetMinute)) return;
+      if (now.getDay() !== WEEKLY_REPORT_DAY) return;
+      if (now.getHours() < WEEKLY_REPORT_HOUR) return;
       // O haftaya ait Pazar tarihini anahtar yap
       const key = `weeklyReport-${user.uid}-${now.toISOString().split('T')[0]}`;
       if (localStorage.getItem(key)) return;
