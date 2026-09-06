@@ -1163,6 +1163,12 @@ const runPreview = async () => {
         continue;
       }
       const userRecord = await auth.getUserByEmail(email);
+      // Ayarlar > Rapor Ayarları'ndaki "Haftalık rapor" anahtarı kapalıysa mail atma.
+      const userSettings = await getDoc(`userSettings/${userRecord.uid}`);
+      if (userSettings?.reminderSettings?.weeklyReportEnabled === false) {
+        console.log(`🔕 ${email}: haftalık rapor kapatılmış, atlandı.`);
+        continue;
+      }
       const name = userRecord.displayName || email.split('@')[0];
       const report = await buildReport(userRecord.uid, email);
       const html = renderHtml(name, report);
